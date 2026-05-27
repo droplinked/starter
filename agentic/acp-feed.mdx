@@ -1,0 +1,61 @@
+---
+title: Product Feed (ACP)
+description: "The Stripe Agentic Commerce Protocol feed — how a merchant's published inventory becomes shoppable inside AI surfaces."
+---
+
+Droplinked publishes every merchant's public catalog as a **Stripe Agentic Commerce Protocol
+(ACP) product feed**. This is the surface that agentic shopping experiences (e.g. ChatGPT)
+ingest — so a merchant's existing inventory is discoverable and purchasable by agents without
+the merchant building anything new.
+
+## The feed
+
+```
+GET https://apiv3.droplinked.com/feed/acp.json
+```
+
+It's live today and serves the full public catalog (thousands of items), cursor-paginated.
+
+```json
+{
+  "items": [
+    {
+      "id": "…",
+      "item_group_id": "…",
+      "title": "…",
+      "description": "…",
+      "link": "https://…",
+      "image_link": "https://…",
+      "availability": "in_stock",
+      "price": "300.00 USD",
+      "condition": "new",
+      "brand": "…"
+    }
+  ],
+  "next_cursor": "…",
+  "generated_at": "…"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` / `item_group_id` | Product (variant) and parent grouping ids |
+| `title` / `description` | Display copy |
+| `link` / `image_link` | Storefront product URL and primary image |
+| `availability` / `condition` | Stock + condition (`in_stock`, `new`, …) |
+| `price` | Amount + currency |
+| `brand` | Merchant/brand |
+
+Paginate by following `next_cursor` until it's absent. `generated_at` reflects the snapshot time.
+
+## How it's used
+
+- **Agents & shopping surfaces** ingest the feed to make Droplinked inventory searchable and
+  buyable in-context.
+- The [MCP server](/agentic/mcp-server)'s `get_feed` tool returns this URL so an agent can pull
+  the catalog directly.
+- Purchases route through the Stripe ACP / x402 layer with the 70/20/10 revenue split.
+
+<Card title="Next: connect your store" icon="plug" href="/agentic/connect-your-store">
+Make your existing inventory agent-shoppable.
+</Card>

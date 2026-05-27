@@ -47,9 +47,12 @@
         "tab": "Agentic Commerce",
         "groups": [
           {
-            "group": "Overview",
+            "group": "Build with agents",
             "pages": [
-              "agentic/overview"
+              "agentic/overview",
+              "agentic/mcp-server",
+              "agentic/acp-feed",
+              "agentic/connect-your-store"
             ]
           }
         ]
