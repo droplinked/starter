@@ -1,0 +1,87 @@
+---
+title: MCP Server
+description: "Expose the Droplinked catalog to AI agents via the Model Context Protocol — install in Claude, Cursor, and any MCP client."
+---
+
+The **`droplinked-mcp`** server gives any MCP-capable agent (Claude Desktop, Claude Code,
+Cursor, Continue, the Vercel AI SDK, …) first-class tools to discover Droplinked products,
+start a purchase, and earn affiliate commission — all against the public catalog API, no
+merchant credentials required.
+
+## Tools
+
+| Tool | Purpose |
+|---|---|
+| `search_products` | Free-text search across the public Droplinked catalog |
+| `get_product` | Fetch a single product by id |
+| `list_shop_products` | Paginate a shop's catalog by slug |
+| `start_checkout` | Begin a purchase _(closing the loop via Stripe ACP — see status)_ |
+| `get_feed` | Return the [Stripe ACP product-feed](/agentic/acp-feed) URL |
+
+All tools validate input with `zod` and call `DROPLINKED_API_BASE` (default
+`https://apiv3.droplinked.com`).
+
+## Install
+
+<Tabs>
+  <Tab title="Claude Code">
+    ```bash
+    claude mcp add droplinked \
+      --command "node" \
+      --args "/absolute/path/to/droplinked-mcp/dist/index.js" \
+      --env DROPLINKED_API_BASE=https://apiv3.droplinked.com
+    ```
+  </Tab>
+  <Tab title="Claude Desktop">
+    Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+    ```json
+    {
+      "mcpServers": {
+        "droplinked": {
+          "command": "node",
+          "args": ["/absolute/path/to/droplinked-mcp/dist/index.js"],
+          "env": { "DROPLINKED_API_BASE": "https://apiv3.droplinked.com" }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Build from source">
+    ```bash
+    git clone https://github.com/droplinked/droplinked-mcp && cd droplinked-mcp
+    npm install && npm run build
+    npm start            # stdio transport
+    npm run start:http   # HTTP transport on :8787 (/mcp)
+    ```
+  </Tab>
+</Tabs>
+
+## Environment
+
+| Variable | Default |
+|---|---|
+| `DROPLINKED_API_BASE` | `https://apiv3.droplinked.com` |
+| `DROPLINKED_PUBLIC_BASE` | `https://droplinked.com` |
+| `ACP_FEED_PATH` | `/feed/acp.json` |
+| `MCP_HTTP_PORT` | `8787` |
+
+## How it fits together
+
+```
+   AI agent (Claude / GPT / Cursor)
+              │  MCP tool call (search_products / get_product / start_checkout)
+              ▼
+   droplinked-mcp  ◀── stdio or HTTP :8787/mcp
+              │  authenticated catalog query
+              ▼
+   Droplinked catalog API (apiv3)
+              │  product results + checkout URLs
+              ▼
+   Stripe ACP / x402 micropayment middleware
+              ▼
+   70% merchant · 20% droplinked · 10% AI-agent affiliate
+```
+
+<Note>**Status:** `start_checkout` is currently stubbed; the full purchase loop lands as the
+Stripe ACP enrollment completes. `search_products`, `get_product`, `list_shop_products`, and
+`get_feed` are live against the public catalog today.</Note>

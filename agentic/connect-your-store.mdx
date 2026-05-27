@@ -1,0 +1,54 @@
+---
+title: Connect your store
+description: "Make a merchant's existing inventory agent-shoppable — meet customers where the agents already are."
+---
+
+Droplinked's thesis: **meet merchants where they already publish their inventory** and project
+it into agentic surfaces. If you already sell on Droplinked — or connect an existing store —
+your catalog becomes discoverable and purchasable by AI agents automatically. No re-platforming.
+
+## What you get
+
+<CardGroup cols={3}>
+  <Card title="An ACP feed" icon="rss">
+    Your products are published to the [Stripe ACP feed](/agentic/acp-feed) so agentic shopping
+    surfaces can ingest them.
+  </Card>
+  <Card title="MCP tools" icon="plug">
+    Your catalog is queryable through the [MCP server](/agentic/mcp-server) by any agent.
+  </Card>
+  <Card title="Affiliate revenue" icon="coins">
+    Conversions settle through x402 + the 70/20/10 split, so the publishers and agents that
+    surface you are incentivized to.
+  </Card>
+</CardGroup>
+
+## Steps
+
+<Steps>
+  <Step title="Publish your catalog">
+    List products on your Droplinked shop (physical, digital, or POD). The public catalog is
+    immediately available via `product-v2/public/shop/{shopName}` and flows into the ACP feed.
+  </Step>
+  <Step title="Verify the feed">
+    Confirm your items appear in the feed:
+    ```bash
+    curl "https://apiv3.droplinked.com/feed/acp.json" | jq '.items[] | select(.brand=="<your brand>")'
+    ```
+  </Step>
+  <Step title="Expose via MCP">
+    Point an agent at the [MCP server](/agentic/mcp-server) and confirm `search_products` /
+    `list_shop_products` return your catalog.
+  </Step>
+  <Step title="Close the purchase loop">
+    Agent purchases route through Stripe ACP / x402. (`start_checkout` is finalizing as the
+    Stripe ACP enrollment completes — see the MCP status note.)
+  </Step>
+</Steps>
+
+## Already hosting elsewhere?
+
+Connecting an existing store surfaces the same catalog through Droplinked's commerce APIs and
+the agentic layer — the goal is additive distribution, not migration. See the
+[platform model](/concepts/platform-model) and [API reference](/api-reference/introduction)
+for the import/connect surface.
