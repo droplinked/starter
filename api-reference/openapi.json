@@ -1,197 +1,6 @@
 {
 "openapi": "3.0.0",
 "paths": {
-"/user-features/demo-request": {
-"post": {
-"description": "Submit a new demo request with user information and message",
-"operationId": "UserFeaturesController_createDemoRequest",
-"parameters": [],
-"requestBody": {
-"required": true,
-"description": "Demo request data including user details and message",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/DemoRequestDto"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": "Demo request created successfully",
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"message": {
-"type": "string",
-"example": "Demo request created successfully"
-},
-"timestamp": {
-"type": "string",
-"example": "2024-01-15T10:30:00.000Z"
-},
-"requestId": {
-"type": "string",
-"example": "abc123def"
-},
-"data": {
-"type": "object",
-"properties": {
-"name": {
-"type": "string",
-"example": "John Doe"
-},
-"email": {
-"type": "string",
-"example": "john@example.com"
-},
-"phone": {
-"type": "string",
-"example": "+1234567890",
-"nullable": true
-},
-"message": {
-"type": "string",
-"example": "I would like to request a demo of your platform",
-"nullable": true
-},
-"organizationSize": {
-"type": "string",
-"example": "50-200 employees",
-"nullable": true
-}
-}
-}
-}
-}
-}
-}
-}
-},
-"summary": "Create a demo request",
-"tags": [
-"User Features"
-]
-}
-},
-"/user-features/enterprise-feature-request": {
-"post": {
-"description": "Submit a new enterprise feature request (requires authentication)",
-"operationId": "UserFeaturesController_createEnterpriseFeatureRequest",
-"parameters": [],
-"requestBody": {
-"required": true,
-"description": "Enterprise feature request data including feature description",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/EnterpriseFeatureRequestDto"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": "Enterprise feature request created successfully",
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"message": {
-"type": "string",
-"example": "Enterprise feature request submitted successfully"
-},
-"timestamp": {
-"type": "string",
-"example": "2024-01-15T10:30:00.000Z"
-},
-"requestId": {
-"type": "string",
-"example": "abc123def"
-},
-"data": {
-"type": "object",
-"properties": {
-"primaryGoal": {
-"type": "string",
-"example": "Increase customer retention and improve user experience"
-},
-"organizationSize": {
-"type": "string",
-"example": "50-200 employees"
-},
-"featureDescription": {
-"type": "string",
-"example": "We need an advanced analytics dashboard for enterprise customers"
-}
-}
-}
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Create an enterprise feature request",
-"tags": [
-"User Features"
-]
-}
-},
-"/user-features/cr3dentials-application": {
-"post": {
-"operationId": "UserFeaturesController_createCr3dentialsApplication",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/Cr3dentialsApplicationDto"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": "Application submitted successfully"
-}
-},
-"summary": "Submit a CR3DENTIALS financing application",
-"tags": [
-"User Features"
-]
-}
-},
-"/user-features/cr3dentials-applications": {
-"get": {
-"operationId": "UserFeaturesController_getCr3dentialsApplications",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "List all CR3DENTIALS applications (SUPER_ADMIN only)",
-"tags": [
-"User Features"
-]
-}
-},
 "/auth/revoke/{userId}": {
 "post": {
 "description": "Increments the user.tokenVersion. Every JWT issued with the prior version is rejected on the next request.",
@@ -314,7 +123,7 @@
 }
 ],
 "tags": [
-"payments"
+"Payments"
 ]
 }
 },
@@ -343,7 +152,7 @@
 }
 ],
 "tags": [
-"payments"
+"Payments"
 ]
 }
 },
@@ -374,7 +183,7 @@
 ],
 "summary": "Fetch EasyPost shipping rates for a cart",
 "tags": [
-"EasyPost Rates"
+"Shipping"
 ]
 }
 },
@@ -404,7 +213,7 @@
 ],
 "summary": "Purchase an EasyPost label for a previously-quoted rate",
 "tags": [
-"EasyPost Rates"
+"Shipping"
 ]
 }
 },
@@ -428,7 +237,7 @@
 }
 },
 "tags": [
-"Webhook"
+"Webhooks"
 ]
 }
 },
@@ -452,7 +261,7 @@
 }
 },
 "tags": [
-"Webhook"
+"Webhooks"
 ]
 }
 },
@@ -497,7 +306,7 @@
 ],
 "summary": "List of requests for given product ID .",
 "tags": [
-"affiliate"
+"Affiliate"
 ]
 }
 },
@@ -517,7 +326,7 @@
 ],
 "summary": "Get information of given request ID .",
 "tags": [
-"affiliate"
+"Affiliate"
 ]
 }
 },
@@ -537,7 +346,7 @@
 ],
 "summary": "Get list of requests sent to producer .",
 "tags": [
-"affiliate"
+"Affiliate"
 ]
 }
 },
@@ -557,7 +366,7 @@
 ],
 "summary": "Get list of requests that a publisher has sent .",
 "tags": [
-"affiliate"
+"Affiliate"
 ]
 }
 },
@@ -596,7 +405,7 @@
 ],
 "summary": "Send affiliate request for SKU of a product .",
 "tags": [
-"affiliate"
+"Affiliate"
 ]
 }
 },
@@ -635,7 +444,7 @@
 ],
 "summary": "Accept or reject affiliate request .",
 "tags": [
-"affiliate"
+"Affiliate"
 ]
 }
 },
@@ -665,785 +474,7 @@
 ],
 "summary": "Cancel affiliate request .",
 "tags": [
-"affiliate"
-]
-}
-},
-"/http-req/img": {
-"get": {
-"operationId": "HttpReqController_getImageR",
-"parameters": [
-{
-"name": "url",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"http-req"
-]
-}
-},
-"/http-req": {
-"get": {
-"operationId": "HttpReqController_getRequestURL_get",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"http-req"
-]
-},
-"post": {
-"operationId": "HttpReqController_getRequestURL_post",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"http-req"
-]
-},
-"put": {
-"operationId": "HttpReqController_getRequestURL_put",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"http-req"
-]
-},
-"delete": {
-"operationId": "HttpReqController_getRequestURL_delete",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"http-req"
-]
-},
-"patch": {
-"operationId": "HttpReqController_getRequestURL_patch",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"http-req"
-]
-},
-"options": {
-"operationId": "HttpReqController_getRequestURL_options",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"http-req"
-]
-},
-"head": {
-"operationId": "HttpReqController_getRequestURL_head",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"http-req"
-]
-},
-"search": {
-"operationId": "HttpReqController_getRequestURL_search",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"http-req"
-]
-}
-},
-"/storage/{key}": {
-"get": {
-"operationId": "StorageController_getPairFromStorage",
-"parameters": [
-{
-"name": "key",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get corresponding value of a key .",
-"tags": [
-"storage"
-]
-},
-"delete": {
-"operationId": "StorageController_removePairFromStorage",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Remove key/value pair from data storage .",
-"tags": [
-"storage"
-]
-}
-},
-"/storage": {
-"post": {
-"operationId": "StorageController_addPairToStorage",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/AddPairDTO"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Add key/value pair to data storage .",
-"tags": [
-"storage"
-]
-}
-},
-"/pod/providers": {
-"get": {
-"operationId": "PODController_getProviders",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get list of providers",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/printful/categories": {
-"get": {
-"operationId": "PODController_getCategories",
-"parameters": [
-{
-"name": "mainCategoryId",
-"required": false,
-"in": "query",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get list of categories",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/printful/sort-options": {
-"get": {
-"operationId": "PODController_getSortOptions",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get available sort options for filtering products",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/printful/filter-categories-products": {
-"get": {
-"operationId": "PODController_filterCategoryProducts",
-"parameters": [
-{
-"name": "categoryIds",
-"required": false,
-"in": "query",
-"description": "One or more category IDs to return only products in those categories. Can be a single ID or comma-separated IDs.",
-"schema": {
-"example": "4,7",
-"type": "string"
-}
-},
-{
-"name": "sort",
-"required": false,
-"in": "query",
-"description": "Simplified sort option. Use this for easier sorting. Options: most_popular (rating desc), lowest_price (price asc), highest_price (price desc), newest (new desc), best_seller (bestseller desc)",
-"schema": {
-"example": "most_popular",
-"type": "string",
-"enum": [
-"most_popular",
-"lowest_price",
-"highest_price",
-"newest",
-"best_seller"
-]
-}
-},
-{
-"name": "sortType",
-"required": false,
-"in": "query",
-"description": "Sort type for products (advanced option, use \"sort\" instead)",
-"schema": {
-"type": "string",
-"enum": [
-"new",
-"rating",
-"price",
-"bestseller"
-]
-}
-},
-{
-"name": "sortOrder",
-"required": false,
-"in": "query",
-"description": "Sort direction for products (advanced option, use \"sort\" instead)",
-"schema": {
-"type": "string",
-"enum": [
-"ascending",
-"descending"
-]
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of products to return",
-"schema": {
-"example": 20,
-"type": "number"
-}
-},
-{
-"name": "offset",
-"required": false,
-"in": "query",
-"description": "Number of products to skip",
-"schema": {
-"example": 0,
-"type": "number"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Filter products by categories with sorting and pagination",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/printful/products": {
-"get": {
-"operationId": "PODController_getProducts",
-"parameters": [
-{
-"name": "subCategoryId",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get list of products",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/provider/{provider}/products": {
-"get": {
-"operationId": "PODController_getProviderProducts",
-"parameters": [
-{
-"name": "provider",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get list of products for a provider",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/product/{id}": {
-"get": {
-"operationId": "PODController_getProduct",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get POD Blank Product",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/printful/product/{productId}": {
-"get": {
-"operationId": "PODController_getPrintfulProductDetails",
-"parameters": [
-{
-"name": "productId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get list of products color and sizes",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/print-positions/{provider}/{productId}": {
-"get": {
-"operationId": "PODController_getPrintPositions",
-"parameters": [
-{
-"name": "provider",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "productId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "templateId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get print positions",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/variant-options/{provider}/{productId}": {
-"get": {
-"operationId": "PODController_getVariantsOptions",
-"parameters": [
-{
-"name": "provider",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "productId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "templateId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get available variants",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/available-variants/{provider}/{productId}": {
-"get": {
-"operationId": "PODController_getAvailableVariants[0]",
-"parameters": [
-{
-"name": "provider",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "productId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "templateId",
-"required": false,
-"in": "path",
-"description": "template Id",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get available variants",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/available-variants/{provider}/{productId}/{templateId}": {
-"get": {
-"operationId": "PODController_getAvailableVariants[1]",
-"parameters": [
-{
-"name": "provider",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "productId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "templateId",
-"required": false,
-"in": "path",
-"description": "template Id",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get available variants",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/generate-mockup/{productId}": {
-"post": {
-"operationId": "PODController_generateMockup",
-"parameters": [
-{
-"name": "productId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "order",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/GenerateMockupBody"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": ""
-}
-},
-"summary": "Generate Mockup",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/printful/nonces": {
-"post": {
-"operationId": "PODController_getNonce",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/GetPrintfulNonceDTO"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": ""
-}
-},
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/generate/overlay": {
-"post": {
-"description": "generate overlay",
-"operationId": "PODController_generateOverlay",
-"parameters": [
-{
-"name": "bgremove",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/GenerateOverlayDTO"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": ""
-}
-},
-"summary": "",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/generate/text/overlay": {
-"post": {
-"description": "generate text overlay",
-"operationId": "PODController_generateTextOverlay",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/GenerateOverlayDTO"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": ""
-}
-},
-"summary": "",
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/remove/background": {
-"post": {
-"operationId": "PODController_removeBg",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"imageUrl": "ImageUrl"
-}
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": ""
-}
-},
-"tags": [
-"POD Raw Products"
-]
-}
-},
-"/pod/printful/techniques/product/{id}": {
-"get": {
-"operationId": "PODController_getProductTechniques",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Get product techniques",
-"tags": [
-"POD Raw Products"
+"Affiliate"
 ]
 }
 },
@@ -1467,7 +498,7 @@
 },
 "summary": "Returns list of countries",
 "tags": [
-"locations"
+"Locations"
 ]
 }
 },
@@ -1491,7 +522,7 @@
 },
 "summary": "Returns list of states",
 "tags": [
-"locations"
+"Locations"
 ]
 }
 },
@@ -1515,7 +546,7 @@
 },
 "summary": "Returns list of cities",
 "tags": [
-"locations"
+"Locations"
 ]
 }
 },
@@ -1545,7 +576,7 @@
 ],
 "summary": "create gift card",
 "tags": [
-"giftCard"
+"Gift Cards"
 ]
 }
 },
@@ -1576,7 +607,7 @@
 ],
 "summary": "Apply Gift Card to Cart (Authenticated User)",
 "tags": [
-"giftCard"
+"Gift Cards"
 ]
 }
 },
@@ -1612,7 +643,7 @@
 },
 "summary": "Apply Gift Card to Cart (Anonymous)",
 "tags": [
-"giftCard"
+"Gift Cards"
 ]
 }
 },
@@ -1632,7 +663,7 @@
 ],
 "summary": "Remove Gift Card from Cart (Authenticated User)",
 "tags": [
-"giftCard"
+"Gift Cards"
 ]
 }
 },
@@ -1658,7 +689,7 @@
 },
 "summary": "Remove Gift Card from Cart (Anonymous)",
 "tags": [
-"giftCard"
+"Gift Cards"
 ]
 }
 },
@@ -1709,7 +740,7 @@
 ],
 "summary": "get all giftCard",
 "tags": [
-"giftCard"
+"Gift Cards"
 ]
 }
 },
@@ -1748,7 +779,7 @@
 ],
 "summary": "Update Gift Card Expire Date",
 "tags": [
-"giftCard"
+"Gift Cards"
 ]
 }
 },
@@ -1777,7 +808,7 @@
 ],
 "summary": "Get an Excel file of gift cards",
 "tags": [
-"giftCard"
+"Gift Cards"
 ]
 }
 },
@@ -1795,7 +826,7 @@
 },
 "summary": "Probe Stripe API reachability (no auth)",
 "tags": [
-"stripe"
+"Payments"
 ]
 }
 },
@@ -1815,7 +846,7 @@
 ],
 "summary": "create an onboarding link for a user with a Stripe Express account",
 "tags": [
-"stripe"
+"Payments"
 ]
 }
 },
@@ -1860,7 +891,7 @@
 ],
 "summary": "List Stripe ACP sessions (admin)",
 "tags": [
-"stripe"
+"Payments"
 ]
 }
 },
@@ -1900,7 +931,7 @@
 ],
 "summary": "Provision Express connected account for the current shop",
 "tags": [
-"stripe-connect"
+"Payments"
 ]
 }
 },
@@ -1930,7 +961,7 @@
 ],
 "summary": "Generate a fresh Express onboarding link",
 "tags": [
-"stripe-connect"
+"Payments"
 ]
 }
 },
@@ -1969,103 +1000,7 @@
 ],
 "summary": "Return charges/payouts enablement + outstanding requirements (cache-first; pass ?refresh=true to force a live pull when stale)",
 "tags": [
-"stripe-connect"
-]
-}
-},
-"/admin/business-health/leaderboard": {
-"get": {
-"operationId": "BusinessHealthController_leaderboard",
-"parameters": [
-{
-"name": "tier",
-"required": false,
-"in": "query",
-"schema": {
-"enum": [
-"A",
-"B",
-"C",
-"D",
-"F"
-],
-"type": "string"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"schema": {
-"type": "number"
-}
-},
-{
-"name": "page",
-"required": false,
-"in": "query",
-"schema": {
-"type": "number"
-}
-}
-],
-"responses": {
-"200": {
-"description": "",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/BusinessHealthLeaderboardDto"
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-business-health"
-]
-}
-},
-"/admin/business-health/{shopId}": {
-"get": {
-"operationId": "BusinessHealthController_one",
-"parameters": [
-{
-"name": "shopId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/BusinessHealthScoreDto"
-}
-}
-}
-},
-"404": {
-"description": "Shop not found"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-business-health"
+"Payments"
 ]
 }
 },
@@ -2085,8 +1020,7 @@
 ],
 "summary": "Create PayPal onboarding link for a merchant",
 "tags": [
-"Paypal",
-"paypal"
+"Payments"
 ]
 }
 },
@@ -2157,8 +1091,7 @@
 ],
 "summary": "PayPal onboarding return",
 "tags": [
-"Paypal",
-"paypal"
+"Payments"
 ]
 }
 },
@@ -2190,8 +1123,7 @@
 ],
 "summary": "Verify PayPal merchant integration",
 "tags": [
-"Paypal",
-"paypal"
+"Payments"
 ]
 }
 },
@@ -2216,7 +1148,7 @@
 },
 "summary": "Build PayPal partner-OAuth authorization URL",
 "tags": [
-"paypal-connect"
+"Payments"
 ]
 }
 },
@@ -2269,7 +1201,7 @@
 },
 "summary": "Handle PayPal partner-OAuth callback",
 "tags": [
-"paypal-connect"
+"Payments"
 ]
 }
 },
@@ -2294,7 +1226,7 @@
 },
 "summary": "Build PayMob partner-OAuth authorization URL",
 "tags": [
-"paymob-connect"
+"Payments"
 ]
 }
 },
@@ -2347,7 +1279,7 @@
 },
 "summary": "Handle PayMob partner-OAuth callback",
 "tags": [
-"paymob-connect"
+"Payments"
 ]
 }
 },
@@ -2390,7 +1322,7 @@
 ],
 "summary": "Create new Chain",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 },
 "get": {
@@ -2506,7 +1438,7 @@
 ],
 "summary": "Get all Chains",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 }
 },
@@ -2559,7 +1491,7 @@
 ],
 "summary": "Update existing Chain",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 },
 "delete": {
@@ -2593,7 +1525,7 @@
 ],
 "summary": "Delete existing Chain",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 },
 "get": {
@@ -2634,7 +1566,7 @@
 ],
 "summary": "Get one existing Chain",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 }
 },
@@ -2660,7 +1592,7 @@
 ],
 "summary": "Get Chains based on uasge",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 }
 },
@@ -2703,7 +1635,7 @@
 ],
 "summary": "Create new Token",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 },
 "get": {
@@ -2820,7 +1752,7 @@
 ],
 "summary": "Get all Tokens",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 }
 },
@@ -2873,7 +1805,7 @@
 ],
 "summary": "Update existing Token",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 },
 "delete": {
@@ -2907,7 +1839,7 @@
 ],
 "summary": "Delete existing Token",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 },
 "get": {
@@ -2948,7 +1880,7 @@
 ],
 "summary": "Get one existing Token",
 "tags": [
-"Blockchain"
+"Web3"
 ]
 }
 },
@@ -3001,113 +1933,7 @@
 ],
 "summary": "Update Token Active Status",
 "tags": [
-"Blockchain"
-]
-}
-},
-"/rbac/invitations": {
-"post": {
-"operationId": "RbacController_sendInvitation",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/inviteUserDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "a message consists of invitation email sended"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "send Invitation email",
-"tags": [
-"rbac"
-]
-},
-"get": {
-"operationId": "RbacController_getInvitationInfo",
-"parameters": [],
-"responses": {
-"200": {
-"description": "a message consists of user successfully accepted or rejected invitation"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "get Invitations info",
-"tags": [
-"rbac"
-]
-}
-},
-"/rbac/invitations/{invitationId}/accept": {
-"post": {
-"operationId": "RbacController_acceptInvitation",
-"parameters": [
-{
-"name": "invitationId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/PasswordDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "a message consists of user successfully accept"
-}
-},
-"summary": "user accept invitation",
-"tags": [
-"rbac"
-]
-}
-},
-"/rbac/invitations/{invitationId}/info": {
-"post": {
-"operationId": "RbacController_getInvitationIdInfo",
-"parameters": [
-{
-"name": "invitationId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "sanitized invitation status (no PII) \u2014 only shopName + expiresAt"
-}
-},
-"summary": "user can see invitation info",
-"tags": [
-"rbac"
+"Web3"
 ]
 }
 },
@@ -3162,7 +1988,7 @@
 ],
 "summary": "Get all subscription plans",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3209,7 +2035,7 @@
 ],
 "summary": "Purchase or upgrade subscription",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3240,7 +2066,7 @@
 ],
 "summary": "Create V2 embedded Stripe intent for shop-builder PaymentModal",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3293,7 +2119,7 @@
 ],
 "summary": "Get current subscription",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3351,7 +2177,7 @@
 ],
 "summary": "Get shop subscription history (paginated)",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3426,7 +2252,7 @@
 ],
 "summary": "Get billing history",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3538,7 +2364,7 @@
 ],
 "summary": "Get invoice metadata for billing log",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3607,7 +2433,7 @@
 ],
 "summary": "Cancel subscription",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3663,7 +2489,7 @@
 },
 "summary": "Handle Stripe webhook events (V2)",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3708,7 +2534,7 @@
 ],
 "summary": "Create charge shop credit transaction",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3745,7 +2571,7 @@
 ],
 "summary": "Create charge shop credit transaction",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3800,7 +2626,7 @@
 ],
 "summary": "Send Transaction to Web3 Service",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3823,7 +2649,7 @@
 },
 "summary": "Get available payment chains and tokens",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3843,7 +2669,7 @@
 ],
 "summary": "get shop subscription data",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3960,7 +2786,7 @@
 },
 "summary": "Get all subscription plans with their features and pricing",
 "tags": [
-"subscription"
+"Subscriptions"
 ]
 }
 },
@@ -3979,3872 +2805,7 @@
 }
 ],
 "tags": [
-"subscription"
-]
-}
-},
-"/admin/dashboard/registered-users": {
-"get": {
-"description": "Retrieve count of registered users within a date range. Granularity is auto-detected based on date range. Results are grouped by period (month/day based on granularity).",
-"operationId": "AdminController_getRegisteredUsersMetrics",
-"parameters": [
-{
-"name": "startDate",
-"required": true,
-"in": "query",
-"description": "Start date in YYYY-MM-DD format (e.g., 2025-01-01)",
-"schema": {
-"example": "2025-01-01",
-"type": "string"
-}
-},
-{
-"name": "endDate",
-"required": true,
-"in": "query",
-"description": "End date in YYYY-MM-DD format (e.g., 2025-01-31)",
-"schema": {
-"example": "2025-01-31",
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Successfully retrieved registered users metrics",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/DashboardMetricsResponseDto"
-},
-"example": {
-"dateRange": {
-"startDate": "2025-01-01",
-"endDate": "2025-01-31",
-"granularity": "month"
-},
-"metrics": {
-"total": 450,
-"byPeriod": [
-{
-"label": "1 Jan",
-"value": 15,
-"timestamp": "2025-01-01T00:00:00Z"
-},
-{
-"label": "2 Jan",
-"value": 12,
-"timestamp": "2025-01-02T00:00:00Z"
-}
-]
-}
-}
-}
-}
-},
-"400": {
-"description": "Invalid date format or date range",
-"content": {
-"application/json": {
-"example": {
-"statusCode": 400,
-"message": "startDate must be before endDate"
-}
-}
-}
-},
-"500": {
-"description": "Internal server error"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get registered users metrics",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/dashboard/verified-shops": {
-"get": {
-"description": "Retrieve count of verified shops (with non-PENDING merchant status) within a date range. Granularity is auto-detected based on date range. Results are grouped by period (month/day based on granularity).",
-"operationId": "AdminController_getVerifiedShopsMetrics",
-"parameters": [
-{
-"name": "startDate",
-"required": true,
-"in": "query",
-"description": "Start date in YYYY-MM-DD format",
-"schema": {
-"example": "2025-01-01",
-"type": "string"
-}
-},
-{
-"name": "endDate",
-"required": true,
-"in": "query",
-"description": "End date in YYYY-MM-DD format",
-"schema": {
-"example": "2025-01-31",
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Successfully retrieved verified shops metrics",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/DashboardMetricsResponseDto"
-},
-"example": {
-"dateRange": {
-"startDate": "2025-01-01",
-"endDate": "2025-01-31",
-"granularity": "month"
-},
-"metrics": {
-"total": 28,
-"byPeriod": [
-{
-"label": "Jan 2025",
-"value": 12,
-"timestamp": "2025-01-01T00:00:00Z"
-},
-{
-"label": "Feb 2025",
-"value": 16,
-"timestamp": "2025-02-01T00:00:00Z"
-}
-]
-}
-}
-}
-}
-},
-"400": {
-"description": "Invalid date format or date range"
-},
-"500": {
-"description": "Internal server error"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get verified shops metrics",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/dashboard/created-products": {
-"get": {
-"description": "Retrieve count of published and drafted products within a date range. Excludes archived and deleted products. Granularity is auto-detected based on date range.",
-"operationId": "AdminController_getCreatedProductsMetrics",
-"parameters": [
-{
-"name": "startDate",
-"required": true,
-"in": "query",
-"description": "Start date in YYYY-MM-DD format",
-"schema": {
-"example": "2025-01-01",
-"type": "string"
-}
-},
-{
-"name": "endDate",
-"required": true,
-"in": "query",
-"description": "End date in YYYY-MM-DD format",
-"schema": {
-"example": "2025-01-31",
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Successfully retrieved created products metrics",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/DashboardMetricsResponseDto"
-},
-"example": {
-"dateRange": {
-"startDate": "2025-01-01",
-"endDate": "2025-01-31",
-"granularity": "day"
-},
-"metrics": {
-"total": 156,
-"byPeriod": [
-{
-"label": "1 Jan",
-"value": 8,
-"timestamp": "2025-01-01T00:00:00Z"
-},
-{
-"label": "2 Jan",
-"value": 12,
-"timestamp": "2025-01-02T00:00:00Z"
-},
-{
-"label": "3 Jan",
-"value": 15,
-"timestamp": "2025-01-03T00:00:00Z"
-}
-]
-}
-}
-}
-}
-},
-"400": {
-"description": "Invalid date format or date range"
-},
-"500": {
-"description": "Internal server error"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get created products metrics",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/dashboard/confirmed-orders": {
-"get": {
-"description": "Retrieve count of orders with CONFIRMED status within a date range. Granularity is auto-detected based on date range. Results are grouped by period (month/day based on granularity).",
-"operationId": "AdminController_getConfirmedOrdersMetrics",
-"parameters": [
-{
-"name": "startDate",
-"required": true,
-"in": "query",
-"description": "Start date in YYYY-MM-DD format",
-"schema": {
-"example": "2025-01-01",
-"type": "string"
-}
-},
-{
-"name": "endDate",
-"required": true,
-"in": "query",
-"description": "End date in YYYY-MM-DD format",
-"schema": {
-"example": "2025-01-31",
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Successfully retrieved confirmed orders metrics",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/DashboardMetricsResponseDto"
-},
-"example": {
-"dateRange": {
-"startDate": "2025-01-01",
-"endDate": "2025-01-31",
-"granularity": "week"
-},
-"metrics": {
-"total": 542,
-"byPeriod": [
-{
-"label": "Week 1",
-"value": 125,
-"timestamp": "2025-01-01T00:00:00Z"
-},
-{
-"label": "Week 2",
-"value": 143,
-"timestamp": "2025-01-08T00:00:00Z"
-},
-{
-"label": "Week 3",
-"value": 156,
-"timestamp": "2025-01-15T00:00:00Z"
-},
-{
-"label": "Week 4",
-"value": 118,
-"timestamp": "2025-01-22T00:00:00Z"
-}
-]
-}
-}
-}
-}
-},
-"400": {
-"description": "Invalid date format or date range"
-},
-"500": {
-"description": "Internal server error"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get confirmed orders metrics",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/merchants/list": {
-"get": {
-"description": "Returns a paginated list of merchants with search, filtering, and sorting options",
-"operationId": "AdminController_getMerchantsList",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number (default: 1)",
-"schema": {
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page (default: 10)",
-"schema": {
-"example": 10,
-"type": "number"
-}
-},
-{
-"name": "search",
-"required": false,
-"in": "query",
-"description": "Search by merchant email or ID",
-"schema": {
-"example": "test@example.com",
-"type": "string"
-}
-},
-{
-"name": "sort",
-"required": false,
-"in": "query",
-"description": "Sort order (default: createdAt_desc)",
-"schema": {
-"example": "createdAt_desc",
-"type": "string"
-}
-},
-{
-"name": "start",
-"required": false,
-"in": "query",
-"description": "Start date for filtering (YYYY-MM-DD format)",
-"schema": {
-"example": "2024-01-01",
-"type": "string"
-}
-},
-{
-"name": "end",
-"required": false,
-"in": "query",
-"description": "End date for filtering (YYYY-MM-DD format)",
-"schema": {
-"example": "2024-12-31",
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns paginated list of merchants",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"data": [
-{
-"_id": "507f1f77bcf86cd799439011",
-"email": "merchant1@example.com",
-"status": "ACTIVE",
-"createdAt": "2025-01-15T10:30:00.000Z",
-"updatedAt": "2025-02-08T14:30:00.000Z",
-"shops": [
-{
-"_id": "507f1f77bcf86cd799439020",
-"name": "Fashion Store",
-"productsCount": 42
-}
-]
-},
-{
-"_id": "507f1f77bcf86cd799439012",
-"email": "merchant2@example.com",
-"status": "PENDING_VERIFICATION",
-"createdAt": "2025-02-01T08:15:00.000Z",
-"updatedAt": "2025-02-08T12:00:00.000Z",
-"shops": []
-}
-],
-"currentPage": 1,
-"totalPages": 5,
-"hasNextPage": true,
-"hasPreviousPage": false,
-"nextPage": 2,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 47
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get list of all merchants with pagination and filters",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/merchants/{id}": {
-"get": {
-"description": "Returns merchant details including email, status, password hash, and associated shops",
-"operationId": "AdminController_getMerchantDetail",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns merchant detail",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"email": "merchant@example.com",
-"status": "ACTIVE",
-"firstName": "John",
-"lastName": "Doe",
-"phone": "+1-555-0123",
-"createdAt": "2025-01-15T10:30:00.000Z",
-"updatedAt": "2025-02-08T14:30:00.000Z",
-"shops": [
-{
-"_id": "507f1f77bcf86cd799439020",
-"name": "Fashion Store",
-"link": "https://droplinked.io/fashion-store",
-"productsCount": 42,
-"ordersCount": 156,
-"planType": "BUSINESS"
-}
-]
-}
-}
-}
-}
-},
-"404": {
-"description": "Merchant not found",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Merchant not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get detailed information about a merchant",
-"tags": [
-"admin"
-]
-},
-"delete": {
-"description": "Deletes the merchant and the data they exclusively own (sessions, oauth accounts, email verifications, empty shops, auth credentials). Refuses with 409 if any shop has products or any order exists for the merchant. Writes an AuditLog entry with the actor id and reason. Reason is required (min 5 chars).",
-"operationId": "AdminController_hardDeleteMerchant",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"reason": {
-"type": "string",
-"minLength": 5,
-"description": "Free-form reason (persisted to audit log)",
-"example": "PENDING abuse cleanup \u2014 Gmail+alias signup flood"
-}
-},
-"required": [
-"reason"
-]
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Merchant hard-deleted",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"success": true,
-"deletedMerchantId": "507f1f77bcf86cd799439011",
-"deletedShops": 0,
-"deletedSessions": 0,
-"deletedOAuthAccounts": 1,
-"deletedEmailVerifications": 1,
-"deletedAuthCredentials": 0
-}
-}
-}
-}
-},
-"409": {
-"description": "Merchant has content (products or orders)",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 409,
-"error_code": "MERCHANT_HAS_CONTENT",
-"message": "Refusing to hard-delete: merchant has shops with products or orders.",
-"shopCount": 1,
-"productCount": 5,
-"orderCount": 0
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Hard-delete a merchant (PENDING-abuse cleanup)",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/merchants/{id}/reset-password": {
-"post": {
-"description": "Admin can reset a merchant password without email verification",
-"operationId": "AdminController_resetMerchantPassword",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"newPassword": {
-"type": "string",
-"minLength": 8,
-"description": "New password (must contain uppercase, lowercase, number, and special character)",
-"example": "NewPass123!@#"
-},
-"confirmPassword": {
-"type": "string",
-"description": "Password confirmation",
-"example": "NewPass123!@#"
-}
-},
-"required": [
-"newPassword",
-"confirmPassword"
-]
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Password reset successfully",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"success": true,
-"message": "Merchant password has been reset successfully",
-"data": {
-"merchantId": "507f1f77bcf86cd799439011",
-"email": "merchant@example.com",
-"passwordUpdatedAt": "2025-02-08T14:30:00.000Z"
-}
-}
-}
-}
-}
-},
-"400": {
-"description": "Invalid password or merchant not found",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 400,
-"message": "Invalid password format",
-"error": "Bad Request"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Reset merchant password by admin",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/users/{id}": {
-"delete": {
-"description": "Soft-deletes the User row (status=DELETED, email mangled, tokenVersion bumped to force-logout) and rewrites every owned Shop's ownerID to the SYSTEM_USER_ID placeholder (`000000000000000000000000`). Products / orders / carts are untouched. Requires `?keepShop=true` clarifier \u2014 without it the request is rejected (400). Idempotent: a re-call on an already-erased user returns `{ noop: true }`. Reason is required (min 5 chars) and persisted to the audit log.",
-"operationId": "AdminController_eraseUser",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "keepShop",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"reason": {
-"type": "string",
-"minLength": 5,
-"description": "Free-form reason (persisted to audit log)",
-"example": "deprecated dummy account cleanup, shop must stay live"
-}
-},
-"required": [
-"reason"
-]
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "User erased (Shop preserved)",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"success": true,
-"noop": false,
-"userId": "507f1f77bcf86cd799439011",
-"shopsOrphaned": 1,
-"tokenVersion": 3
-}
-}
-}
-}
-},
-"400": {
-"description": "Missing `?keepShop=true` clarifier"
-},
-"404": {
-"description": "User not found"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Erase a User (keep Shop)",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/merchants/{id}/flag": {
-"post": {
-"description": "Sets `flag.isSuspicious=true` on the merchant. Non-revocational \u2014 the merchant can still log in. Idempotent: re-flagging an already-flagged merchant updates the reason and timestamp. Reason is required (min 5 chars).",
-"operationId": "AdminController_flagMerchant",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"reason": {
-"type": "string",
-"minLength": 5
-}
-},
-"required": [
-"reason"
-]
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Merchant flagged"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Flag a merchant as suspicious",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/merchants/{id}/unflag": {
-"post": {
-"operationId": "AdminController_unflagMerchant",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"reason": {
-"type": "string",
-"minLength": 5
-}
-},
-"required": [
-"reason"
-]
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Merchant unflagged"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Clear the suspicion flag from a merchant",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/merchants/{id}/block": {
-"post": {
-"description": "Sets status=BLOCKED and bumps tokenVersion so any outstanding JWT immediately fails. Subsequent login attempts return 403 MERCHANT_BLOCKED. Reason required (min 5 chars).",
-"operationId": "AdminController_blockMerchant",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"reason": {
-"type": "string",
-"minLength": 5
-}
-},
-"required": [
-"reason"
-]
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Merchant blocked"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Block a merchant (denies further login)",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/merchants/{id}/unblock": {
-"post": {
-"description": "Sets status=ACTIVE and clears blockedAt / blockedBy / blockReason. tokenVersion is NOT decremented \u2014 the merchant must re-authenticate.",
-"operationId": "AdminController_unblockMerchant",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"reason": {
-"type": "string",
-"minLength": 5
-}
-},
-"required": [
-"reason"
-]
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Merchant unblocked"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Restore a blocked merchant to ACTIVE",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/merchants/{id}/revoke-sessions": {
-"post": {
-"operationId": "AdminController_revokeMerchantSessions",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/AdminMerchantActionDto"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin"
-]
-}
-},
-"/admin/customers/{id}/revoke-sessions": {
-"post": {
-"operationId": "AdminController_revokeCustomerSessions",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/AdminMerchantActionDto"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin"
-]
-}
-},
-"/admin/shops/list": {
-"get": {
-"description": "Returns a paginated list of all shops with their id, name, url, and logo. Features improved search with prefix matching, flexible sorting options, and date range filtering.",
-"operationId": "AdminController_getAllShopsList",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number (default: 1)",
-"schema": {
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page (default: 10, max: 100)",
-"schema": {
-"example": 10,
-"type": "number"
-}
-},
-{
-"name": "search",
-"required": false,
-"in": "query",
-"description": "Search by shop name (improved search with prefix matching - names starting with search term appear first)",
-"schema": {
-"example": "fashion-store",
-"type": "string"
-}
-},
-{
-"name": "sort",
-"required": false,
-"in": "query",
-"description": "Sort order for shops (default: created_at_desc)",
-"schema": {
-"enum": [
-"created_at_asc",
-"created_at_desc",
-"name_asc",
-"name_desc"
-],
-"type": "string"
-}
-},
-{
-"name": "start",
-"required": false,
-"in": "query",
-"description": "Start date for filtering shops by creation date (YYYY-MM-DD format)",
-"schema": {
-"example": "2024-01-01",
-"type": "string"
-}
-},
-{
-"name": "end",
-"required": false,
-"in": "query",
-"description": "End date for filtering shops by creation date (YYYY-MM-DD format)",
-"schema": {
-"example": "2024-12-31",
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns paginated list of shops",
-"schema": {
-"example": {
-"data": [
-{
-"id": "67f28a404d77d381f8379513",
-"name": "fashion-store",
-"url": "fashion-store",
-"logo": "https://example.com/shop-logo.png"
-},
-{
-"id": "67f295f74d77d381f8379939",
-"name": "style-zone",
-"url": "style-zone",
-"logo": "https://example.com/shop-logo-2.png"
-}
-],
-"currentPage": 1,
-"totalPages": 5,
-"hasNextPage": true,
-"hasPreviousPage": false,
-"nextPage": 2,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 45
-}
-},
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/ShopListResponseDto"
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get list of all shops in the system with pagination",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/shops/{id}": {
-"get": {
-"description": "Returns shop details including merchant info, products count, active subscription, and referred shops (shops created with this shop's referral code)",
-"operationId": "AdminController_getShopDetail",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns shop detail",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"id": "507f1f77bcf86cd799439020",
-"name": "Fashion Store",
-"url": "fashion-store",
-"logo": "https://example.com/logo.png",
-"status": "ACTIVE",
-"createdAt": "2025-01-15T10:30:00.000Z",
-"productsCount": 42,
-"merchant": {
-"id": "507f1f77bcf86cd799439011",
-"email": "merchant@example.com",
-"status": "ACTIVE"
-},
-"activeSubscription": {
-"hasActiveSubscription": true,
-"id": "507f1f77bcf86cd799439030",
-"status": "ACTIVE",
-"purchaseStatus": "CONFIRMED",
-"planType": "BUSINESS",
-"planName": "Business Plan",
-"paidAmount": 299.99,
-"monthLength": 12,
-"startsAt": "2025-01-15T10:30:00.000Z",
-"expiresAt": "2026-01-15T10:30:00.000Z",
-"isTrial": false,
-"trialEndsAt": null,
-"autoRenew": true,
-"renewalType": "STRIPE",
-"daysUntilExpiration": 340,
-"canActivateTrial": false
-},
-"referredShops": [
-{
-"id": "507f1f77bcf86cd799439040",
-"name": "Referred Shop 1",
-"url": "referred-shop-1",
-"logo": "https://example.com/referred-logo-1.png",
-"createdAt": "2025-02-01T10:30:00.000Z"
-},
-{
-"id": "507f1f77bcf86cd799439041",
-"name": "Referred Shop 2",
-"url": "referred-shop-2",
-"logo": null,
-"createdAt": "2025-02-05T14:45:00.000Z"
-}
-]
-}
-}
-}
-}
-},
-"404": {
-"description": "Shop not found",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Shop not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get detailed information about a shop",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/shops": {
-"post": {
-"description": "Creates a new merchant account and shop using the same registration flow as POST /merchant/register.\n\n**Key differences from regular registration:**\n- Merchant is created with ACTIVE status (no email verification needed)\n- Uses CreationSource.ADMIN context\n\n**Two modes:**\n\n1. **Minimal creation (email + password only):**\n   - Merchant and shop are created\n   - Shop name is derived from email prefix\n   - Merchant completes onboarding on first login\n\n2. **Full creation (email + password + shopName + shopUrl + optional logo):**\n   - Merchant and shop are created\n   - Shop setup is completed automatically (POST /shops/v2/setup is called internally)\n   - Merchant skips onboarding on first login\n\n**Note:** If shopName is provided, shopUrl must also be provided (and vice versa).",
-"operationId": "AdminController_createShopByAdmin",
-"parameters": [],
-"requestBody": {
-"required": true,
-"description": "Create shop request body",
-"content": {
-"application/json": {
-"schema": {
-"type": "string"
-},
-"examples": {
-"Minimal (requires onboarding)": {
-"summary": "Minimal creation - only email and password",
-"description": "Creates merchant and shop with minimal info. Merchant will need to complete onboarding on first login.",
-"value": {
-"email": "merchant@example.com",
-"password": "SecurePass123"
-}
-},
-"Full (skips onboarding)": {
-"summary": "Full creation - with shop details",
-"description": "Creates merchant and shop with complete setup. Merchant skips onboarding on first login.",
-"value": {
-"email": "merchant@example.com",
-"password": "SecurePass123",
-"shopName": "My Awesome Shop",
-"shopUrl": "my-awesome-shop",
-"logo": "https://example.com/logo.png"
-}
-}
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Merchant and shop created successfully",
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"merchantId": {
-"type": "string",
-"example": "507f1f77bcf86cd799439011"
-},
-"email": {
-"type": "string",
-"example": "user@example.com"
-},
-"status": {
-"type": "string",
-"example": "ACTIVE"
-},
-"shopInitialized": {
-"type": "boolean",
-"example": true
-},
-"shopSetupCompleted": {
-"type": "boolean",
-"example": true,
-"description": "True if shop setup was completed (shopName and shopUrl were provided)"
-},
-"success": {
-"type": "boolean",
-"example": true
-}
-}
-}
-}
-}
-},
-"400": {
-"description": "Email already exists or Shop URL already exists",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 400,
-"message": "Email already exists",
-"error": "Bad Request"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Create merchant and shop by admin",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/shops/{shopId}/adjust-credit": {
-"post": {
-"description": "Allows super admins to manually increase or decrease a shop's credit balance. This will create a credit transaction record with type MANUAL_CREDIT_ADJUSTMENT.",
-"operationId": "AdminController_adjustShopCredit",
-"parameters": [
-{
-"name": "shopId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"amount": {
-"type": "number",
-"example": 100,
-"minimum": 1
-},
-"operation": {
-"type": "string",
-"enum": [
-"INCREASE",
-"DECREASE"
-],
-"example": "INCREASE",
-"description": "Direction of credit adjustment"
-},
-"message": {
-"type": "string",
-"example": "Manual credit adjustment by admin"
-}
-},
-"required": [
-"amount",
-"operation",
-"message"
-]
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Successfully adjusted shop credit",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"success": true,
-"message": "Shop credit adjusted successfully",
-"data": {
-"shopId": "507f1f77bcf86cd799439011",
-"previousCredit": 100.5,
-"newCredit": 200.5,
-"adjustmentAmount": 100,
-"operation": "INCREASE",
-"reason": "Manual credit adjustment by admin",
-"transactionId": "507f1f77bcf86cd799439012",
-"adjustedAt": "2025-02-08T14:30:00.000Z"
-}
-}
-}
-}
-}
-},
-"400": {
-"description": "Invalid request - amount must be > 0, operation must be INCREASE or DECREASE",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 400,
-"message": "amount must be greater than 0",
-"error": "Bad Request"
-}
-}
-}
-}
-},
-"403": {
-"description": "Forbidden - Only super admins can access this endpoint",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 403,
-"message": "Forbidden - Only super admins can access this endpoint",
-"error": "Forbidden"
-}
-}
-}
-}
-},
-"404": {
-"description": "Shop not found",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Shop not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Adjust shop credit by shop ID (Admin only)",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/products/list": {
-"get": {
-"description": "Returns a paginated list of all products with their main image, title, shop name, shop link, type, and lowest price. Features improved search with prefix matching, flexible sorting options, date range filtering, product type filtering, and store name search.",
-"operationId": "AdminController_getAllProductsList",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number (default: 1)",
-"schema": {
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page (default: 10, max: 100)",
-"schema": {
-"example": 10,
-"type": "number"
-}
-},
-{
-"name": "search",
-"required": false,
-"in": "query",
-"description": "Search by product title (improved search with prefix matching - titles starting with search term appear first)",
-"schema": {
-"example": "t-shirt",
-"type": "string"
-}
-},
-{
-"name": "sort",
-"required": false,
-"in": "query",
-"description": "Sort order for products (default: created_at_desc)",
-"schema": {
-"enum": [
-"created_at_asc",
-"created_at_desc",
-"lowestPrice_asc",
-"lowestPrice_desc"
-],
-"type": "string"
-}
-},
-{
-"name": "start",
-"required": false,
-"in": "query",
-"description": "Start date for filtering products by creation date (YYYY-MM-DD format)",
-"schema": {
-"example": "2024-01-01",
-"type": "string"
-}
-},
-{
-"name": "end",
-"required": false,
-"in": "query",
-"description": "End date for filtering products by creation date (YYYY-MM-DD format)",
-"schema": {
-"example": "2024-12-31",
-"type": "string"
-}
-},
-{
-"name": "type",
-"required": false,
-"in": "query",
-"description": "Filter by product type",
-"schema": {
-"enum": [
-"digital",
-"physical",
-"pod"
-],
-"type": "string"
-}
-},
-{
-"name": "store",
-"required": false,
-"in": "query",
-"description": "Search by store name (case-insensitive)",
-"schema": {
-"example": "fashion-store",
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns paginated list of products",
-"schema": {
-"example": {
-"data": [
-{
-"_id": "67f28a404d77d381f8379513",
-"title": "Premium T-Shirt",
-"mainImage": "https://example.com/product-image.jpg",
-"lowestPrice": 29.99,
-"type": "NORMAL",
-"shopName": "fashion-store",
-"storeLink": "https://droplinked.io/fashion-store"
-},
-{
-"_id": "67f295f74d77d381f8379939",
-"title": "Designer Hoodie",
-"mainImage": "https://example.com/hoodie-image.jpg",
-"lowestPrice": 59.99,
-"type": "NORMAL",
-"shopName": "style-zone",
-"storeLink": "https://droplinked.io/style-zone"
-}
-],
-"currentPage": 1,
-"totalPages": 5,
-"hasNextPage": true,
-"hasPreviousPage": false,
-"nextPage": 2,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 45
-}
-},
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/ProductListResponseDto"
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get list of all products in the system with pagination",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/products/{id}": {
-"get": {
-"description": "Returns product details including SKUs",
-"operationId": "AdminController_getProductDetail",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns product detail",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "67f28a404d77d381f8379513",
-"title": "Premium T-Shirt",
-"description": "High-quality cotton t-shirt with modern design",
-"mainImage": "https://example.com/product-image.jpg",
-"lowestPrice": 29.99,
-"type": "NORMAL",
-"shop": {
-"_id": "507f1f77bcf86cd799439020",
-"name": "Fashion Store",
-"link": "https://droplinked.io/fashion-store"
-},
-"skus": [
-{
-"_id": "507f1f77bcf86cd799439021",
-"size": "M",
-"color": "Black",
-"price": 29.99,
-"stock": 50
-},
-{
-"_id": "507f1f77bcf86cd799439022",
-"size": "L",
-"color": "Black",
-"price": 29.99,
-"stock": 35
-}
-],
-"createdAt": "2025-01-20T10:30:00.000Z",
-"updatedAt": "2025-02-08T14:30:00.000Z"
-}
-}
-}
-}
-},
-"404": {
-"description": "Product not found",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Product not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get detailed information about a product",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/subscriptions/list": {
-"get": {
-"description": "Returns a paginated list of all subscriptions with their type, creation date, renewal type, expiration date, trial status, shop information, status, paid amount, and duration. Features improved search with prefix matching, flexible sorting options, date range filtering, status filtering, and subscription type filtering.",
-"operationId": "AdminController_getAllSubscriptionsList",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number (default: 1)",
-"schema": {
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page (default: 10, max: 100)",
-"schema": {
-"example": 10,
-"type": "number"
-}
-},
-{
-"name": "search",
-"required": false,
-"in": "query",
-"description": "Search by shop name (improved search with prefix matching - names starting with search term appear first)",
-"schema": {
-"example": "fashion-store",
-"type": "string"
-}
-},
-{
-"name": "sort",
-"required": false,
-"in": "query",
-"description": "Sort order for subscriptions (default: created_at_desc)",
-"schema": {
-"enum": [
-"created_at_asc",
-"created_at_desc",
-"expires_at_asc",
-"expires_at_desc",
-"paid_amount_asc",
-"paid_amount_desc"
-],
-"type": "string"
-}
-},
-{
-"name": "start",
-"required": false,
-"in": "query",
-"description": "Start date for filtering subscriptions by creation date (YYYY-MM-DD format)",
-"schema": {
-"example": "2024-01-01",
-"type": "string"
-}
-},
-{
-"name": "end",
-"required": false,
-"in": "query",
-"description": "End date for filtering subscriptions by creation date (YYYY-MM-DD format)",
-"schema": {
-"example": "2024-12-31",
-"type": "string"
-}
-},
-{
-"name": "status",
-"required": false,
-"in": "query",
-"description": "Filter by subscription status",
-"schema": {
-"enum": [
-"ACTIVE",
-"DEACTIVE",
-"EXPIRED",
-"CANCELED",
-"WAITING_FOR_PAYMENT"
-],
-"type": "string"
-}
-},
-{
-"name": "type",
-"required": false,
-"in": "query",
-"description": "Filter by subscription type",
-"schema": {
-"enum": [
-"STARTER",
-"BASIC",
-"BUSINESS",
-"BUSINESS_PRO",
-"ENTERPRISE"
-],
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns paginated list of subscriptions",
-"schema": {
-"example": {
-"data": [
-{
-"_id": "67f28a404d77d381f8379513",
-"type": "BUSINESS",
-"created_at": "2024-01-15T10:30:00.000Z",
-"renewalType": "CREDIT",
-"expiresAt": "2024-12-15T10:30:00.000Z",
-"isTrial": false,
-"shopName": "fashion-store",
-"shopLink": "https://droplinked.io/fashion-store",
-"status": "ACTIVE",
-"paidAmount": 299.99,
-"monthLength": 12,
-"purchaseStatus": "CONFIRMED"
-},
-{
-"_id": "67f295f74d77d381f8379939",
-"type": "STARTER",
-"created_at": "2024-01-20T14:45:00.000Z",
-"renewalType": "CREDIT",
-"expiresAt": "2024-02-20T14:45:00.000Z",
-"isTrial": true,
-"shopName": "style-zone",
-"shopLink": "https://droplinked.io/style-zone",
-"status": "ACTIVE",
-"paidAmount": 0,
-"monthLength": 1,
-"purchaseStatus": "FREE"
-}
-],
-"currentPage": 1,
-"totalPages": 5,
-"hasNextPage": true,
-"hasPreviousPage": false,
-"nextPage": 2,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 45
-}
-},
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/SubscriptionListResponseDto"
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get list of all subscriptions in the system with pagination",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/subscriptions/{shopId}/activate-custom": {
-"post": {
-"description": "Create and activate a custom enterprise subscription plan for a specific shop. Supports plan names: STARTER, BASIC, BUSINESS, BUSINESS_PRO, ENTERPRISE. Month length must be 1, 12, or 36. Price must be >= 0.",
-"operationId": "AdminController_activateCustomEnterprise",
-"parameters": [
-{
-"name": "shopId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/ActiveEnterpriseDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Successfully activated custom enterprise subscription",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"success": true,
-"message": "Custom enterprise subscription activated successfully",
-"data": {
-"subscriptionId": "507f1f77bcf86cd799439011",
-"shopId": "507f1f77bcf86cd799439012",
-"planName": "ENTERPRISE",
-"monthLength": 12,
-"price": 4999.99,
-"status": "ACTIVE",
-"startDate": "2025-02-08T00:00:00.000Z",
-"expiresAt": "2026-02-08T00:00:00.000Z"
-}
-}
-}
-}
-}
-},
-"400": {
-"description": "Invalid input - ensure monthLength is 1, 12, or 36 and price is >= 0",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 400,
-"message": "monthLength must be 1, 12, or 36",
-"error": "Bad Request"
-}
-}
-}
-}
-},
-"401": {
-"description": "Unauthorized",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 401,
-"message": "Unauthorized",
-"error": "Unauthorized"
-}
-}
-}
-}
-},
-"403": {
-"description": "Forbidden - Admin only",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 403,
-"message": "Forbidden - Admin only",
-"error": "Forbidden"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Activate custom enterprise subscription for a shop",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/subscriptions/activate": {
-"post": {
-"description": "Activates a plan by planId for a shop. For ENTERPRISE plans, customPrice and customDurationMonths are required.",
-"operationId": "AdminController_activateSubscription",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/AdminActivateSubscriptionDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Subscription activated successfully"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Activate subscription for a shop using shop credits",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/changelog": {
-"post": {
-"description": "Creates a new changelog entry with title, summary, description, tags, and version",
-"operationId": "AdminController_createChangelog",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/CreateChangelogDto"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": "The changelog has been successfully created.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"title": "Version 2.5.0 Released",
-"summary": "Major improvements and new features",
-"description": "This version includes improved performance, new dashboard features, and bug fixes",
-"tags": [
-"New Feature",
-"Performance"
-],
-"version": "2.5.0",
-"isPublished": true,
-"createdAt": "2025-02-08T10:30:00.000Z",
-"updatedAt": "2025-02-08T10:30:00.000Z"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Create a new changelog entry",
-"tags": [
-"admin"
-]
-},
-"get": {
-"description": "Returns paginated list of all changelog entries including published and unpublished",
-"operationId": "AdminController_findAllChangelog",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number for pagination",
-"schema": {
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page",
-"schema": {
-"example": 10,
-"type": "number"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Return all changelog entries.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"data": [
-{
-"_id": "507f1f77bcf86cd799439011",
-"title": "Version 2.5.0 Released",
-"summary": "Major improvements and new features",
-"description": "This version includes improved performance and new dashboard features",
-"tags": [
-"New Feature",
-"Performance"
-],
-"version": "2.5.0",
-"isPublished": true,
-"createdAt": "2025-02-08T10:30:00.000Z",
-"updatedAt": "2025-02-08T10:30:00.000Z"
-},
-{
-"_id": "507f1f77bcf86cd799439012",
-"title": "Version 2.4.1 - Hotfix",
-"summary": "Bug fixes and security patches",
-"description": "Critical security patches and bug fixes",
-"tags": [
-"Bugfix",
-"Security"
-],
-"version": "2.4.1",
-"isPublished": true,
-"createdAt": "2025-01-15T08:00:00.000Z",
-"updatedAt": "2025-01-15T08:00:00.000Z"
-}
-],
-"currentPage": 1,
-"totalPages": 3,
-"hasNextPage": true,
-"hasPreviousPage": false,
-"nextPage": 2,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 25
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get all changelog entries with pagination (Admin)",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/public/changelog": {
-"get": {
-"description": "Returns paginated list of published changelog entries visible to public users",
-"operationId": "AdminController_findAllPublicChangelog",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number for pagination",
-"schema": {
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page",
-"schema": {
-"example": 10,
-"type": "number"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Return public changelog entries.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"data": [
-{
-"_id": "507f1f77bcf86cd799439011",
-"title": "Version 2.5.0 Released",
-"summary": "Major improvements and new features",
-"version": "2.5.0",
-"tags": [
-"New Feature",
-"Performance"
-],
-"createdAt": "2025-02-08T10:30:00.000Z"
-},
-{
-"_id": "507f1f77bcf86cd799439012",
-"title": "Version 2.4.1 - Hotfix",
-"summary": "Bug fixes and security patches",
-"version": "2.4.1",
-"tags": [
-"Bugfix",
-"Security"
-],
-"createdAt": "2025-01-15T08:00:00.000Z"
-}
-],
-"currentPage": 1,
-"totalPages": 2,
-"hasNextPage": false,
-"hasPreviousPage": false,
-"nextPage": null,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 12
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get public changelog entries with pagination",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/changelog/{id}": {
-"get": {
-"description": "Returns detailed information about a specific changelog entry",
-"operationId": "AdminController_findOneChangelog",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Return the changelog entry.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"title": "Version 2.5.0 Released",
-"summary": "Major improvements and new features",
-"description": "This version includes improved performance, new dashboard features, and bug fixes. The admin panel now features real-time analytics and improved reporting capabilities.",
-"tags": [
-"New Feature",
-"Performance",
-"Admin"
-],
-"version": "2.5.0",
-"isPublished": true,
-"createdAt": "2025-02-08T10:30:00.000Z",
-"updatedAt": "2025-02-08T10:30:00.000Z"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get a changelog entry by id",
-"tags": [
-"admin"
-]
-},
-"patch": {
-"description": "Updates an existing changelog entry with new content or publish status",
-"operationId": "AdminController_updateChangelog",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/UpdateChangelogDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "The changelog has been successfully updated.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"title": "Version 2.5.0 Released",
-"summary": "Major improvements and new features",
-"description": "Updated description with more details about the changes",
-"tags": [
-"New Feature",
-"Performance",
-"Admin"
-],
-"version": "2.5.0",
-"isPublished": true,
-"createdAt": "2025-02-08T10:30:00.000Z",
-"updatedAt": "2025-02-08T11:45:00.000Z"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Update a changelog entry",
-"tags": [
-"admin"
-]
-},
-"delete": {
-"description": "Permanently deletes a changelog entry from the system",
-"operationId": "AdminController_removeChangelog",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "The changelog has been successfully deleted.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"title": "Version 2.5.0 Released",
-"summary": "Major improvements and new features",
-"description": "This version includes improved performance, new dashboard features, and bug fixes",
-"tags": [
-"New Feature",
-"Performance"
-],
-"version": "2.5.0",
-"isPublished": true,
-"createdAt": "2025-02-08T10:30:00.000Z",
-"updatedAt": "2025-02-08T10:30:00.000Z"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Delete a changelog entry",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/demo-requests": {
-"get": {
-"description": "Retrieve paginated list of all demo requests with optional date filtering. Each demo request includes a status field that can be: PENDING, APPROVED, or REJECTED.",
-"operationId": "AdminController_getDemoRequests",
-"parameters": [
-{
-"name": "startDate",
-"required": false,
-"in": "query",
-"description": "Start date for filtering (YYYY-MM-DD)",
-"schema": {
-"example": "2024-01-01",
-"type": "string"
-}
-},
-{
-"name": "endDate",
-"required": false,
-"in": "query",
-"description": "End date for filtering (YYYY-MM-DD)",
-"schema": {
-"example": "2024-12-31",
-"type": "string"
-}
-},
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number (default: 1)",
-"schema": {
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page (default: 10, max: 100)",
-"schema": {
-"example": 10,
-"type": "number"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns paginated list of demo requests",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"data": [
-{
-"_id": "507f1f77bcf86cd799439011",
-"name": "John Doe",
-"email": "john@example.com",
-"company": "Acme Corp",
-"phone": "+1-555-0123",
-"status": "PENDING",
-"requestedAt": "2025-02-05T14:30:00.000Z"
-},
-{
-"_id": "507f1f77bcf86cd799439012",
-"name": "Jane Smith",
-"email": "jane@example.com",
-"company": "Tech Solutions Ltd",
-"phone": "+1-555-0456",
-"status": "APPROVED",
-"requestedAt": "2025-02-01T10:15:00.000Z"
-}
-],
-"currentPage": 1,
-"totalPages": 2,
-"hasNextPage": false,
-"hasPreviousPage": false,
-"nextPage": null,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 15
-}
-}
-}
-}
-},
-"403": {
-"description": "Forbidden - Only super admins can access this endpoint",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 403,
-"message": "Forbidden - Only super admins can access this endpoint",
-"error": "Forbidden"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get all demo requests (Super Admin only)",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/demo-requests/{id}": {
-"get": {
-"description": "Retrieve a specific demo request by its ID. The response includes a status field that can be: PENDING, APPROVED, or REJECTED.",
-"operationId": "AdminController_getDemoRequestById",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns the demo request details",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"name": "John Doe",
-"email": "john@example.com",
-"company": "Acme Corp",
-"phone": "+1-555-0123",
-"message": "Interested in enterprise plan for our team",
-"status": "PENDING",
-"requestedAt": "2025-02-05T14:30:00.000Z",
-"scheduledDemoDate": null,
-"reviewedAt": null,
-"reviewedBy": null
-}
-}
-}
-}
-},
-"403": {
-"description": "Forbidden - Only super admins can access this endpoint",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 403,
-"message": "Forbidden - Only super admins can access this endpoint",
-"error": "Forbidden"
-}
-}
-}
-}
-},
-"404": {
-"description": "Demo request not found",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Demo request not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get demo request by ID (Super Admin only)",
-"tags": [
-"admin"
-]
-},
-"patch": {
-"description": "Simple PATCH endpoint to update demo request status - easier for frontend. Available status values: PENDING, APPROVED, REJECTED.",
-"operationId": "AdminController_patchDemoRequestStatus",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"status": {
-"type": "string",
-"enum": [
-"PENDING",
-"APPROVED",
-"REJECTED"
-],
-"example": "APPROVED",
-"description": "New status for the demo request"
-}
-},
-"required": [
-"status"
-]
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Demo request status updated successfully",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"name": "John Doe",
-"email": "john@example.com",
-"company": "Acme Corp",
-"phone": "+1-555-0123",
-"status": "APPROVED",
-"message": "Interested in enterprise plan for our team",
-"requestedAt": "2025-02-05T14:30:00.000Z",
-"reviewedAt": "2025-02-08T14:30:00.000Z",
-"reviewedBy": "507f1f77bcf86cd799439050"
-}
-}
-}
-}
-},
-"403": {
-"description": "Forbidden - Only super admins can access this endpoint",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 403,
-"message": "Forbidden - Only super admins can access this endpoint",
-"error": "Forbidden"
-}
-}
-}
-}
-},
-"404": {
-"description": "Demo request not found",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Demo request not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Update demo request status (Simple PATCH)",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/enterprise-feature-requests": {
-"get": {
-"description": "Retrieve paginated list of all enterprise feature requests with optional date filtering. Each request includes user information and a status field that can be: PENDING, IN_PROGRESS, CONTACTED, RESOLVED, or DECLINED.",
-"operationId": "AdminController_getEnterpriseFeatureRequests",
-"parameters": [
-{
-"name": "startDate",
-"required": false,
-"in": "query",
-"description": "Start date for filtering (YYYY-MM-DD)",
-"schema": {
-"example": "2024-01-01",
-"type": "string"
-}
-},
-{
-"name": "endDate",
-"required": false,
-"in": "query",
-"description": "End date for filtering (YYYY-MM-DD)",
-"schema": {
-"example": "2024-12-31",
-"type": "string"
-}
-},
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number (default: 1)",
-"schema": {
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page (default: 10, max: 100)",
-"schema": {
-"example": 10,
-"type": "number"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns paginated list of enterprise feature requests",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"data": [
-{
-"_id": "507f1f77bcf86cd799439011",
-"userEmail": "user@example.com",
-"featureName": "Custom Webhook Integration",
-"description": "Need ability to send custom webhooks to external systems",
-"status": "IN_PROGRESS",
-"priority": "HIGH",
-"requestedAt": "2025-01-20T09:30:00.000Z"
-},
-{
-"_id": "507f1f77bcf86cd799439012",
-"userEmail": "merchant@example.com",
-"featureName": "Advanced Analytics Dashboard",
-"description": "Enhanced reporting and analytics capabilities",
-"status": "PENDING",
-"priority": "MEDIUM",
-"requestedAt": "2025-02-03T15:45:00.000Z"
-}
-],
-"currentPage": 1,
-"totalPages": 2,
-"hasNextPage": false,
-"hasPreviousPage": false,
-"nextPage": null,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 18
-}
-}
-}
-}
-},
-"403": {
-"description": "Forbidden - Only super admins can access this endpoint",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 403,
-"message": "Forbidden - Only super admins can access this endpoint",
-"error": "Forbidden"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get all enterprise feature requests (Super Admin only)",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/enterprise-feature-requests/{id}": {
-"get": {
-"description": "Retrieve a specific enterprise feature request by its ID. The response includes user information and a status field that can be: PENDING, IN_PROGRESS, CONTACTED, RESOLVED, or DECLINED.",
-"operationId": "AdminController_getEnterpriseFeatureRequestById",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns the enterprise feature request details",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"userEmail": "user@example.com",
-"userName": "John Doe",
-"featureName": "Custom Webhook Integration",
-"description": "Need ability to send custom webhooks to external systems for order notifications and inventory sync",
-"status": "IN_PROGRESS",
-"priority": "HIGH",
-"useCase": "Integrating with our ERP system",
-"requestedAt": "2025-01-20T09:30:00.000Z",
-"contactedAt": "2025-01-25T11:00:00.000Z",
-"notes": "Customer met with product team on 2025-01-25"
-}
-}
-}
-}
-},
-"403": {
-"description": "Forbidden - Only super admins can access this endpoint",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 403,
-"message": "Forbidden - Only super admins can access this endpoint",
-"error": "Forbidden"
-}
-}
-}
-}
-},
-"404": {
-"description": "Enterprise feature request not found",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Enterprise feature request not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get enterprise feature request by ID (Super Admin only)",
-"tags": [
-"admin"
-]
-},
-"patch": {
-"description": "Simple PATCH endpoint to update enterprise feature request status - easier for frontend. Available status values: PENDING, IN_PROGRESS, CONTACTED, RESOLVED, DECLINED.",
-"operationId": "AdminController_patchEnterpriseFeatureRequestStatus",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"status": {
-"type": "string",
-"enum": [
-"PENDING",
-"IN_PROGRESS",
-"CONTACTED",
-"RESOLVED",
-"DECLINED"
-],
-"example": "IN_PROGRESS",
-"description": "New status for the enterprise feature request"
-}
-},
-"required": [
-"status"
-]
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Enterprise feature request status updated successfully",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"userEmail": "user@example.com",
-"featureName": "Custom Webhook Integration",
-"description": "Need ability to send custom webhooks to external systems",
-"status": "CONTACTED",
-"priority": "HIGH",
-"requestedAt": "2025-01-20T09:30:00.000Z",
-"contactedAt": "2025-02-08T14:30:00.000Z",
-"updatedAt": "2025-02-08T14:30:00.000Z"
-}
-}
-}
-}
-},
-"403": {
-"description": "Forbidden - Only super admins can access this endpoint",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 403,
-"message": "Forbidden - Only super admins can access this endpoint",
-"error": "Forbidden"
-}
-}
-}
-}
-},
-"404": {
-"description": "Enterprise feature request not found",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Enterprise feature request not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Update enterprise feature request status (Simple PATCH)",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/blogs/admin": {
-"get": {
-"description": "Retrieves all blogs created by admin users.",
-"operationId": "AdminController_getAdminBlogs",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number (starts from 1)",
-"schema": {
-"default": 1,
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page",
-"schema": {
-"default": 10,
-"example": 10,
-"type": "number"
-}
-},
-{
-"name": "search",
-"required": false,
-"in": "query",
-"description": "Search term for blog title",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns a list of admin blogs.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"data": [
-{
-"_id": "507f1f77bcf86cd799439011",
-"title": "How to Maximize Your E-commerce Sales",
-"slug": "how-to-maximize-ecommerce-sales",
-"excerpt": "Learn the best practices for increasing your online sales...",
-"content": "Full blog content here...",
-"author": "Admin",
-"status": "PUBLISHED",
-"views": 1250,
-"createdAt": "2025-02-01T10:30:00.000Z",
-"updatedAt": "2025-02-08T14:30:00.000Z"
-},
-{
-"_id": "507f1f77bcf86cd799439012",
-"title": "New Features in Version 2.5",
-"slug": "new-features-version-2-5",
-"excerpt": "Discover the latest features we have added...",
-"content": "Full blog content here...",
-"author": "Admin",
-"status": "PUBLISHED",
-"views": 845,
-"createdAt": "2025-02-03T08:15:00.000Z",
-"updatedAt": "2025-02-08T12:00:00.000Z"
-}
-],
-"currentPage": 1,
-"totalPages": 2,
-"hasNextPage": false,
-"hasPreviousPage": false,
-"nextPage": null,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 15
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get all admin blogs",
-"tags": [
-"admin"
-]
-},
-"post": {
-"description": "Creates a new blog post by an admin user.",
-"operationId": "AdminController_createBlogByAdmin",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/CreateBlogDto"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": "The blog post has been successfully created by admin.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"title": "How to Maximize Your E-commerce Sales",
-"slug": "how-to-maximize-ecommerce-sales",
-"excerpt": "Learn the best practices for increasing your online sales...",
-"content": "Full blog content here...",
-"author": "Admin",
-"status": "PUBLISHED",
-"createdAt": "2025-02-08T14:30:00.000Z",
-"updatedAt": "2025-02-08T14:30:00.000Z"
-}
-}
-}
-}
-},
-"400": {
-"description": "Bad Request",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 400,
-"message": "Invalid blog data",
-"error": "Bad Request"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Create a new blog post by admin",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/blogs/admin/{id}": {
-"get": {
-"description": "Retrieves a specific admin blog by its ID.",
-"operationId": "AdminController_getAdminBlogById",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns the admin blog details.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"title": "How to Maximize Your E-commerce Sales",
-"slug": "how-to-maximize-ecommerce-sales",
-"excerpt": "Learn the best practices for increasing your online sales...",
-"content": "Full blog content here. This is a comprehensive guide to increasing your online sales with strategies like SEO optimization, customer engagement, and many more...",
-"author": "Admin",
-"status": "PUBLISHED",
-"views": 1250,
-"comments": 23,
-"createdAt": "2025-02-01T10:30:00.000Z",
-"updatedAt": "2025-02-08T14:30:00.000Z"
-}
-}
-}
-}
-},
-"404": {
-"description": "Blog not found.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Blog not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get an admin blog by ID",
-"tags": [
-"admin"
-]
-},
-"put": {
-"description": "Updates an admin blog by its ID.",
-"operationId": "AdminController_updateAdminBlog",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/UpdateBlogByIdDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Returns the updated admin blog.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"title": "How to Maximize Your E-commerce Sales - Updated",
-"slug": "how-to-maximize-ecommerce-sales-updated",
-"excerpt": "Learn the best practices for increasing your online sales...",
-"content": "Updated blog content with new information...",
-"author": "Admin",
-"status": "PUBLISHED",
-"views": 1250,
-"comments": 23,
-"createdAt": "2025-02-01T10:30:00.000Z",
-"updatedAt": "2025-02-08T15:45:00.000Z"
-}
-}
-}
-}
-},
-"404": {
-"description": "Blog not found.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Blog not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Update an admin blog",
-"tags": [
-"admin"
-]
-},
-"delete": {
-"description": "Deletes an admin blog by its ID.",
-"operationId": "AdminController_deleteAdminBlog",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns the deleted admin blog.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"title": "How to Maximize Your E-commerce Sales",
-"slug": "how-to-maximize-ecommerce-sales",
-"excerpt": "Learn the best practices for increasing your online sales...",
-"content": "Full blog content here...",
-"author": "Admin",
-"status": "PUBLISHED",
-"views": 1250,
-"createdAt": "2025-02-01T10:30:00.000Z",
-"updatedAt": "2025-02-08T14:30:00.000Z",
-"deletedAt": "2025-02-08T16:00:00.000Z"
-}
-}
-}
-}
-},
-"404": {
-"description": "Blog not found.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Blog not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Delete an admin blog",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/blogs/public/admin": {
-"get": {
-"description": "Retrieves all public blogs created by admin users.",
-"operationId": "AdminController_getPublicAdminBlogs",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number (starts from 1)",
-"schema": {
-"default": 1,
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page",
-"schema": {
-"default": 10,
-"example": 10,
-"type": "number"
-}
-},
-{
-"name": "search",
-"required": false,
-"in": "query",
-"description": "Search term for blog title",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns a list of public admin blogs.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"data": [
-{
-"_id": "507f1f77bcf86cd799439011",
-"title": "How to Maximize Your E-commerce Sales",
-"slug": "how-to-maximize-ecommerce-sales",
-"excerpt": "Learn the best practices for increasing your online sales...",
-"author": "Admin",
-"views": 1250,
-"createdAt": "2025-02-01T10:30:00.000Z"
-},
-{
-"_id": "507f1f77bcf86cd799439012",
-"title": "New Features in Version 2.5",
-"slug": "new-features-version-2-5",
-"excerpt": "Discover the latest features we have added...",
-"author": "Admin",
-"views": 845,
-"createdAt": "2025-02-03T08:15:00.000Z"
-}
-],
-"currentPage": 1,
-"totalPages": 1,
-"hasNextPage": false,
-"hasPreviousPage": false,
-"nextPage": null,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 8
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get public admin blogs",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/blogs/public/admin/{slug}": {
-"get": {
-"description": "Retrieves a public admin blog by its slug.",
-"operationId": "AdminController_getPublicAdminBlogBySlug",
-"parameters": [
-{
-"name": "slug",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns the public admin blog details.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"_id": "507f1f77bcf86cd799439011",
-"title": "How to Maximize Your E-commerce Sales",
-"slug": "how-to-maximize-ecommerce-sales",
-"excerpt": "Learn the best practices for increasing your online sales...",
-"content": "Full blog content here. This is a comprehensive guide to increasing your online sales with strategies like SEO optimization, customer engagement, and many more...",
-"author": "Admin",
-"views": 1250,
-"comments": 23,
-"createdAt": "2025-02-01T10:30:00.000Z"
-}
-}
-}
-}
-},
-"404": {
-"description": "Blog not found.",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"statusCode": 404,
-"message": "Blog not found",
-"error": "Not Found"
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get a public admin blog by slug",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/chatbot-support-requests": {
-"get": {
-"description": "Returns a paginated list of all AI chatbot support requests with user email, thread ID, recent messages, and creation date. Features search by email, date range filtering, and flexible sorting options.",
-"operationId": "AdminController_getChatbotSupportRequests",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"description": "Page number (default: 1)",
-"schema": {
-"example": 1,
-"type": "number"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"description": "Number of items per page (default: 10, max: 100)",
-"schema": {
-"example": 10,
-"type": "number"
-}
-},
-{
-"name": "search",
-"required": false,
-"in": "query",
-"description": "Search by user email",
-"schema": {
-"example": "user@example.com",
-"type": "string"
-}
-},
-{
-"name": "start",
-"required": false,
-"in": "query",
-"description": "Start date for filtering by creation date (YYYY-MM-DD format)",
-"schema": {
-"example": "2024-01-01",
-"type": "string"
-}
-},
-{
-"name": "end",
-"required": false,
-"in": "query",
-"description": "End date for filtering by creation date (YYYY-MM-DD format)",
-"schema": {
-"example": "2024-12-31",
-"type": "string"
-}
-},
-{
-"name": "sort",
-"required": false,
-"in": "query",
-"description": "Sort order for support requests (default: created_at_desc)",
-"schema": {
-"enum": [
-"created_at_asc",
-"created_at_desc",
-"email_asc",
-"email_desc"
-],
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Returns paginated list of chatbot support requests",
-"content": {
-"application/json": {
-"schema": {
-"example": {
-"data": [
-{
-"id": "507f1f77bcf86cd799439011",
-"userEmail": "user@example.com",
-"threadId": "thread_abc123xyz",
-"messages": [
-{
-"role": "user",
-"content": "How do I set up my product catalog?",
-"timestamp": "2025-02-08T14:30:00.000Z"
-},
-{
-"role": "assistant",
-"content": "To set up your product catalog, follow these steps...",
-"timestamp": "2025-02-08T14:30:30.000Z"
-}
-],
-"createdAt": "2025-02-08T14:30:00.000Z"
-},
-{
-"id": "507f1f77bcf86cd799439012",
-"userEmail": "merchant@example.com",
-"threadId": "thread_def456uvw",
-"messages": [
-{
-"role": "user",
-"content": "What payment methods are supported?",
-"timestamp": "2025-02-07T10:15:00.000Z"
-},
-{
-"role": "assistant",
-"content": "We support multiple payment methods including credit cards, PayPal...",
-"timestamp": "2025-02-07T10:15:45.000Z"
-}
-],
-"createdAt": "2025-02-07T10:15:00.000Z"
-}
-],
-"currentPage": 1,
-"totalPages": 3,
-"hasNextPage": true,
-"hasPreviousPage": false,
-"nextPage": 2,
-"previousPage": null,
-"limit": 10,
-"totalDocuments": 28
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get list of all chatbot support requests",
-"tags": [
-"admin"
-]
-}
-},
-"/admin/affiliate/overview": {
-"get": {
-"operationId": "AffiliateAdminController_getOverview",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-affiliate"
-]
-}
-},
-"/admin/affiliate/agents": {
-"get": {
-"operationId": "AffiliateAdminController_getAgents",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"schema": {
-"type": "number"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-affiliate"
-]
-}
-},
-"/admin/affiliate/merchants": {
-"get": {
-"operationId": "AffiliateAdminController_getMerchants",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"schema": {
-"type": "number"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-affiliate"
-]
-}
-},
-"/admin/affiliate/payouts": {
-"get": {
-"operationId": "AffiliateAdminController_getPayouts",
-"parameters": [
-{
-"name": "status",
-"required": false,
-"in": "query",
-"schema": {
-"enum": [
-"PENDING_APPROVAL",
-"APPROVED",
-"PROCESSING",
-"PAID",
-"FAILED",
-"REJECTED"
-],
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-affiliate"
-]
-}
-},
-"/admin/affiliate/commissions": {
-"get": {
-"operationId": "AffiliateAdminController_getCommissions",
-"parameters": [
-{
-"name": "page",
-"required": false,
-"in": "query",
-"schema": {
-"type": "number"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-affiliate"
-]
-}
-},
-"/admin/affiliate/payouts/{id}/approve": {
-"patch": {
-"operationId": "AffiliateAdminController_approvePayout",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-affiliate"
-]
-}
-},
-"/admin/affiliate/payouts/{id}/reject": {
-"patch": {
-"operationId": "AffiliateAdminController_rejectPayout",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-affiliate"
-]
-}
-},
-"/admin/affiliate/agents/{id}/suspend": {
-"patch": {
-"operationId": "AffiliateAdminController_suspendAgent",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-affiliate"
-]
-}
-},
-"/admin/affiliate/agents/{id}/reinstate": {
-"patch": {
-"operationId": "AffiliateAdminController_reinstateAgent",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"admin-affiliate"
+"Subscriptions"
 ]
 }
 },
@@ -7902,7 +2863,7 @@
 ],
 "summary": "Create a new blog post for shop",
 "tags": [
-"blogs"
+"Blogs"
 ]
 },
 "get": {
@@ -7960,7 +2921,7 @@
 ],
 "summary": "Get all blogs of a shop with pagination and search",
 "tags": [
-"blogs"
+"Blogs"
 ]
 }
 },
@@ -8000,7 +2961,7 @@
 ],
 "summary": "Get a blog by ID",
 "tags": [
-"blogs"
+"Blogs"
 ]
 },
 "put": {
@@ -8049,7 +3010,7 @@
 ],
 "summary": "Update a blog by ID",
 "tags": [
-"blogs"
+"Blogs"
 ]
 },
 "delete": {
@@ -8087,7 +3048,7 @@
 ],
 "summary": "Delete a blog by ID",
 "tags": [
-"blogs"
+"Blogs"
 ]
 }
 },
@@ -8153,7 +3114,7 @@
 },
 "summary": "Get public blogs of a shop by name",
 "tags": [
-"blogs"
+"Blogs"
 ]
 }
 },
@@ -8188,7 +3149,7 @@
 },
 "summary": "Get a public blog by slug",
 "tags": [
-"blogs"
+"Blogs"
 ]
 }
 },
@@ -8239,7 +3200,7 @@
 ],
 "summary": "Create New Gamification Category",
 "tags": [
-"Gamification"
+"Quests"
 ]
 },
 "get": {
@@ -8352,7 +3313,7 @@
 ],
 "summary": "Get Gamification Categories",
 "tags": [
-"Gamification"
+"Quests"
 ]
 }
 },
@@ -8398,7 +3359,7 @@
 ],
 "summary": "Update Gamification Category",
 "tags": [
-"Gamification"
+"Quests"
 ]
 },
 "delete": {
@@ -8425,7 +3386,7 @@
 ],
 "summary": "Delete Gamification Category",
 "tags": [
-"Gamification"
+"Quests"
 ]
 },
 "get": {
@@ -8459,7 +3420,7 @@
 ],
 "summary": "Get Gamification Category",
 "tags": [
-"Gamification"
+"Quests"
 ]
 }
 },
@@ -8496,7 +3457,7 @@
 ],
 "summary": "Create New Gamification Reward",
 "tags": [
-"Gamification"
+"Quests"
 ]
 },
 "get": {
@@ -8609,7 +3570,7 @@
 ],
 "summary": "Get Gamification Categories",
 "tags": [
-"Gamification"
+"Quests"
 ]
 }
 },
@@ -8655,7 +3616,7 @@
 ],
 "summary": "Update Gamification Reward",
 "tags": [
-"Gamification"
+"Quests"
 ]
 },
 "delete": {
@@ -8682,7 +3643,7 @@
 ],
 "summary": "Delete Gamification Reward",
 "tags": [
-"Gamification"
+"Quests"
 ]
 },
 "get": {
@@ -8716,7 +3677,7 @@
 ],
 "summary": "Get Gamification Reward",
 "tags": [
-"Gamification"
+"Quests"
 ]
 }
 },
@@ -8753,7 +3714,7 @@
 ],
 "summary": "Create New Gamification Mission",
 "tags": [
-"Gamification"
+"Quests"
 ]
 },
 "get": {
@@ -8866,7 +3827,7 @@
 ],
 "summary": "Get Gamification Categories",
 "tags": [
-"Gamification"
+"Quests"
 ]
 }
 },
@@ -8912,7 +3873,7 @@
 ],
 "summary": "Update Gamification Mission",
 "tags": [
-"Gamification"
+"Quests"
 ]
 },
 "delete": {
@@ -8939,7 +3900,7 @@
 ],
 "summary": "Delete Gamification Mission",
 "tags": [
-"Gamification"
+"Quests"
 ]
 },
 "get": {
@@ -8973,7 +3934,7 @@
 ],
 "summary": "Get Gamification Mission",
 "tags": [
-"Gamification"
+"Quests"
 ]
 }
 },
@@ -9002,7 +3963,7 @@
 ],
 "summary": "Participate in a mission",
 "tags": [
-"Gamification"
+"Quests"
 ]
 }
 },
@@ -9117,7 +4078,7 @@
 ],
 "summary": "Get Participated Gamification Missions",
 "tags": [
-"Gamification"
+"Quests"
 ]
 }
 },
@@ -9172,7 +4133,7 @@
 ],
 "summary": "Upload file to S3",
 "tags": [
-"Uploader"
+"Media"
 ]
 }
 },
@@ -9249,7 +4210,7 @@
 ],
 "summary": "Upload images from URLs",
 "tags": [
-"Uploader"
+"Media"
 ]
 }
 },
@@ -9293,7 +4254,7 @@
 ],
 "summary": "Upload image from URL to CDN",
 "tags": [
-"Uploader"
+"Media"
 ]
 }
 },
@@ -9331,7 +4292,7 @@
 ],
 "summary": "Upload raw JSON to CDN",
 "tags": [
-"Uploader"
+"Media"
 ]
 }
 },
@@ -11402,7 +6363,7 @@
 ],
 "summary": "Track social media follow",
 "tags": [
-"Social Media Quests"
+"Quests"
 ]
 }
 },
@@ -11429,7 +6390,7 @@
 ],
 "summary": "Grant pro plan based on social follows",
 "tags": [
-"Social Media Quests"
+"Quests"
 ]
 }
 },
@@ -11463,7 +6424,7 @@
 ],
 "summary": "Get social follow status",
 "tags": [
-"Social Media Quests"
+"Quests"
 ]
 }
 },
@@ -11492,7 +6453,7 @@
 }
 ],
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -11521,7 +6482,7 @@
 }
 ],
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -11550,7 +6511,7 @@
 }
 ],
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -11639,7 +6600,7 @@
 ],
 "summary": "Generate hero section banner images",
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -11728,7 +6689,7 @@
 ],
 "summary": "Generate logo images",
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -11827,7 +6788,7 @@
 ],
 "summary": "Generate shop name suggestions",
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -11926,7 +6887,7 @@
 ],
 "summary": "Generate domain name suggestions",
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -11999,7 +6960,7 @@
 ],
 "summary": "Check the status of an image generation request",
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -12049,7 +7010,7 @@
 ],
 "summary": "Run AI agent",
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -12098,7 +7059,7 @@
 ],
 "summary": "Stream AI agent response",
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -12204,7 +7165,7 @@
 ],
 "summary": "Start a new chat session",
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -12310,7 +7271,7 @@
 ],
 "summary": "Send a message to an existing chat session",
 "tags": [
-"AI"
+"AI Tools"
 ]
 }
 },
@@ -12479,415 +7440,7 @@
 ],
 "summary": "Get chat history for a thread",
 "tags": [
-"AI"
-]
-}
-},
-"/analytics/dashboard": {
-"get": {
-"operationId": "AnalyticsController_getDashboardData",
-"parameters": [],
-"responses": {
-"200": {
-"description": "Dashboard data including shop statistics and recent orders",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/DashboardData"
-}
-}
-}
-},
-"401": {
-"description": "Unauthorized"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get dashboard data including shop statistics and recent orders",
-"tags": [
-"Analytics"
-]
-}
-},
-"/analytics/sales-report": {
-"get": {
-"operationId": "AnalyticsController_getSalesReport",
-"parameters": [
-{
-"name": "startDate",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "endDate",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Sales report returned successfully",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/SalesReport"
-}
-}
-}
-},
-"401": {
-"description": "Unauthorized"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get sales report based on the specified date range",
-"tags": [
-"Analytics"
-]
-}
-},
-"/analytics/performance-report": {
-"get": {
-"operationId": "AnalyticsController_getPerformanceReport",
-"parameters": [
-{
-"name": "startDate",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "endDate",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Successfully fetched shop performance data",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/ShopPerformanceData"
-}
-}
-}
-},
-"401": {
-"description": "Unauthorized"
-},
-"403": {
-"description": "Forbidden"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get sales report based on the specified date range",
-"tags": [
-"Analytics"
-]
-}
-},
-"/analytics/top-sellers": {
-"get": {
-"operationId": "AnalyticsController_getTopSellingProducts",
-"parameters": [
-{
-"name": "startDate",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-},
-{
-"name": "endDate",
-"required": true,
-"in": "query",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Successfully fetched top 5 best-selling products"
-},
-"401": {
-"description": "Unauthorized"
-},
-"403": {
-"description": "Forbidden"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get the top 5 best-selling products within a specific date range",
-"tags": [
-"Analytics"
-]
-}
-},
-"/crawler/admin/submit-url": {
-"post": {
-"operationId": "CrawlerController_submitUrlForCrawling",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/SubmitUrlDto"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Submit URL for admin-managed crawling (Admin only)",
-"tags": [
-"Crawler"
-]
-}
-},
-"/crawler/admin/tasks/pending-approval": {
-"get": {
-"operationId": "CrawlerController_getTasksPendingApproval",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get tasks pending admin approval (Admin only)",
-"tags": [
-"Crawler"
-]
-}
-},
-"/crawler/admin/tasks/{taskId}": {
-"get": {
-"operationId": "CrawlerController_getAdminTaskStatus",
-"parameters": [
-{
-"name": "taskId",
-"required": true,
-"in": "path",
-"description": "Task ID",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get task status (Admin only)",
-"tags": [
-"Crawler"
-]
-}
-},
-"/crawler/admin/tasks/{taskId}/select-products": {
-"post": {
-"operationId": "CrawlerController_selectProductsForCrawling",
-"parameters": [
-{
-"name": "taskId",
-"required": true,
-"in": "path",
-"description": "Task ID",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/SelectProductsDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Products selected successfully",
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"success": {
-"type": "boolean",
-"example": true
-},
-"selectedCount": {
-"type": "number",
-"example": 2
-},
-"message": {
-"type": "string",
-"example": "Products selected successfully"
-}
-}
-}
-}
-}
-},
-"400": {
-"description": "Invalid request or task not found"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Select products for crawling (Admin only)",
-"tags": [
-"Crawler"
-]
-}
-},
-"/crawler/admin/tasks/{taskId}/download": {
-"get": {
-"operationId": "CrawlerController_downloadGeneratedJson",
-"parameters": [
-{
-"name": "taskId",
-"required": true,
-"in": "path",
-"description": "Task ID",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Download generated JSON (Admin only)",
-"tags": [
-"Crawler"
-]
-}
-},
-"/crawler/admin/tasks/{taskId}/approve": {
-"post": {
-"operationId": "CrawlerController_approveJson",
-"parameters": [
-{
-"name": "taskId",
-"required": true,
-"in": "path",
-"description": "Task ID",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/ApprovalDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Task approval response with validation status",
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"success": {
-"type": "boolean"
-},
-"status": {
-"type": "string"
-},
-"message": {
-"type": "string"
-},
-"validationErrors": {
-"type": "array",
-"items": {
-"type": "string"
-}
-}
-}
-}
-}
-}
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Approve or reject JSON (Admin only). Validates and queues products for creation",
-"tags": [
-"Crawler"
+"AI Tools"
 ]
 }
 },
@@ -12945,7 +7498,7 @@
 ],
 "summary": "Get available shipping providers",
 "tags": [
-"Shipping-V2"
+"Shipping"
 ]
 }
 },
@@ -13013,7 +7566,7 @@
 ],
 "summary": "Create a new shipping model",
 "tags": [
-"Shipping-V2"
+"Shipping"
 ]
 },
 "get": {
@@ -13059,7 +7612,7 @@
 ],
 "summary": "Get all shipping models for shop",
 "tags": [
-"Shipping-V2"
+"Shipping"
 ]
 }
 },
@@ -13128,7 +7681,7 @@
 ],
 "summary": "Get shipping model by ID",
 "tags": [
-"Shipping-V2"
+"Shipping"
 ]
 },
 "put": {
@@ -13215,7 +7768,7 @@
 ],
 "summary": "Update a shipping model",
 "tags": [
-"Shipping-V2"
+"Shipping"
 ]
 },
 "delete": {
@@ -13292,7 +7845,7 @@
 ],
 "summary": "Delete shipping model",
 "tags": [
-"Shipping-V2"
+"Shipping"
 ]
 }
 },
@@ -13744,91 +8297,6 @@
 ]
 }
 },
-"/admin/credit-events/load": {
-"post": {
-"operationId": "CreditEventAdminController_loadCredit",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/LoadCreditDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"Admin \u00b7 Credit Events"
-]
-}
-},
-"/admin/credit-events/{shopId}/balance": {
-"get": {
-"operationId": "CreditEventAdminController_getBalance",
-"parameters": [
-{
-"name": "shopId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"Admin \u00b7 Credit Events"
-]
-}
-},
-"/admin/credit-events/{shopId}/verify": {
-"get": {
-"operationId": "CreditEventAdminController_verifyChain",
-"parameters": [
-{
-"name": "shopId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"tags": [
-"Admin \u00b7 Credit Events"
-]
-}
-},
 "/shops/v2/crypto/config": {
 "get": {
 "operationId": "CryptoRailsController_getConfig",
@@ -13844,7 +8312,7 @@
 }
 ],
 "tags": [
-"Crypto Rails"
+"Web3"
 ]
 }
 },
@@ -13873,7 +8341,7 @@
 }
 ],
 "tags": [
-"Crypto Rails"
+"Web3"
 ]
 }
 },
@@ -13892,7 +8360,7 @@
 }
 ],
 "tags": [
-"Crypto Rails"
+"Web3"
 ]
 }
 },
@@ -13911,7 +8379,7 @@
 }
 ],
 "tags": [
-"Crypto Rails"
+"Web3"
 ]
 }
 },
@@ -13940,7 +8408,7 @@
 }
 ],
 "tags": [
-"Crypto Rails"
+"Web3"
 ]
 }
 },
@@ -13992,7 +8460,7 @@
 ],
 "summary": "Update shop settings",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 },
 "get": {
@@ -14047,7 +8515,7 @@
 ],
 "summary": "Get shop by ID",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 },
 "delete": {
@@ -14073,7 +8541,7 @@
 ],
 "summary": "Soft delete a shop",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -14131,7 +8599,7 @@
 }
 ],
 "tags": [
-"ShopV2"
+"Shops"
 ]
 },
 "post": {
@@ -14276,7 +8744,7 @@
 ],
 "summary": "Create Circle wallets for shop",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -14300,7 +8768,7 @@
 },
 "summary": "List PSPs sorted by region relevance (Plaid-style picker foundation)",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -14337,7 +8805,7 @@
 ],
 "summary": "Create charge shop credit transaction",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -14382,7 +8850,7 @@
 }
 },
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -14414,7 +8882,7 @@
 },
 "summary": "Check shop URL availability",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -14569,7 +9037,7 @@
 ],
 "summary": "Get all shop payment methods",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 },
 "put": {
@@ -14666,7 +9134,7 @@
 ],
 "summary": "Update shop payment methods",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -14733,7 +9201,7 @@
 ],
 "summary": "Add domain to shop",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -14757,7 +9225,7 @@
 },
 "summary": "Manually trigger a DNS verification attempt for this shop (merchant-facing; same gate as POST /shops/v2/domains).",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -14863,7 +9331,7 @@
 },
 "summary": "Get public shop information by ID",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -14969,7 +9437,7 @@
 },
 "summary": "Get public shop information by name",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -15006,7 +9474,7 @@
 ],
 "summary": "Setup an existing shop",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -15020,7 +9488,7 @@
 }
 },
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -15415,7 +9883,7 @@
 ],
 "summary": "Withdraw funds from Circle wallet",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -15429,7 +9897,7 @@
 }
 },
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -15511,7 +9979,7 @@
 },
 "summary": "Get public shop information by domain",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -15545,7 +10013,7 @@
 ],
 "summary": "Get shop private key",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -15689,7 +10157,7 @@
 ],
 "summary": "Get available payment methods for shop",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -15729,7 +10197,7 @@
 },
 "summary": "Get login methods",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -15770,7 +10238,7 @@
 ],
 "summary": "Add wallet to shop",
 "tags": [
-"ShopV2"
+"Shops"
 ]
 }
 },
@@ -15844,124 +10312,7 @@
 ],
 "summary": "Create a minimal shop",
 "tags": [
-"ShopV2"
-]
-}
-},
-"/shop-admin/custom-domain/{id}/toggle-active": {
-"post": {
-"operationId": "ShopAdminCustomDomainController_toggleActive",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/ToggleCustomDomainActiveDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Toggle the active flag on a shop custom domain (SUPER_ADMIN only)",
-"tags": [
-"shop-admin"
-]
-}
-},
-"/shop-admin/custom-domain/{id}/force-verify": {
-"post": {
-"operationId": "ShopAdminCustomDomainController_forceVerify",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/ForceVerifyCustomDomainDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Force-verify a shop custom domain bypassing DNS challenge (SUPER_ADMIN only, audited).",
-"tags": [
-"shop-admin"
-]
-}
-},
-"/shop-admin/custom-domain/{id}/record-certificate": {
-"post": {
-"operationId": "ShopAdminCustomDomainController_recordCertificate",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/RecordCustomDomainCertificateDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Record a TLS certificate ARN for a shop custom domain (SUPER_ADMIN only, audited). Cert provisioning happens out-of-band.",
-"tags": [
-"shop-admin"
+"Shops"
 ]
 }
 },
@@ -16060,7 +10411,7 @@
 },
 "summary": "Register a new merchant",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16113,7 +10464,7 @@
 },
 "summary": "Verify merchant email with 6-digit code",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16166,7 +10517,7 @@
 },
 "summary": "Standard merchant login with email/password",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16229,7 +10580,7 @@
 },
 "summary": "Admin login with role validation",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16282,7 +10633,7 @@
 },
 "summary": "Request password reset code",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16335,7 +10686,7 @@
 },
 "summary": "Verify reset code",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16388,7 +10739,7 @@
 },
 "summary": "Reset password using verification code",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16441,7 +10792,7 @@
 },
 "summary": "Unified registration for all partner landing pages",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16494,7 +10845,7 @@
 },
 "summary": "Resend email verification code",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16537,7 +10888,7 @@
 },
 "summary": "Refresh access token using refresh token from cookies",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16605,7 +10956,7 @@
 ],
 "summary": "Switch active store context",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16643,7 +10994,7 @@
 ],
 "summary": "Logout merchant and invalidate tokens",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16724,7 +11075,7 @@
 },
 "summary": "Start Google OAuth Flow for Merchants and Partners",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16791,7 +11142,7 @@
 },
 "summary": "Google OAuth Callback for Merchants",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16833,7 +11184,7 @@
 },
 "summary": "Add merchant email to landing page list",
 "tags": [
-"merchant-v2-auth"
+"Authentication"
 ]
 }
 },
@@ -16902,7 +11253,7 @@
 ],
 "summary": "Get customers by shop",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -16954,7 +11305,7 @@
 },
 "summary": "Create a new customer",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -16979,7 +11330,7 @@
 },
 "summary": "Login using crypto wallet",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -17026,7 +11377,7 @@
 },
 "summary": "Start Google OAuth Flow for Customers",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -17094,7 +11445,7 @@
 },
 "summary": "Google OAuth callback",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -17157,7 +11508,7 @@
 },
 "summary": "Get customer by email",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -17220,7 +11571,7 @@
 },
 "summary": "Get customer by wallet address",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -17272,7 +11623,7 @@
 },
 "summary": "Get customer by ID",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -17324,7 +11675,7 @@
 },
 "summary": "Get customer addresses",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 },
 "post": {
@@ -17384,7 +11735,7 @@
 },
 "summary": "Create customer address",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -17455,7 +11806,7 @@
 },
 "summary": "Update customer address",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 },
 "delete": {
@@ -17514,7 +11865,7 @@
 },
 "summary": "Delete customer address",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -17576,7 +11927,7 @@
 },
 "summary": "Add existing address to customer",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -17628,7 +11979,7 @@
 },
 "summary": "Get customer order IDs",
 "tags": [
-"customer-v2"
+"Customers"
 ]
 }
 },
@@ -17664,7 +12015,7 @@
 },
 "summary": "Create a new cart",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -17699,7 +12050,7 @@
 },
 "summary": "Get cart by ID",
 "tags": [
-"CartV2"
+"Cart"
 ]
 },
 "delete": {
@@ -17732,7 +12083,7 @@
 },
 "summary": "Delete cart",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -17777,7 +12128,7 @@
 },
 "summary": "Get cart by ID and Shop ID",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -17822,7 +12173,7 @@
 },
 "summary": "Add product to cart",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -17875,7 +12226,7 @@
 },
 "summary": "Update product quantity in cart",
 "tags": [
-"CartV2"
+"Cart"
 ]
 },
 "delete": {
@@ -17916,7 +12267,7 @@
 },
 "summary": "Remove product from cart",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -17961,7 +12312,7 @@
 },
 "summary": "Remove products from cart",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -18006,7 +12357,7 @@
 },
 "summary": "Update cart customer information",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -18054,7 +12405,7 @@
 },
 "summary": "Update cart details",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -18095,7 +12446,7 @@
 },
 "summary": "Initialize shipping process",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -18179,7 +12530,7 @@
 },
 "summary": "Get available shipping rates",
 "tags": [
-"CartV2"
+"Cart"
 ]
 },
 "post": {
@@ -18227,7 +12578,7 @@
 },
 "summary": "Select shipping rates",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -18295,7 +12646,7 @@
 },
 "summary": "Get available payment methods",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -18340,7 +12691,7 @@
 },
 "summary": "Apply gift card to cart",
 "tags": [
-"CartV2"
+"Cart"
 ]
 },
 "delete": {
@@ -18373,7 +12724,7 @@
 },
 "summary": "Remove gift card from cart",
 "tags": [
-"CartV2"
+"Cart"
 ]
 }
 },
@@ -18436,7 +12787,7 @@
 ],
 "summary": "Create a new collection",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 },
 "get": {
@@ -18477,7 +12828,7 @@
 ],
 "summary": "Get all collections",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 }
 },
@@ -18578,7 +12929,7 @@
 ],
 "summary": "Reorder a single collection",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 }
 },
@@ -18613,7 +12964,7 @@
 },
 "summary": "Get all published collections (public endpoint)",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 }
 },
@@ -18659,7 +13010,7 @@
 },
 "summary": "Get collection basic info by shop name (public)",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 }
 },
@@ -18711,7 +13062,7 @@
 ],
 "summary": "Get collection basic info for authenticated shop",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 }
 },
@@ -18786,7 +13137,7 @@
 ],
 "summary": "Get a collection by ID",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 },
 "put": {
@@ -18882,7 +13233,7 @@
 ],
 "summary": "Update a collection",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 },
 "delete": {
@@ -18974,7 +13325,7 @@
 ],
 "summary": "Delete a collection",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 }
 },
@@ -19049,7 +13400,7 @@
 ],
 "summary": "Publish a collection",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 }
 },
@@ -19124,7 +13475,7 @@
 ],
 "summary": "Unpublish a collection",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 }
 },
@@ -19170,7 +13521,7 @@
 ],
 "summary": "Add product to collection",
 "tags": [
-"Collections-V2"
+"Collections"
 ]
 }
 },
@@ -19208,7 +13559,7 @@
 }
 ],
 "tags": [
-"Order-v2"
+"Orders"
 ]
 }
 },
@@ -19227,7 +13578,7 @@
 }
 ],
 "tags": [
-"Order-v2"
+"Orders"
 ]
 }
 },
@@ -19246,7 +13597,7 @@
 }
 ],
 "tags": [
-"Order-v2"
+"Orders"
 ]
 }
 },
@@ -19290,7 +13641,7 @@
 ],
 "summary": "Get orders status",
 "tags": [
-"Order-v2"
+"Orders"
 ]
 }
 },
@@ -19318,7 +13669,7 @@
 }
 ],
 "tags": [
-"Order-v2"
+"Orders"
 ]
 }
 },
@@ -19362,7 +13713,7 @@
 ],
 "summary": "Initialize order",
 "tags": [
-"Order-v2"
+"Orders"
 ]
 },
 "get": {
@@ -19503,7 +13854,7 @@
 ],
 "summary": "Get orders for a shop",
 "tags": [
-"Order-v2"
+"Orders"
 ]
 }
 },
@@ -19630,7 +13981,7 @@
 ],
 "summary": "Create payment intent for an order",
 "tags": [
-"Order-v2"
+"Orders"
 ]
 }
 },
@@ -19756,175 +14107,7 @@
 ],
 "summary": "Get customer orders",
 "tags": [
-"Order-v2"
-]
-}
-},
-"/public/keys": {
-"get": {
-"operationId": "DynamicRouterController_getRouteKeys",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"DynamicRouter"
-]
-}
-},
-"/public/{path}": {
-"get": {
-"operationId": "DynamicRouterController_handleDynamicRoute_get",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"DynamicRouter"
-]
-},
-"post": {
-"operationId": "DynamicRouterController_handleDynamicRoute_post",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"DynamicRouter"
-]
-},
-"put": {
-"operationId": "DynamicRouterController_handleDynamicRoute_put",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"DynamicRouter"
-]
-},
-"delete": {
-"operationId": "DynamicRouterController_handleDynamicRoute_delete",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"DynamicRouter"
-]
-},
-"patch": {
-"operationId": "DynamicRouterController_handleDynamicRoute_patch",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"DynamicRouter"
-]
-},
-"options": {
-"operationId": "DynamicRouterController_handleDynamicRoute_options",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"DynamicRouter"
-]
-},
-"head": {
-"operationId": "DynamicRouterController_handleDynamicRoute_head",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"DynamicRouter"
-]
-},
-"search": {
-"operationId": "DynamicRouterController_handleDynamicRoute_search",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"DynamicRouter"
-]
-}
-},
-"/swagger/json": {
-"get": {
-"operationId": "SwaggerController_getSwaggerJson",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"Swagger"
-]
-}
-},
-"/swagger/ui": {
-"get": {
-"operationId": "SwaggerController_getSwaggerUi",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"Swagger"
-]
-}
-},
-"/swagger/dev-docs": {
-"get": {
-"operationId": "SwaggerController_getApiDocs",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"Swagger"
-]
-}
-},
-"/swagger": {
-"get": {
-"operationId": "SwaggerController_redirectToUi",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"Swagger"
+"Orders"
 ]
 }
 },
@@ -20019,7 +14202,7 @@
 ],
 "summary": "Get all SKUs for the current shop",
 "tags": [
-"SKU-V2"
+"Products"
 ]
 }
 },
@@ -20146,7 +14329,7 @@
 ],
 "summary": "Get detailed SKU information",
 "tags": [
-"SKU-V2"
+"Products"
 ]
 }
 },
@@ -20273,7 +14456,7 @@
 ],
 "summary": "Get SKU with product details",
 "tags": [
-"SKU-V2"
+"Products"
 ]
 }
 },
@@ -20551,7 +14734,7 @@
 ],
 "summary": "Create a new product",
 "tags": [
-"Product V2"
+"Products"
 ]
 },
 "get": {
@@ -20629,7 +14812,7 @@
 ],
 "summary": "Get all products for the current shop",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -20801,7 +14984,7 @@
 },
 "summary": "Get products by shop name - public",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -20832,7 +15015,7 @@
 },
 "summary": "Get product categories - public",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -20878,7 +15061,7 @@
 },
 "summary": "Get a product by slug - public",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -20953,7 +15136,7 @@
 ],
 "summary": "Get a product by ID",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -21028,7 +15211,7 @@
 ],
 "summary": "Get a product by ID",
 "tags": [
-"Product V2"
+"Products"
 ]
 },
 "delete": {
@@ -21111,7 +15294,7 @@
 ],
 "summary": "Delete a product",
 "tags": [
-"Product V2"
+"Products"
 ]
 },
 "patch": {
@@ -21313,7 +15496,7 @@
 ],
 "summary": "Partially update a product",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -21361,7 +15544,7 @@
 ],
 "summary": "Duplicate a product",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -21490,7 +15673,7 @@
 ],
 "summary": "Upload external images",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -21555,7 +15738,7 @@
 },
 "summary": "Get available shipping options for a product",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -21585,7 +15768,7 @@
 ],
 "summary": "Get all products of authenticated shop without pagination",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -21670,7 +15853,7 @@
 ],
 "summary": "Reorder multiple products",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -21703,7 +15886,7 @@
 },
 "summary": "Get available filters for a shop",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -21752,7 +15935,7 @@
 ],
 "summary": "Create 3 template products with logo",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -21811,7 +15994,7 @@
 },
 "summary": "Get community view products",
 "tags": [
-"Product V2"
+"Products"
 ]
 }
 },
@@ -22171,7 +16354,7 @@
 },
 "summary": "Search affiliate-enabled products",
 "tags": [
-"Affiliate V2"
+"Affiliate"
 ]
 }
 },
@@ -22339,7 +16522,7 @@
 ],
 "summary": "List all affiliate-enabled products for merchant dashboard",
 "tags": [
-"Affiliate V2"
+"Affiliate"
 ]
 }
 },
@@ -22412,7 +16595,7 @@
 ],
 "summary": "List all affiliate-enabled products for merchant dashboard",
 "tags": [
-"Affiliate V2"
+"Affiliate"
 ]
 }
 },
@@ -22463,7 +16646,7 @@
 ],
 "summary": "Get detailed information about an affiliate product",
 "tags": [
-"Affiliate V2"
+"Affiliate"
 ]
 }
 },
@@ -22514,7 +16697,7 @@
 },
 "summary": "List top merchants by total affiliate payouts",
 "tags": [
-"Affiliate V2"
+"Affiliate"
 ]
 }
 },
@@ -22563,7 +16746,7 @@
 ],
 "summary": "Get affiliate performance summary for the authenticated merchant",
 "tags": [
-"Affiliate V2"
+"Affiliate"
 ]
 }
 },
@@ -22656,7 +16839,7 @@
 ],
 "summary": "List agents that have sold the merchant's products",
 "tags": [
-"Affiliate V2"
+"Affiliate"
 ]
 }
 },
@@ -22731,7 +16914,7 @@
 ],
 "summary": "List payout requests for agents selling this merchant's products",
 "tags": [
-"Affiliate V2"
+"Affiliate"
 ]
 }
 },
@@ -22802,7 +16985,7 @@
 ],
 "summary": "Update commission rate for a listed product",
 "tags": [
-"Affiliate V2"
+"Affiliate"
 ]
 }
 },
@@ -22911,7 +17094,7 @@
 ],
 "summary": "Create or reactivate an affiliate link for a marketplace product",
 "tags": [
-"Affiliate Commission"
+"Affiliate"
 ]
 },
 "get": {
@@ -22938,7 +17121,7 @@
 ],
 "summary": "List the authenticated agent's affiliate links",
 "tags": [
-"Affiliate Commission"
+"Affiliate"
 ]
 }
 },
@@ -22958,7 +17141,7 @@
 ],
 "summary": "Get the authenticated agent's affiliate summary stats",
 "tags": [
-"Affiliate Commission"
+"Affiliate"
 ]
 }
 },
@@ -22987,7 +17170,7 @@
 ],
 "summary": "Update affiliate link status (ACTIVE or PAUSED)",
 "tags": [
-"Affiliate Commission"
+"Affiliate"
 ]
 },
 "delete": {
@@ -23014,7 +17197,7 @@
 ],
 "summary": "Remove an affiliate link",
 "tags": [
-"Affiliate Commission"
+"Affiliate"
 ]
 }
 },
@@ -23034,7 +17217,7 @@
 ],
 "summary": "List the authenticated agent's commission events",
 "tags": [
-"Affiliate Commission"
+"Affiliate"
 ]
 }
 },
@@ -23054,7 +17237,7 @@
 ],
 "summary": "Get earnings summary: pending, confirmed, paid, available",
 "tags": [
-"Affiliate Commission"
+"Affiliate"
 ]
 }
 },
@@ -23084,7 +17267,7 @@
 ],
 "summary": "Submit a payout request (min $50, must have confirmed earnings)",
 "tags": [
-"Affiliate Commission"
+"Affiliate"
 ]
 },
 "get": {
@@ -23102,226 +17285,7 @@
 ],
 "summary": "List the authenticated agent's payout requests",
 "tags": [
-"Affiliate Commission"
-]
-}
-},
-"/crediblex/token": {
-"get": {
-"description": "Fetches authentication token from CredibleX third-party service for the authenticated user",
-"operationId": "CredibleXController_getToken",
-"parameters": [],
-"responses": {
-"200": {
-"description": "Token successfully retrieved from CredibleX",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/GetTokenResponseDto"
-}
-}
-}
-},
-"400": {
-"description": "Bad request - Invalid userId or API error"
-},
-"401": {
-"description": "Unauthorized - User not authenticated"
-},
-"500": {
-"description": "Internal server error"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get CredibleX authentication token",
-"tags": [
-"CredibleX"
-]
-}
-},
-"/crediblex/start": {
-"post": {
-"description": "Initiates a new process in the CredibleX system",
-"operationId": "CredibleXController_startProcess",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/startProcessDTO"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Process successfully started in CredibleX",
-"content": {
-"application/json": {
-"schema": {
-"type": "object",
-"properties": {
-"success": {
-"type": "boolean",
-"example": true
-}
-}
-}
-}
-}
-},
-"400": {
-"description": "Bad request - Invalid input data"
-},
-"401": {
-"description": "Unauthorized - User not authenticated"
-},
-"500": {
-"description": "Internal server error"
-}
-},
-"security": [
-{
-"bearer": []
-},
-{
-"bearer": []
-}
-],
-"summary": "Start process in CredibleX",
-"tags": [
-"CredibleX"
-]
-}
-},
-"/crediblex/complete": {
-"post": {
-"description": "Marks a loan application as completed by updating its status in the database",
-"operationId": "CredibleXController_completeProcess",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/CompleteProcessDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Loan application successfully marked as completed",
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/CompleteProcessResponseDto"
-}
-}
-}
-},
-"400": {
-"description": "Bad request - Invalid loan application ID or shop ID"
-},
-"401": {
-"description": "Unauthorized - User not authenticated"
-},
-"404": {
-"description": "Loan application not found for this shop"
-},
-"500": {
-"description": "Internal server error"
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Complete CredibleX loan application process",
-"tags": [
-"CredibleX"
-]
-}
-},
-"/crediblex/applications/{shopId}/status": {
-"get": {
-"operationId": "CredibleXController_getApplicationStatus",
-"parameters": [
-{
-"name": "shopId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": "Status retrieved"
-},
-"401": {
-"description": "Unauthorized"
-},
-"503": {
-"description": "CredibleX integration not configured"
-}
-},
-"summary": "Get latest CredibleX application status for a shop",
-"tags": [
-"CredibleX"
-]
-}
-},
-"/crediblex/applications/{applicationId}/refund": {
-"post": {
-"operationId": "CredibleXController_refundApplication",
-"parameters": [
-{
-"name": "applicationId",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/RefundApplicationDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": "Refund processed"
-},
-"400": {
-"description": "Application not in COMPLETED state"
-},
-"401": {
-"description": "Unauthorized"
-},
-"404": {
-"description": "Application not found"
-},
-"503": {
-"description": "CredibleX integration not configured / upstream 5xx"
-}
-},
-"summary": "Refund a completed CredibleX application",
-"tags": [
-"CredibleX"
+"Affiliate"
 ]
 }
 },
@@ -23351,7 +17315,7 @@
 ],
 "summary": "get user's notifications",
 "tags": [
-"notifications"
+"Notifications"
 ]
 }
 },
@@ -23384,7 +17348,7 @@
 },
 "summary": "get notification by id",
 "tags": [
-"notifications"
+"Notifications"
 ]
 },
 "post": {
@@ -23415,7 +17379,7 @@
 },
 "summary": "update notification seen status",
 "tags": [
-"notifications"
+"Notifications"
 ]
 }
 },
@@ -23429,7 +17393,7 @@
 }
 },
 "tags": [
-"Widget"
+"Widgets"
 ]
 }
 },
@@ -23470,7 +17434,7 @@
 }
 },
 "tags": [
-"Widget"
+"Widgets"
 ]
 }
 },
@@ -23503,7 +17467,7 @@
 },
 "summary": "List all widget configurations",
 "tags": [
-"Widget"
+"Widgets"
 ]
 }
 },
@@ -23547,7 +17511,7 @@
 }
 ],
 "tags": [
-"Bonum PSP"
+"Payments"
 ]
 }
 },
@@ -23615,7 +17579,7 @@
 }
 ],
 "tags": [
-"Bonum PSP"
+"Payments"
 ]
 }
 },
@@ -23634,7 +17598,7 @@
 }
 ],
 "tags": [
-"Bonum PSP"
+"Payments"
 ]
 }
 },
@@ -23662,7 +17626,7 @@
 }
 ],
 "tags": [
-"Bonum PSP"
+"Payments"
 ]
 }
 },
@@ -23691,7 +17655,7 @@
 }
 ],
 "tags": [
-"Bonum PSP"
+"Payments"
 ]
 }
 },
@@ -23748,7 +17712,7 @@
 ],
 "summary": "Refund a completed Bonum transaction",
 "tags": [
-"Bonum PSP"
+"Payments"
 ]
 }
 },
@@ -23767,7 +17731,7 @@
 }
 ],
 "tags": [
-"Bonum PSP"
+"Payments"
 ]
 }
 },
@@ -23816,7 +17780,7 @@
 ],
 "summary": "Create a Telr Hosted Payment Page checkout",
 "tags": [
-"Telr PSP"
+"Payments"
 ]
 }
 },
@@ -23831,7 +17795,7 @@
 },
 "summary": "Telr transaction-advice webhook",
 "tags": [
-"Telr PSP"
+"Payments"
 ]
 }
 },
@@ -23870,7 +17834,7 @@
 ],
 "summary": "Refund a captured Telr transaction",
 "tags": [
-"Telr PSP"
+"Payments"
 ]
 }
 },
@@ -23899,7 +17863,7 @@
 ],
 "summary": "Fetch a Telr transaction status (shopId-scoped)",
 "tags": [
-"Telr PSP"
+"Payments"
 ]
 }
 },
@@ -23942,132 +17906,6 @@
 ]
 }
 },
-"/.env": {
-"get": {
-"operationId": "ScannerDecoyController_envFile",
-"parameters": [],
-"responses": {
-"404": {
-"description": ""
-}
-},
-"tags": [
-"ScannerDecoy"
-]
-}
-},
-"/backup.zip": {
-"get": {
-"operationId": "ScannerDecoyController_backupZip",
-"parameters": [],
-"responses": {
-"404": {
-"description": ""
-}
-},
-"tags": [
-"ScannerDecoy"
-]
-}
-},
-"/.git/config": {
-"get": {
-"operationId": "ScannerDecoyController_gitConfig",
-"parameters": [],
-"responses": {
-"404": {
-"description": ""
-}
-},
-"tags": [
-"ScannerDecoy"
-]
-}
-},
-"/actuator/env": {
-"get": {
-"operationId": "ScannerDecoyController_actuatorEnv",
-"parameters": [],
-"responses": {
-"404": {
-"description": ""
-}
-},
-"tags": [
-"ScannerDecoy"
-]
-}
-},
-"/api/.swagger.json": {
-"get": {
-"operationId": "ScannerDecoyController_swaggerJson",
-"parameters": [],
-"responses": {
-"404": {
-"description": ""
-}
-},
-"tags": [
-"ScannerDecoy"
-]
-}
-},
-"/phpmyadmin": {
-"get": {
-"operationId": "ScannerDecoyController_phpmyadminBare",
-"parameters": [],
-"responses": {
-"404": {
-"description": ""
-}
-},
-"tags": [
-"ScannerDecoy"
-]
-}
-},
-"/admin/login": {
-"get": {
-"operationId": "ScannerDecoyController_adminLogin",
-"parameters": [],
-"responses": {
-"401": {
-"description": ""
-}
-},
-"tags": [
-"ScannerDecoy"
-]
-}
-},
-"/wp-admin": {
-"get": {
-"operationId": "ScannerDecoyController_wpAdminBare",
-"parameters": [],
-"responses": {
-"401": {
-"description": ""
-}
-},
-"tags": [
-"ScannerDecoy"
-]
-}
-},
-"/wp-login.php": {
-"get": {
-"operationId": "ScannerDecoyController_wpLogin",
-"parameters": [],
-"responses": {
-"401": {
-"description": ""
-}
-},
-"tags": [
-"ScannerDecoy"
-]
-}
-},
 "/feed/acp.premium.json": {
 "get": {
 "operationId": "ProductFeedPremiumController_getPremiumAcpFeed",
@@ -24097,227 +17935,6 @@
 "summary": "Premium ACP product feed \u2014 x402-gated. Returns same shape as /feed/acp.json plus inventory_count and uncapped pagination.",
 "tags": [
 "Product Feed (ACP) \u2014 Premium / x402"
-]
-}
-},
-"/admin/deployments": {
-"post": {
-"operationId": "DeploymentLogController_create",
-"parameters": [],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/CreateDeploymentLogDto"
-}
-}
-}
-},
-"responses": {
-"201": {
-"description": ""
-}
-},
-"summary": "Create a deployment record (CI key auth)",
-"tags": [
-"Deployment Log"
-]
-},
-"get": {
-"operationId": "DeploymentLogController_findAll",
-"parameters": [
-{
-"name": "environment",
-"required": false,
-"in": "query",
-"schema": {
-"type": "string",
-"enum": [
-"DEV",
-"STAGING",
-"PRODUCTION"
-]
-}
-},
-{
-"name": "service",
-"required": false,
-"in": "query",
-"schema": {
-"example": "apiv3",
-"type": "string"
-}
-},
-{
-"name": "status",
-"required": false,
-"in": "query",
-"schema": {
-"type": "string",
-"enum": [
-"IN_PROGRESS",
-"SUCCESS",
-"FAILED",
-"ROLLED_BACK"
-]
-}
-},
-{
-"name": "page",
-"required": false,
-"in": "query",
-"schema": {
-"default": "1",
-"type": "string"
-}
-},
-{
-"name": "limit",
-"required": false,
-"in": "query",
-"schema": {
-"default": "20",
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "List deployments (paginated, filterable)",
-"tags": [
-"Deployment Log"
-]
-}
-},
-"/admin/deployments/{id}": {
-"patch": {
-"operationId": "DeploymentLogController_update",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"requestBody": {
-"required": true,
-"content": {
-"application/json": {
-"schema": {
-"$ref": "#/components/schemas/UpdateDeploymentLogDto"
-}
-}
-}
-},
-"responses": {
-"200": {
-"description": ""
-}
-},
-"summary": "Update deployment status/smoke/duration (CI key auth)",
-"tags": [
-"Deployment Log"
-]
-},
-"get": {
-"operationId": "DeploymentLogController_findOne",
-"parameters": [
-{
-"name": "id",
-"required": true,
-"in": "path",
-"schema": {
-"type": "string"
-}
-}
-],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Get single deployment detail",
-"tags": [
-"Deployment Log"
-]
-}
-},
-"/admin/deployments/latest": {
-"get": {
-"operationId": "DeploymentLogController_findLatest",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"security": [
-{
-"bearer": []
-}
-],
-"summary": "Latest successful deployment per service+environment",
-"tags": [
-"Deployment Log"
-]
-}
-},
-"/": {
-"get": {
-"operationId": "AppController_checkHealth",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"App"
-]
-}
-},
-"/health": {
-"get": {
-"operationId": "AppController_health",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"App"
-]
-}
-},
-"/csrf-token": {
-"get": {
-"operationId": "AppController_getCsrfToken",
-"parameters": [],
-"responses": {
-"200": {
-"description": ""
-}
-},
-"tags": [
-"App"
 ]
 }
 },
@@ -24354,7 +17971,7 @@
 ],
 "summary": "create address book",
 "tags": [
-"address-book"
+"Address Book"
 ]
 },
 "get": {
@@ -24382,7 +17999,7 @@
 ],
 "summary": "get user's address books",
 "tags": [
-"address-book"
+"Address Book"
 ]
 }
 },
@@ -24419,7 +18036,7 @@
 ],
 "summary": "create address book ",
 "tags": [
-"address-book"
+"Address Book"
 ]
 }
 },
@@ -24449,7 +18066,7 @@
 ],
 "summary": "get shop address books",
 "tags": [
-"address-book"
+"Address Book"
 ]
 }
 },
@@ -24479,7 +18096,7 @@
 ],
 "summary": "get Shipping address books",
 "tags": [
-"address-book"
+"Address Book"
 ]
 }
 },
@@ -24516,7 +18133,7 @@
 ],
 "summary": "delete address book by id",
 "tags": [
-"address-book"
+"Address Book"
 ]
 },
 "get": {
@@ -24552,7 +18169,7 @@
 ],
 "summary": "get address book by id",
 "tags": [
-"address-book"
+"Address Book"
 ]
 },
 "put": {
@@ -24598,7 +18215,7 @@
 ],
 "summary": "update address book by id",
 "tags": [
-"address-book"
+"Address Book"
 ]
 }
 },
@@ -24646,7 +18263,7 @@
 ],
 "summary": "create address for a customer",
 "tags": [
-"address-book"
+"Address Book"
 ]
 },
 "get": {
@@ -24685,7 +18302,7 @@
 ],
 "summary": "get all addresses for a customer",
 "tags": [
-"address-book"
+"Address Book"
 ]
 }
 },
@@ -24743,7 +18360,7 @@
 ],
 "summary": "update a customer address",
 "tags": [
-"address-book"
+"Address Book"
 ]
 },
 "delete": {
@@ -24792,7 +18409,7 @@
 ],
 "summary": "delete a customer address",
 "tags": [
-"address-book"
+"Address Book"
 ]
 }
 },
@@ -24845,7 +18462,6 @@
 ],
 "summary": "Create a new RuleSet",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -24876,7 +18492,6 @@
 ],
 "summary": "Get single RuleSet by ID",
 "tags": [
-"Web3",
 "Web3"
 ]
 },
@@ -24915,7 +18530,6 @@
 ],
 "summary": "Update RuleSet",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -25004,7 +18618,6 @@
 },
 "summary": "Check if a RuleSet is passed",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -25046,7 +18659,6 @@
 },
 "summary": "Get available RuleSets and Networks",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -25091,7 +18703,6 @@
 },
 "summary": "Generate a preview image",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -25334,7 +18945,7 @@
 ],
 "summary": "Create API Key",
 "tags": [
-"shopV2-api-key"
+"Shops"
 ]
 },
 "get": {
@@ -25537,7 +19148,7 @@
 ],
 "summary": "List API Keys",
 "tags": [
-"shopV2-api-key"
+"Shops"
 ]
 }
 },
@@ -25717,7 +19328,7 @@
 ],
 "summary": "Get API Key by ID",
 "tags": [
-"shopV2-api-key"
+"Shops"
 ]
 },
 "patch": {
@@ -25913,7 +19524,7 @@
 ],
 "summary": "Update API Key",
 "tags": [
-"shopV2-api-key"
+"Shops"
 ]
 }
 },
@@ -26050,7 +19661,7 @@
 ],
 "summary": "Revoke API Key",
 "tags": [
-"shopV2-api-key"
+"Shops"
 ]
 }
 },
@@ -26212,7 +19823,7 @@
 ],
 "summary": "Regenerate API Key",
 "tags": [
-"shopV2-api-key"
+"Shops"
 ]
 }
 },
@@ -26290,7 +19901,6 @@
 ],
 "summary": "Deploy Shop Contract",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -26386,7 +19996,6 @@
 ],
 "summary": "Record Products",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -26512,7 +20121,6 @@
 ],
 "summary": "Claim NFTs",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -26557,7 +20165,6 @@
 ],
 "summary": "Check shop deployment",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -26641,7 +20248,6 @@
 ],
 "summary": "Check status of a request using requestId",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -26677,7 +20283,6 @@
 ],
 "summary": "Get all requests for a shop",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -26738,7 +20343,6 @@
 ],
 "summary": "Handle crossmint record callback",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -26763,7 +20367,6 @@
 ],
 "summary": "Handle crossmint claim callback",
 "tags": [
-"Web3",
 "Web3"
 ]
 }
@@ -27753,26 +21356,149 @@
 },
 "info": {
 "title": "Droplinked APIs",
-"description": "All APIs are here now.",
+"description": "The Droplinked REST API \u2014 commerce, payments, AI, web3, and agentic commerce. Public (/public), merchant (Bearer JWT), and integration (integration-api-key) tiers.",
 "version": "1.2",
 "contact": {}
 },
 "tags": [
 {
-"name": "droplinked",
-"description": ""
-}
-],
-"servers": [
-{
-"url": "https://apiv3.droplinked.com",
-"description": "Production"
+"name": "Authentication",
+"description": "Obtain and manage merchant/customer access tokens."
 },
 {
-"url": "https://apiv3dev.droplinked.com",
-"description": "Development"
+"name": "Shops",
+"description": "Read and manage shops, storefront config, and API keys."
+},
+{
+"name": "Products",
+"description": "Products, SKUs, pricing, and the public catalog."
+},
+{
+"name": "Collections",
+"description": "Group products into collections."
+},
+{
+"name": "Cart",
+"description": "Build carts, attach customers, and prepare checkout."
+},
+{
+"name": "Orders",
+"description": "Create and track orders and fulfillment."
+},
+{
+"name": "Shipping",
+"description": "Shipping profiles, rates, and address-based estimates."
+},
+{
+"name": "Payments",
+"description": "Card (Stripe), PayPal, and regional PSP payment flows."
+},
+{
+"name": "Customers",
+"description": "Customer accounts and profiles."
+},
+{
+"name": "Address Book",
+"description": "Saved customer addresses."
+},
+{
+"name": "Subscriptions",
+"description": "Droplinked platform subscription billing."
+},
+{
+"name": "Gift Cards",
+"description": "Issue and redeem gift cards."
+},
+{
+"name": "Credits",
+"description": "Account credits and balances."
+},
+{
+"name": "Currency",
+"description": "Supported currencies and conversion."
+},
+{
+"name": "AI Tools",
+"description": "AI generation + moderation endpoints."
+},
+{
+"name": "Web3",
+"description": "On-chain commerce, blockchain, and crypto rails."
+},
+{
+"name": "NFTs",
+"description": "NFT minting and management."
+},
+{
+"name": "Affiliate",
+"description": "Affiliate network, links, and commissions."
+},
+{
+"name": "Blogs",
+"description": "Shop blog content."
+},
+{
+"name": "Quests",
+"description": "Gamification and social quests."
+},
+{
+"name": "Widgets",
+"description": "Embeddable widgets."
+},
+{
+"name": "Media",
+"description": "Image/file uploads."
+},
+{
+"name": "Locations",
+"description": "Countries, states, and cities reference data."
+},
+{
+"name": "Notifications",
+"description": "Notification endpoints."
+},
+{
+"name": "Webhooks",
+"description": "Inbound webhook receivers."
+},
+{
+"name": "Affiliate Payout Settlement"
+},
+{
+"name": "Affiliate Redirect"
+},
+{
+"name": "Product Feed (ACP)"
+},
+{
+"name": "Product Feed (ACP) \u2014 Premium / x402"
+},
+{
+"name": "Products (Public)"
+},
+{
+"name": "ROI"
+},
+{
+"name": "Shop Growth"
+},
+{
+"name": "Sitemap"
+},
+{
+"name": "affiliate-auth"
+},
+{
+"name": "auth"
+},
+{
+"name": "email"
+},
+{
+"name": "subject-rights"
 }
 ],
+"servers": [],
 "components": {
 "securitySchemes": {
 "bearer": {
