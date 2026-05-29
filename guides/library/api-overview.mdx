@@ -1,0 +1,139 @@
+---
+title: "Droplinked API"
+description: "Introduction to the Droplinked API — a comprehensive suite of endpoints for building modern, scalable eCommerce systems with Web3-native features."
+---
+
+The **Droplinked API** is a collection of powerful endpoints that allow developers to build
+complete eCommerce platforms or store-management applications. With Droplinked, you can easily
+create online stores, manage product inventories, handle payments — including **Web3 crypto
+transactions** — and even **mint products as NFTs**.
+
+It provides everything you need to build a modern, connected, and scalable eCommerce
+experience.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Store management" icon="store">
+    Create and manage multiple stores with full configuration control.
+  </Card>
+  <Card title="Product management" icon="box">
+    Add, update, and organize products or inventory items.
+  </Card>
+  <Card title="Web3 payments" icon="ethereum">
+    Integrate decentralized payments using crypto and blockchain technology.
+  </Card>
+  <Card title="NFT minting" icon="cube">
+    Convert products into NFTs to enable on-chain ownership or digital verification.
+  </Card>
+</CardGroup>
+
+## What you can build
+
+Developers use the Droplinked API to build:
+
+- **Online stores** — create and manage digital storefronts
+- **Admin dashboards** — build management panels for merchants and sellers
+- **Web3 eCommerce apps** — enable features such as crypto payments and NFT product minting
+
+## Getting started
+
+### 1. Get your API key
+
+To start using the API, create an API key from your **Droplinked dashboard**.
+
+<Steps>
+  <Step title="Open the dashboard">
+    Go to [droplinked.com](https://droplinked.com) and log in with your account credentials.
+  </Step>
+  <Step title="Navigate to Developers">
+    Open **Settings → Developers** in the side navigation.
+  </Step>
+  <Step title="Create a key">
+    In the **API Keys** tab, create a new key. Copy the value — it won't be shown again.
+  </Step>
+</Steps>
+
+<Warning>
+Keep your API key secure — it identifies and authenticates your requests to Droplinked's
+backend. Never commit it to source control or expose it in client-side bundles.
+</Warning>
+
+### 2. Base URL
+
+All API requests should be made to:
+
+```bash
+https://api.io.droplinked.com/
+```
+
+### 3. Authentication header
+
+Every request must include your API key in the headers:
+
+```bash
+x-droplinked-api-key: YOUR_API_KEY
+```
+
+#### Example — `curl`
+
+```bash
+curl -X GET "https://api.io.droplinked.com/v1/store" \
+  -H "x-droplinked-api-key: YOUR_API_KEY"
+```
+
+### 4. Live API reference
+
+You can explore and test the full API specification interactively from the
+[API Reference](/api-reference/introduction) tab in this docs site, or browse the legacy Swagger
+at [apiv3.droplinked.com/swagger/dev-docs](https://apiv3.droplinked.com/swagger/dev-docs).
+
+The OpenAPI spec is downloadable at
+[apiv3.droplinked.com/swagger/json](https://apiv3.droplinked.com/swagger/json).
+
+## Core concepts
+
+The main functional modules in the Droplinked API:
+
+| Module | Purpose |
+|--------|---------|
+| **User management** | Merchant registration, authentication (login), and account management |
+| **Product management** | Create, edit, and organize products within stores |
+| **Shipping management** | Configure and manage shipping systems and delivery methods |
+| **Cart & Order management** | Cart creation, order placement, and order tracking |
+| **Payment management** | Process and manage payments through traditional and Web3 methods |
+| **Blog management** | Create and manage blogs, articles, and related content for storefronts |
+
+These entities connect together as shown in the [platform model](/concepts/platform-model)
+overview.
+
+## API reference catalog
+
+The full live API reference (auto-generated from OpenAPI) groups endpoints by resource:
+
+<CardGroup cols={3}>
+  <Card title="Merchant" icon="user-tie" href="/api-reference">Authentication, registration, profile</Card>
+  <Card title="Customer" icon="user" href="/api-reference">Customer accounts + sessions</Card>
+  <Card title="Shop" icon="store" href="/api-reference">Shop CRUD, payment methods, domains</Card>
+  <Card title="Product" icon="box" href="/api-reference">Product CRUD + variants</Card>
+  <Card title="Collection" icon="folder" href="/api-reference">Product groupings</Card>
+  <Card title="SKU" icon="barcode" href="/api-reference">Stock-keeping units + inventory</Card>
+  <Card title="Shipping" icon="truck" href="/api-reference">Rates + carriers</Card>
+  <Card title="Gift Card" icon="gift" href="/api-reference">Gift-card issuance + redemption</Card>
+  <Card title="Blog" icon="newspaper" href="/api-reference">Articles + content</Card>
+  <Card title="Cart" icon="cart-shopping" href="/api-reference">Cart lifecycle</Card>
+  <Card title="Order" icon="receipt" href="/api-reference">Order placement + tracking</Card>
+  <Card title="Address Book" icon="address-book" href="/api-reference">Saved shipping addresses</Card>
+</CardGroup>
+
+<Tip>
+Bookmark the [API Reference](/api-reference/introduction) tab to always have the latest version
+of Droplinked's interactive endpoint documentation handy.
+</Tip>
+
+## Related
+
+- [Use cases](/guides/library/use-cases) — endpoint-by-endpoint walkthroughs
+- [API cookbook](/guides/library/api-cookbook) — end-to-end recipes
+- [Web3 shop tutorial](/guides/library/web3-shop-tutorial) — build a full storefront
+- [Droplinked tools](/guides/library/droplinked-tools) — embeddables, OAuth, DIMST

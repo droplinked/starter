@@ -59,6 +59,18 @@
               "guides/integrations/printful",
               "guides/integrations/easypost"
             ]
+          },
+          {
+            "group": "Library",
+            "pages": [
+              "guides/library/overview",
+              "guides/library/droplinked-tools",
+              "guides/library/api-overview",
+              "guides/library/api-cookbook",
+              "guides/library/web3-shop-tutorial",
+              "guides/library/use-cases",
+              "guides/library/whats-new"
+            ]
           }
         ]
       },

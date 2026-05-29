@@ -1,0 +1,300 @@
+---
+title: "Web3 shop tutorial"
+description: "Build a fully functional Web3 shop using Droplinked's APIs — shop API key, product retrieval, cart management, customer addresses, shipping, Stripe checkout, and order retrieval."
+---
+
+In this guide, you'll build your own Web3 shop using Droplinked's API and infrastructure with
+only frontend code. By leveraging the ready-made APIs, you can set up a fully decentralized
+e-commerce store with minimal backend involvement.
+
+<Note>
+**API reference**
+For the full interactive endpoint browser, see the [API Reference](/api-reference/introduction)
+tab in this docs site, or the legacy Swagger at
+[apiv3.droplinked.com/v1/public-apis/document](https://apiv3.droplinked.com/v1/public-apis/document).
+</Note>
+
+## Setting up — your shop API key (`x-shop-id`)
+
+To make authenticated API calls you first need to generate a unique `x-shop-id` from your
+Droplinked dashboard. This ID is included in the headers of every API request to identify and
+authorize your shop.
+
+<Warning>
+Your shop must be **upgraded** to access API features. API keys are only available to upgraded
+shops.
+</Warning>
+
+### Steps to generate your `x-shop-id`
+
+<Steps>
+  <Step title="Log into Droplinked">
+    Go to [droplinked.com](https://droplinked.com) and sign in.
+  </Step>
+  <Step title="Open Account Settings">
+    Navigate to **Account Settings** from the menu.
+  </Step>
+  <Step title="Privacy and Security">
+    Open the **Privacy and Security** tab.
+  </Step>
+  <Step title="Register your domain">
+    In the **Domain** section, enter the domain name from which you plan to make API requests
+    (e.g. `https://yourstore.com`).
+  </Step>
+  <Step title="Copy the generated x-shop-id">
+    Once the domain is added, your unique shop ID is generated. Copy the `x-shop-id` from the
+    dashboard — you'll need it for all API calls.
+  </Step>
+</Steps>
+
+Your request headers should look like this:
+
+```json
+{
+  "x-shop-id": "YOUR_SHOP_ID"
+}
+```
+
+## Base URL and authentication
+
+All Droplinked API requests are made to the following base URL:
+
+```bash
+https://apiv3.droplinked.com
+```
+
+Include your `x-shop-id` in the headers of every API call. This value ties each request to
+your specific shop.
+
+```json
+{
+  "x-shop-id": "YOUR_SHOP_ID"
+}
+```
+
+<Warning>
+All API requests must include this header. Without it, the request will be rejected.
+</Warning>
+
+## API flow overview
+
+The Droplinked API flow follows a simple four-step structure:
+
+<Steps>
+  <Step title="Shop & product setup">
+    Fetch shop information and available products to display in your frontend.
+  </Step>
+  <Step title="Cart management">
+    Create a cart, add products, update quantities, and attach customer details (email,
+    shipping address).
+  </Step>
+  <Step title="Checkout & payment">
+    Use the checkout APIs and integrate the Droplinked Stripe payment component to process
+    customer payments.
+  </Step>
+  <Step title="Order handling">
+    Retrieve and display final order details for confirmation or tracking.
+  </Step>
+</Steps>
+
+## 1. Shop and product retrieval
+
+### Get shop information
+
+Retrieve metadata about your shop — name, description, logo, and other configuration.
+
+- **Endpoint:** `GET https://apiv3.droplinked.com/v1/shop`
+- **API docs:** [PublicApiController_getShop](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_getShop)
+
+### List products (paginated)
+
+Returns a paginated list of products. Use query parameters to control pagination and filtering.
+
+- **Endpoint:** `GET https://apiv3.droplinked.com/v1/products`
+- **API docs:** [PublicApiController_findAll](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_findAll)
+
+### Get product by slug
+
+Useful for SEO-friendly URLs or product pages.
+
+- **Endpoint:** `GET https://apiv3.droplinked.com/v1/products/slug/{slug}`
+- **API docs:** [PublicApiController_getProductBySlug](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_getProductBySlug)
+
+### Get product by ID
+
+Useful for internal lookups or cart operations.
+
+- **Endpoint:** `GET https://apiv3.droplinked.com/v1/products/{id}`
+- **API docs:** [PublicApiController_findOne](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_findOne)
+
+## 2. Cart management
+
+Once a user starts interacting with products, you'll need to create and manage a shopping cart
+session.
+
+### Create a new shopping cart
+
+- **Endpoint:** `POST https://apiv3.droplinked.com/v1/cart`
+- **API docs:** [PublicApiController_createCart](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_createCart)
+
+### Retrieve cart information
+
+- **Endpoint:** `GET https://apiv3.droplinked.com/v1/cart/{cartId}`
+- **API docs:** [PublicApiController_getCart](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_getCart)
+
+### Add product to cart
+
+- **Endpoint:** `POST https://apiv3.droplinked.com/v1/cart/{cartId}`
+- **API docs:** [PublicApiController_addProductToCart](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_addProductToCart)
+
+### Update cart item quantity
+
+- **Endpoint:** `PUT https://apiv3.droplinked.com/v1/cart/{cartId}`
+- **API docs:** [PublicApiController_update](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_update)
+
+### Remove item from cart
+
+- **Endpoint:** `DELETE https://apiv3.droplinked.com/v1/cart/{cartId}`
+- **API docs:** [PublicApiController_removeItemFromCart](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_removeItemFromCart)
+
+### Attach additional details to cart
+
+Add customer-specific information such as email, shipping address, and optional notes — usually
+required before checkout.
+
+- **Endpoint:** `PATCH https://apiv3.droplinked.com/v1/cart/{cartId}/details`
+- **API docs:** [PublicApiController_attachCartDetails](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_attachCartDetails)
+
+## 3. Customer address (physical products only)
+
+For physical products that require shipping, collect and attach a customer address to the cart.
+
+<Note>
+Address creation is only required if the cart contains physical (non-digital) items.
+</Note>
+
+### Search available countries
+
+- **Endpoint:** `GET https://apiv3.droplinked.com/v1/locations/countries`
+- **API docs:** [PublicApiController_getCountries](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_getCountries)
+
+### Search cities by country
+
+- **Endpoint:** `GET https://apiv3.droplinked.com/v1/locations/cities`
+- **API docs:** [PublicApiController_getCities](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_getCities)
+
+### Create a new customer address
+
+The returned address ID will be included in the **Attach Additional Details to Cart** request.
+
+- **Endpoint:** `POST https://apiv3.droplinked.com/v1/customer/address`
+- **API docs:** [PublicApiController_addAddressToCustomer](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_addAddressToCustomer)
+
+## 4. Shipping management (physical products)
+
+If a cart includes physical products, shipping information must be added before payment.
+Droplinked automatically returns available shipping methods as part of the cart data.
+
+### Available shipping options
+
+When you retrieve the cart (`GET /v1/cart/{cartId}`), the response includes a list of available
+shipping rates in the `shippingOptions` (or `shipping`) section of the payload. These are
+dynamically generated based on:
+
+- The customer's address
+- The cart contents (dimensions, weight, etc.)
+- Your shop's shipping configuration
+
+<Tip>
+Always check for available shipping methods after setting the customer address.
+</Tip>
+
+### Add shipping rate to cart
+
+Once you've selected a shipping option, apply it to the cart.
+
+- **Endpoint:** `POST https://apiv3.droplinked.com/v1/checkout/shipping-rates/{cartId}`
+- **API docs:** [PublicApiController_addAnonShippingRate](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_addAnonShippingRate)
+
+Pass the selected shipping-rate ID in the request body.
+
+## 5. Checkout and payment
+
+Once the cart has customer info and (if needed) a shipping rate, kick off the payment process.
+Droplinked uses Stripe under the hood and provides a dedicated package to simplify integration
+on the frontend.
+
+### Create Stripe payment session
+
+Generate a `clientSecret` for the current cart. This secret is required to initiate the Stripe
+payment session on the frontend.
+
+- **Endpoint:** `POST https://apiv3.droplinked.com/v1/checkout/stripe/{cartId}`
+- **API docs:** [PublicApiController_stripeCheckout](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_stripeCheckout)
+
+### Install the Droplinked Stripe UI package
+
+<CodeGroup>
+```bash npm
+npm install droplinked-payment-intent
+```
+
+```bash yarn
+yarn add droplinked-payment-intent
+```
+
+```bash pnpm
+pnpm add droplinked-payment-intent
+```
+</CodeGroup>
+
+### Implement the payment component
+
+Import and use the `<DroplinkedPaymentIntent />` component. Pass the `clientSecret` you got
+from the previous step, along with the callbacks.
+
+```jsx
+import React from 'react';
+import { DroplinkedPaymentIntent } from 'droplinked-payment-intent';
+
+function PaymentPage() {
+  return (
+    <div className="payment-container">
+      <h2>Complete Your Payment</h2>
+      <DroplinkedPaymentIntent
+        clientSecret="your_client_secret"
+        type="stripe"
+        return_url="https://your-return-url.com"
+        onSuccess={() => console.log('Payment successful')}
+        onCancel={() => console.log('Payment canceled')}
+        onError={(error) => console.error('Payment failed', error)}
+        isTestnet={true} // Set to false for production
+      />
+    </div>
+  );
+}
+
+export default PaymentPage;
+```
+
+<Tip>
+Toggle `isTestnet` depending on whether you're using a test or live environment.
+</Tip>
+
+## 6. Order retrieval
+
+After a successful payment, retrieve the finalized order using the order ID to show
+confirmation details or track status.
+
+### Get order by ID
+
+- **Endpoint:** `GET https://apiv3.droplinked.com/v1/order/{id}`
+- **API docs:** [PublicApiController_publicGetOrder](https://apiv3.droplinked.com/v1/public-apis/document#operation/PublicApiController_publicGetOrder)
+
+## Related
+
+- [API overview](/guides/library/api-overview) — base URL, auth, core concepts
+- [API cookbook — build a custom store](/guides/library/api-cookbook) — full reference
+  implementation in JS + Python
+- [Use cases](/guides/library/use-cases) — endpoint-by-endpoint walkthroughs
+- [Stripe integration guide](/guides/integrations/stripe) — Connect, webhooks, payouts
