@@ -4,9 +4,9 @@
   "name": "Droplinked Developers",
   "description": "Build commerce — and agentic commerce — on Droplinked. APIs, the MCP server, and the Agentic Commerce Protocol feed to meet merchants where they already publish their inventory.",
   "colors": {
-    "primary": "#4F46E5",
-    "light": "#818CF8",
-    "dark": "#3730A3"
+    "primary": "#2bcfa1",
+    "light": "#06c295",
+    "dark": "#01b48a"
   },
   "favicon": "/favicon.svg",
   "navigation": {
