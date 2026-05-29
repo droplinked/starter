@@ -1,0 +1,69 @@
+---
+title: 'OpenAPI Specification'
+description: 'Machine-readable + human-readable API specs for droplinked. Use the rendered API Reference for browsing, or pull the raw JSON for code generation, Postman/Insomnia import, and agent tooling.'
+---
+
+<Note>
+  Three ways to consume the droplinked API spec:
+  - **This rendered reference** — browse all endpoints in the **API Reference** tab (auto-generated from the OpenAPI feed)
+  - **Interactive Swagger UI** — try requests live at [apiv3.droplinked.com/swagger/dev-docs](https://apiv3.droplinked.com/swagger/dev-docs)
+  - **Raw OpenAPI 3.0 JSON** — pull for client codegen, Postman import, agent SDK setup: [apiv3.droplinked.com/swagger/json](https://apiv3.droplinked.com/swagger/json)
+</Note>
+
+## Live spec
+
+<Card title="OpenAPI 3.0 JSON" icon="file-code" href="https://apiv3.droplinked.com/swagger/json">
+  Public, always-current. Re-generated on each backend deploy from the NestJS controller decorators. Used by this Mintlify reference + the MCP server + any agent tooling.
+</Card>
+
+<Card title="Swagger UI (interactive)" icon="play" href="https://apiv3.droplinked.com/swagger/dev-docs">
+  Rendered HTML Swagger UI for trying requests directly against prod with your API key. Same data as the JSON above.
+</Card>
+
+## Code generation
+
+<CodeGroup>
+```bash openapi-generator
+# Generate a TypeScript SDK from the live spec
+npm install -g @openapitools/openapi-generator-cli
+openapi-generator-cli generate \
+  -i https://apiv3.droplinked.com/swagger/json \
+  -g typescript-axios \
+  -o ./droplinked-sdk
+```
+
+```bash postman
+# Import directly into Postman
+curl -sS https://apiv3.droplinked.com/swagger/json > droplinked.openapi.json
+# Postman → File → Import → upload droplinked.openapi.json
+```
+
+```python python
+# Quick pythonic browse via openapi-spec-validator
+pip install openapi-spec-validator requests
+python -c "
+import requests
+spec = requests.get('https://apiv3.droplinked.com/swagger/json').json()
+print(f'{len(spec[\"paths\"])} endpoints across {len(set(p.split(\"/\")[1] for p in spec[\"paths\"]))} resources')"
+```
+</CodeGroup>
+
+## Agent SDK setup
+
+For Claude Code / Cursor / GitHub Copilot — add this docs site as an MCP server (see the floating contextual toolbar in the bottom-right of every page for one-click "Add to MCP" buttons). Or wire the OpenAPI JSON directly into your agent's tool definitions:
+
+<Card title="MCP Server" icon="robot" href="/agentic/mcp-server">
+  droplinked exposes its public APIs to agents via MCP — see the dedicated page for tools available + connection instructions.
+</Card>
+
+## Spec stats
+
+- OpenAPI version: **3.0.0**
+- Total endpoints: **83+** (verified live)
+- Auth: API key via `X-API-Key` header for public endpoints, JWT for merchant scope, customer-JWT for guest-checkout scope
+- Versioning: per-module (v2 suffix where present, e.g., `/shops/v2`, `/customer-v2`, `/v2/carts`, `/v2/orders`)
+- Updated: on every backend deploy (re-generated from NestJS @ApiTags decorators)
+
+## Stability + change policy
+
+Endpoint contracts are stable across patch + minor backend releases. Major version bumps (e.g., v2 → v3) appear under new module paths to keep current clients green. Subscribe to backend repo's release notes for breaking-change advance notice.

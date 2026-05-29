@@ -98,7 +98,8 @@
             "group": "Overview",
             "pages": [
               "api-reference/introduction",
-              "api-reference/status"
+              "api-reference/status",
+              "api-reference/openapi-spec"
             ]
           },
           {
@@ -160,12 +161,12 @@
         },
         {
           "anchor": "OpenAPI Spec",
-          "href": "https://apiv3.droplinked.com/swagger/json",
+          "href": "/api-reference/openapi-spec",
           "icon": "file-code"
         },
         {
           "anchor": "ACP Feed",
-          "href": "https://apiv3.droplinked.com/feed/acp.json",
+          "href": "/agentic/acp-feed",
           "icon": "rss"
         },
         {

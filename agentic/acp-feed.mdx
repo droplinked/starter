@@ -3,18 +3,22 @@ title: Product Feed (ACP)
 description: "The Stripe Agentic Commerce Protocol feed — how a merchant's published inventory becomes shoppable inside AI surfaces."
 ---
 
-Droplinked publishes every merchant's public catalog as a **Stripe Agentic Commerce Protocol
-(ACP) product feed**. This is the surface that agentic shopping experiences (e.g. ChatGPT)
-ingest — so a merchant's existing inventory is discoverable and purchasable by agents without
-the merchant building anything new.
+<Note>
+  Droplinked publishes every merchant's public catalog as a **Stripe Agentic Commerce Protocol
+  (ACP) product feed**. This is the surface that agentic shopping experiences (e.g. ChatGPT)
+  ingest — so a merchant's existing inventory is discoverable and purchasable by agents without
+  the merchant building anything new.
+</Note>
 
-## The feed
+## Live feed
 
-```
-GET https://apiv3.droplinked.com/feed/acp.json
-```
+<Card title="ACP Feed (live)" icon="rss" href="https://apiv3.droplinked.com/feed/acp.json">
+  Always-current public feed at `https://apiv3.droplinked.com/feed/acp.json`. Cursor-paginated;
+  serves the full public catalog (thousands of items). Updated on product changes plus a short
+  refresh cycle for inventory + price.
+</Card>
 
-It's live today and serves the full public catalog (thousands of items), cursor-paginated.
+## Feed shape
 
 ```json
 {
@@ -48,6 +52,32 @@ It's live today and serves the full public catalog (thousands of items), cursor-
 
 Paginate by following `next_cursor` until it's absent. `generated_at` reflects the snapshot time.
 
+## Quick agent integration
+
+<CodeGroup>
+```bash curl
+# Browse the live feed (first 3 items)
+curl -sS https://apiv3.droplinked.com/feed/acp.json | jq '.items[0:3]'
+```
+
+```javascript js
+// Use in your agent's product-discovery tool
+const feed = await fetch('https://apiv3.droplinked.com/feed/acp.json').then(r => r.json());
+const matching = feed.items.filter(p => p.title.toLowerCase().includes(userQuery));
+return matching.slice(0, 5).map(p => ({
+  title: p.title, price: p.price, checkout: p.link
+}));
+```
+
+```python python
+import requests
+feed = requests.get('https://apiv3.droplinked.com/feed/acp.json').json()
+# pipe into your agent's tool definitions
+for product in feed['items']:
+    yield {'id': product['id'], 'title': product['title'], 'url': product['link']}
+```
+</CodeGroup>
+
 ## How it's used
 
 - **Agents & shopping surfaces** ingest the feed to make Droplinked inventory searchable and
@@ -56,6 +86,27 @@ Paginate by following `next_cursor` until it's absent. `generated_at` reflects t
   the catalog directly.
 - Purchases route through the Stripe ACP / x402 layer with the 70/20/10 revenue split.
 
-<Card title="Next: connect your store" icon="plug" href="/agentic/connect-your-store">
-Make your existing inventory agent-shoppable.
+## ACP-compatible surfaces
+
+- **Stripe ACP-aware agents** — Droplinked's feed is registered with Stripe's ACP partner catalog
+- **OpenAI / ChatGPT shopping surfaces** — feed URL can be added to agent tool-defs as a discovery source
+- **Visa Intelligent Commerce** (when GA) — same feed format
+
+## Related
+
+<CardGroup cols={2}>
+<Card title="MCP Server" icon="robot" href="/agentic/mcp-server">
+  Direct programmatic API access for agents (search, fetch, checkout).
 </Card>
+<Card title="OpenAPI Spec" icon="file-code" href="/api-reference/openapi-spec">
+  Full machine-readable API surface (cart, checkout, orders) for fresher-than-feed data.
+</Card>
+<Card title="Connect your store" icon="plug" href="/agentic/connect-your-store">
+  Make your existing inventory agent-shoppable.
+</Card>
+</CardGroup>
+
+## Cache + refresh
+
+- Feed regenerates on product create/edit/delete plus a short refresh cycle for inventory + price
+- For agents requiring up-to-the-second data, hit the cart/checkout endpoints in the [OpenAPI Spec](/api-reference/openapi-spec) directly
