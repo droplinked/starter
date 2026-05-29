@@ -41,7 +41,7 @@
             ]
           }
         ],
-        "openapi": "api-reference/openapi.json"
+        "openapi": "https://apiv3.droplinked.com/swagger/json"
       },
       {
         "tab": "Agentic Commerce",
