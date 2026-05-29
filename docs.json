@@ -28,6 +28,37 @@
             "pages": [
               "concepts/platform-model"
             ]
+          },
+          {
+            "group": "Deploy & Operate",
+            "pages": [
+              "guides/deploy-flow",
+              "guides/environment-variables",
+              "guides/security/supply-chain"
+            ]
+          },
+          {
+            "group": "Order Lifecycle",
+            "pages": [
+              "guides/order-lifecycle",
+              "guides/testing/checkout-stability"
+            ]
+          },
+          {
+            "group": "Payment Integrations",
+            "pages": [
+              "guides/integrations/stripe",
+              "guides/integrations/paypal",
+              "guides/integrations/bonum",
+              "guides/integrations/telr"
+            ]
+          },
+          {
+            "group": "Fulfillment Integrations",
+            "pages": [
+              "guides/integrations/printful",
+              "guides/integrations/easypost"
+            ]
           }
         ]
       },

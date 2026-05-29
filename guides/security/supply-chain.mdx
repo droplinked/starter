@@ -1,0 +1,123 @@
+---
+title: "Supply-chain integrity"
+description: "How the Droplinked backend build verifies node_modules and pins native binaries to defend against tampered packages."
+---
+
+This document records the supply-chain hardening posture for the `droplinked-backend` build
+pipeline. It pairs three things: `package.json` `overrides`, an `npm audit signatures` step
+in the Docker build, and exact-version pinning of native binaries.
+
+## Threat model
+
+A malicious replacement of a native binary inside `node_modules/` loads at app startup with
+**full process privileges** — direct access to `process.env` (JWT secret, database URL,
+Stripe / AWS / Atlas credentials) and the EC2 instance-metadata endpoint.
+
+The `sharp` package ships its native image-processing binary under `@img/sharp-*` and
+`@img/sharp-libvips-*`. It's the most attractive target in this repo's dependency graph
+because it loads on every request that touches the image pipeline.
+
+## Two layers of defense
+
+### 1. Exact-version pinning of `sharp` native binaries
+
+`package.json` `overrides` pins the `@img/sharp-*` binaries that actually load at runtime
+on ECS containers (Alpine / musl, x64) **and** the glibc x64 variant in case the base image
+moves:
+
+| Package | Pinned version |
+|---------|----------------|
+| `@img/sharp-linux-x64` | `0.33.5` |
+| `@img/sharp-linuxmusl-x64` | `0.33.5` |
+| `@img/sharp-libvips-linux-x64` | `1.0.4` |
+| `@img/sharp-libvips-linuxmusl-x64` | `1.0.4` |
+
+These versions match the `sharp@^0.33.5` release. The integrity `sha512` hashes for each
+tarball are stored in `package-lock.json` and are **verified by npm on every install**.
+
+To check the upstream tarball hashes manually:
+
+```bash
+npm view @img/sharp-linuxmusl-x64@0.33.5 dist
+npm view @img/sharp-libvips-linuxmusl-x64@1.0.4 dist
+```
+
+The `shasum` returned by `npm view` corresponds to the sha1 of the tarball; the lockfile
+records the sha512. Compare against the release notes at
+[sharp releases](https://github.com/lovell/sharp/releases).
+
+### 2. `npm audit signatures` at build time
+
+The `Dockerfile` runs `npm audit signatures` immediately after `npm i`. This walks every
+installed package and verifies its registry-issued signature against
+[npm's signing key](https://registry.npmjs.org/-/npm/v1/keys).
+
+<Warning>
+The build **fails** on any package whose signature is missing or doesn't match — including
+binaries swapped in by a compromised post-install script or a tampered registry mirror.
+</Warning>
+
+## Runbook
+
+### When `npm audit signatures` fails in CI
+
+<Steps>
+  <Step title="Do not bypass.">
+    A signature failure means at least one tarball we resolved doesn't match what npm
+    signed.
+  </Step>
+  <Step title="Pull the failing build log.">
+    The error names the offending package(s) and version(s).
+  </Step>
+  <Step title="Cross-check the package on npmjs.com.">
+    Has it been unpublished or re-published? Has the publisher account been compromised
+    (check the npm status feed)?
+  </Step>
+  <Step title="Pin a known-good parent.">
+    If the failure is on a transitive dependency we don't directly own, pin the parent
+    dependency to a known-good version via `overrides` and regenerate the lockfile.
+  </Step>
+  <Step title="Pause if the package is one we already pin.">
+    Do **not** bump the pin until the root cause is understood. File an incident.
+  </Step>
+</Steps>
+
+### Rotating sharp to a new patch version
+
+When [`lovell/sharp`](https://github.com/lovell/sharp/releases) ships a new `0.33.x`
+release:
+
+<Steps>
+  <Step title="Read the release notes">
+    Confirm there is no breaking change to the API surface used by the image-pipeline
+    consumers.
+  </Step>
+  <Step title="Bump the four pins">
+    Update the `@img/sharp-*` pins in `overrides` to the new exact versions (plus any new
+    `@img/sharp-libvips-*` versions noted in the sharp release).
+  </Step>
+  <Step title="Regenerate the lockfile">
+    `npm install --package-lock-only`. Confirm the `integrity` field for each `@img/sharp-*`
+    entry changed.
+  </Step>
+  <Step title="Build locally">
+    `docker build -t supply-chain-test .` — confirm the `npm audit signatures` step passes.
+  </Step>
+  <Step title="Open the PR">
+    Reviewer cross-checks the upstream release.
+  </Step>
+</Steps>
+
+### Rotating to a major sharp version (0.33 → 0.34)
+
+Same as above plus:
+
+- Re-baseline this document
+- Audit every call site in the image pipeline for breaking API changes
+- Run the image-pipeline regression suite before merge
+
+## Related
+
+- [Deploy flow](/guides/deploy-flow) — how a verified build reaches dev/live.
+- [Environment variables](/guides/environment-variables) — the secrets the threat model
+  protects.

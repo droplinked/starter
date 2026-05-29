@@ -1,0 +1,161 @@
+---
+title: "Bonum"
+description: "Bonum PSP integration — Mongolia-region settlement (MNT), Apple/Google Pay tokens, off-platform payout reconciliation."
+---
+
+Bonum is a payment service provider operating in Mongolia. The Droplinked integration creates
+invoices via the Bonum API, accepts Apple/Google Pay tokens through Bonum's hosted PSP, and
+reconciles settlement back into Droplinked's revenue-distribution saga.
+
+<Note>
+Bonum settles **off-platform**: the saga records the revenue-split plan, then a downstream
+operator (typically MCredit) pays sub-merchants and reports back via the settlement API.
+</Note>
+
+## Architecture
+
+- **Three Prisma models:** `BonumTransaction`, `MerchantPrefixRegistry`, `BonumConfig`
+- **NestJS module:** dedicated `bonum` module on the backend
+- **Payment strategy:** `BonumPaymentStrategy` — registered in `PaymentFactory` under `provider === 'BONUM'`
+- **Saga step:** the revenue-distribution step forks for Bonum orders (records splits, no live transfer)
+- **Webhook receiver:** `POST /bonum/webhook` (`IntegrationApiKeyGuard`)
+- **Settlement cron:** two daily audit passes (`SettlementReconciliationCron`)
+
+## API surface
+
+| Route | Purpose |
+|-------|---------|
+| `POST /orders/v2/create-payment-intent` (with `provider=BONUM`) | Creates `BonumTransaction`, returns invoice ID + Apple/Google Pay token |
+| `POST /bonum/payment/confirm` | Confirms payment via the integration service → Bonum PSP |
+| `POST /bonum/webhook` | Settlement event from Bonum; signature-verified, idempotent |
+| `GET /settlement/summary` | Settlements grouped by merchant prefix |
+| `GET /settlement/transactions` | Settlement-transaction listing |
+| `PATCH /settlement/transactions/payout` | Mark transactions as paid out to sub-merchants |
+| `GET /merchants/:shopId/balance` | Pending payable balance for a shop |
+
+## Configuration
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `BONUM_API_BASE_URL` | — | `https://testpsp.bonum.mn` for sandbox |
+| `BONUM_MERCHANT_KEY` | — | Issued by the Bonum / MCredit team |
+| `SETTLEMENT_CRON_SCHEDULE` | `0 2 * * *` | Adjust for the operating timezone (Ulaanbaatar UTC+8 = `0 18 * * *`) |
+| `MERCHANT_PREFIX_DIGITS` | `6` | Confirm with MCredit before go-live |
+
+## Payment flow
+
+<Steps>
+  <Step title="Create payment intent">
+    `POST /orders/v2/create-payment-intent` with `provider=BONUM`. The `PaymentFactory`
+    routes to `BonumPaymentStrategy.createPaymentIntent()`, which upserts a
+    `BonumTransaction` and returns an invoice ID prefixed with the shop's merchant prefix.
+  </Step>
+  <Step title="Customer pays">
+    The frontend uses the returned Apple/Google Pay token via the Bonum hosted page.
+  </Step>
+  <Step title="Confirm payment">
+    `POST /bonum/payment/confirm` calls the integration service → Bonum PSP. The verify
+    use case then confirms via `/api/payment-log/read`.
+  </Step>
+  <Step title="Run the confirmation saga">
+    The standard `ConfirmPaymentSaga` runs; for Bonum the revenue-distribution step
+    **records** splits rather than executing live transfers.
+  </Step>
+  <Step title="Receive settlement webhook">
+    Bonum POSTs to `/bonum/webhook` → `HandleBonumWebhookUseCase` sets `settledAt`.
+  </Step>
+  <Step title="Sub-merchant payout">
+    MCredit (or the equivalent operator) reads the settlement API, pays sub-merchants, then
+    calls `PATCH /settlement/transactions/payout` to mark the batch paid.
+  </Step>
+</Steps>
+
+## Testing
+
+### Sandbox setup
+
+<Warning>
+The Bonum sandbox at `testpsp.bonum.mn` **issues real bank charges**. Use minimum amounts
+(100 MNT) for every test.
+</Warning>
+
+1. Set `BONUM_API_BASE_URL=https://testpsp.bonum.mn`
+2. Obtain a sandbox `BONUM_MERCHANT_KEY` from the MCredit team
+3. Confirm `NODE_ENV` is **not** `production`
+
+### Unit tests
+
+<CodeGroup>
+
+```bash droplinked-backend
+npx jest --testPathPattern=bonum --no-coverage
+```
+
+```bash 3rdp-integration-services
+npx jest --testPathPattern=bonum --no-coverage
+```
+
+</CodeGroup>
+
+### Critical scenarios
+
+| Scenario | Expected |
+|----------|----------|
+| Shop with `ACTIVE` prefix creates intent | 24-char alphanumeric invoice ID |
+| Shop with no prefix | `BadRequestException` |
+| Shop with `SUSPENDED` prefix | `BadRequestException` |
+| Two `createOrGet` calls with same invoice ID | Second returns existing record (no duplicate) |
+| Revenue splits | `droplinkedFeeAmount + merchantPayable + affiliateAmount + referralAmount === amountMnt`; live transfer **not** called |
+| Webhook delivered twice with same `_eventId` | First sets `settledAt`; second is silently discarded |
+| Invalid payout status transition (e.g. skipping `PROCESSING` → `PAID`) | 400 with "Invalid payout status transition" |
+
+### Settlement API examples
+
+```bash
+# Group settlements by merchant prefix over a date range
+GET /settlement/summary?date_from=2026-03-01&date_to=2026-03-19
+
+# Mark transactions as processing payout
+PATCH /settlement/transactions/payout
+{
+  "invoiceIds": ["..."],
+  "payoutStatus": "PROCESSING",
+  "payoutReference": null
+}
+
+# Look up a shop's pending balance
+GET /merchants/:shopId/balance
+```
+
+### Cron audit
+
+The settlement-reconciliation cron runs two daily passes:
+
+- **Pass 1** — warns on `BonumTransaction` rows that are verified but unsettled after 48h
+- **Pass 2** — warns on rows that remain unverified after 24h
+
+### E2E against sandbox
+
+Requires a sandbox `BONUM_MERCHANT_KEY` and an active `MerchantPrefixRegistry` entry.
+
+<Steps>
+  <Step title="Provision the shop">
+    Create a shop with `bonumEnabled=true` and assign a merchant prefix.
+  </Step>
+  <Step title="Create the intent">
+    `POST /orders/v2/create-payment-intent` with `provider=BONUM` → confirm the returned
+    invoice ID starts with the shop's prefix.
+  </Step>
+  <Step title="Pay via sandbox">
+    Use a real Apple/Google Pay token from `testpsp.bonum.mn`, POST it with the invoice ID
+    to the integration service's `/bonum/payment/process` endpoint.
+  </Step>
+  <Step title="Verify">
+    `GET /bonum/payment-log/read?invoiceId=<id>` should return `success=true`.
+  </Step>
+</Steps>
+
+## Related
+
+- [Order lifecycle](/guides/order-lifecycle) — how Bonum slots into the confirmation saga.
+- [Checkout stability](/guides/testing/checkout-stability) — the broader test matrix.
