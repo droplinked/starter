@@ -1,0 +1,240 @@
+---
+title: 'Segmind Logo generation'
+description: 'Generate logos via Segmind''s image generation pipeline, with model + style controls.'
+---
+
+### Overview
+
+The Segmind Logo Generation API generates a logo image by combining a prompt generation step with Segmind's image generation capabilities. It first uses the existing Logo Prompt Generator to create a text prompt from a shop description and category, then submits this prompt to Segmind's API to generate the logo. The process involves polling for the final image URL, making this tool ideal for businesses needing professional logos with a web3 focus.
+
+### API Endpoint
+
+* **URL**: This API involves multiple endpoints:
+  * Prompt Generation: `https://text-tad.droplinked.workers.dev/`
+  * Segmind Workflow Submission: `https://api.segmind.com/workflows/67792adb99c1698a193130bb-v5`
+  * Segmind Polling: `https://api.segmind.com/workflows/request/[request_id]`
+* **Methods**:
+  * Prompt Generation: `POST`
+  * Workflow Submission: `POST`
+  * Polling: `GET`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+This API requires two API keys:
+
+1. **For Prompt Generation** (via `text-tad.droplinked.workers.dev`):
+   * **Header**: `api-key`
+   * **Value**: `<YOUR_API_KEY>` (provided by Droplinked).
+2. **For Segmind API** (via `api.segmind.com`):
+   * **Header**: `x-api-key`
+   * **Value**: `<YOUR_SEGMIND_API_KEY>` (your Segmind account API key).
+
+Contact Droplinked support at support@droplinked.com to obtain these API keys.
+
+### Request Format
+
+The process involves three steps:
+
+#### Step 1: Generate Logo Prompt
+
+This step uses the existing Logo Prompt Generator API to create a text prompt.
+
+**Request Body**
+
+| Field          | Type   | Required | Description                                     |
+| -------------- | ------ | -------- | ----------------------------------------------- |
+| `command_name` | String | Yes      | Must be set to `"logo_prompt"`.                 |
+| `description`  | String | Yes      | A brief or detailed description of the company. |
+| `category`     | String | Yes      | The company’s category (e.g., "technology").    |
+
+**Example Request Body**
+
+```json
+{
+  "command_name": "logo_prompt",
+  "description": "droplinked , we are a company offering web3 based and onchain solution to businesses and indivisuals .",
+  "category": "technology"
+}
+```
+
+**Response**
+
+A raw text prompt (e.g., `A futuristic and innovative logo for Droplinked, offering web3 and on-chain solutions to businesses and individuals.`).
+
+***
+
+#### Step 2: Submit to Segmind Workflow
+
+Submit the generated prompt to Segmind's API to start logo generation.
+
+**Request Body**
+
+| Field        | Type   | Required | Description                              |
+| ------------ | ------ | -------- | ---------------------------------------- |
+| `input_logo` | String | Yes      | The generated logo prompt from Step 1.   |
+| `input_seed` | String | Yes      | A seed value for generation (e.g., "1"). |
+
+**Example Request Body**
+
+```json
+{
+  "input_logo": "A futuristic and innovative logo for Droplinked, offering web3 and on-chain solutions to businesses and individuals.",
+  "input_seed": "1"
+}
+```
+
+**Response**
+
+A JSON object with a polling URL and request ID.
+
+**Example Response**
+
+```json
+{
+  "message": "Your request with this id 68fe486045f6afa20e521094f20192ab currently in queue. Please be patient while we process it.",
+  "poll_url": "https://api.segmind.com/workflows/request/68fe486045f6afa20e521094f20192ab",
+  "request_id": "68fe486045f6afa20e521094f20192ab",
+  "status": "QUEUED"
+}
+```
+
+***
+
+#### Step 3: Poll for Final Image URL
+
+Use the `poll_url` from Step 2 to check the status and retrieve the final image URL.
+
+**Request**
+
+* **Method**: `GET`
+* **URL**: The `poll_url` from the Step 2 response (e.g., `https://api.segmind.com/workflows/request/68fe486045f6afa20e521094f20192ab`).
+* **Headers**: Include the Segmind API key (`x-api-key`).
+
+**Response**
+
+A JSON object with the status and final image URL once completed.
+
+**Example Response**
+
+```json
+{
+  "output": "[{\"keyname\": \"output_logo\", \"value\": {\"data\": \"https://images.segmind.com/outputs/dbeae453-9a69-4622-83bf-8f4bd52eba49.png\", \"type\": \"image\"}}]",
+  "status": "COMPLETED"
+}
+```
+
+### JavaScript Example
+
+Below is an example of how to use the Segmind Logo Generation API in JavaScript with the `fetch` API:
+
+```javascript
+// Step 1: Generate the logo prompt
+const promptHeaders = new Headers();
+promptHeaders.append("Content-Type", "application/json");
+promptHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your API key
+
+const promptRaw = JSON.stringify({
+  "command_name": "logo_prompt",
+  "description": "droplinked , we are a company offering web3 based and onchain solution to businesses and indivisuals .",
+  "category": "technology"
+});
+
+const promptRequestOptions = {
+  method: "POST",
+  headers: promptHeaders,
+  body: promptRaw,
+  redirect: "follow"
+};
+
+fetch("https://text-tad.droplinked.workers.dev/", promptRequestOptions)
+  .then((response) => response.text())
+  .then((promptResult) => {
+    // Step 2: Submit the prompt to Segmind
+    const segmindHeaders = new Headers();
+    segmindHeaders.append("x-api-key", "<YOUR_SEGMIND_API_KEY>"); // Replace with your Segmind API key
+    segmindHeaders.append("Content-Type", "application/json");
+
+    const segmindRaw = JSON.stringify({
+      "input_logo": promptResult,
+      "input_seed": "1"
+    });
+
+    const segmindRequestOptions = {
+      method: "POST",
+      headers: segmindHeaders,
+      body: segmindRaw,
+      redirect: "follow"
+    };
+
+    return fetch("https://api.segmind.com/workflows/67792adb99c1698a193130bb-v5", segmindRequestOptions)
+      .then((response) => response.json())
+      .then((segmindResult) => {
+        const pollUrl = segmindResult.poll_url;
+
+        // Step 3: Poll for the final image URL
+        const pollHeaders = new Headers();
+        pollHeaders.append("x-api-key", "<YOUR_SEGMIND_API_KEY>");
+
+        const pollRequestOptions = {
+          method: "GET",
+          headers: pollHeaders,
+          redirect: "follow"
+        };
+
+        // Polling loop (simplified for example; implement proper interval logic)
+        const pollForResult = () => {
+          fetch(pollUrl, pollRequestOptions)
+            .then((pollResponse) => pollResponse.json())
+            .then((pollResult) => {
+              if (pollResult.status === "COMPLETED") {
+                const output = JSON.parse(pollResult.output);
+                const imageUrl = output[0].value.data;
+                console.log("Final Image URL:", imageUrl);
+
+                // Display the image
+                const imgElement = document.createElement("img");
+                imgElement.src = imageUrl;
+                document.body.appendChild(imgElement);
+              } else {
+                console.log("Still processing, status:", pollResult.status);
+                setTimeout(pollForResult, 5000); // Retry after 5 seconds
+              }
+            })
+            .catch((error) => console.error("Polling Error:", error));
+        };
+
+        pollForResult();
+      });
+  })
+  .catch((error) => console.error("Prompt Generation Error:", error));
+```
+
+### Error Handling
+
+* **Prompt Generation Errors**:
+  * **Invalid API Key**: Returns "Unauthorized".
+  * **Missing Fields**: If `command_name`, `description`, or `category` is missing, an error may occur.
+* **Segmind Submission Errors**:
+  * **401 Unauthorized**: If the Segmind API key is invalid.
+  * **400 Bad Request**: If `input_logo` or `input_seed` is missing.
+* **Polling Errors**:
+  * **404 Not Found**: If the `request_id` is invalid.
+  * **503 Service Unavailable**: If Segmind is down.
+
+#### Example Error Output (Segmind Submission)
+
+```json
+{"error":"Invalid API key"}
+```
+
+### Best Practices
+
+1. **Description Detail**: Provide a clear `description` and `category` for a relevant logo prompt.
+2. **Polling Interval**: Implement a reasonable polling interval (e.g., 5-10 seconds) to avoid overloading the Segmind API.
+3. **Error Handling**: Handle transient failures by retrying the polling step with exponential backoff.
+4. **Image Usage**: Use the final image URL directly for display or download; ensure proper caching if needed.
+
+### Support
+
+For assistance or to request API keys (for either the prompt generation or Segmind API), contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.

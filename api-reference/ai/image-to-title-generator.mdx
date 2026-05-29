@@ -1,0 +1,126 @@
+---
+title: 'Image-to-Title Generator'
+description: 'Generate product titles from image-based visual descriptions — brand, color, pattern, product type — under 60 characters.'
+---
+
+### API Endpoint
+
+* **URL**: `https://image-cap.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+Access to the API requires an API key. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                                    |
+| -------------- | ------ | -------- | -------------------------------------------------------------- |
+| `command_name` | String | Yes      | Must be set to `"title_from_image"` for this functionality.    |
+| `imageUrl`     | String | Yes      | URL of the product image to analyze and generate a title from. |
+
+#### Example Request Body
+
+```json
+{
+  "command_name": "title_from_image",
+  "imageUrl": "https://dash.dev.lumai.ir/api/services/outputs/0194ccd6-e1c8-70fc-9083-4adef69bc112.jpg"
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A single-line string representing the generated product title, with no quotes, punctuation, or additional text.
+
+#### Example Response
+
+```
+Adidas Blue Striped Running Shorts
+```
+
+### Guidelines for Generated Titles
+
+The API follows these strict rules when generating titles:
+
+1. **Mode**: Operates in `GENERATE_TITLE_MODE: TRUE`, transforming visual descriptions into titles.
+2. **Input**: Expects a product visual description derived from the image (processed internally).
+3. **Output**: Produces a single-line title only, with:
+   * Maximum 60 characters.
+   * Brand name (if identified in the image).
+   * Exact color and pattern as described.
+   * Product type included.
+4. **Format**:
+   * No quotes or punctuation at the end.
+   * Concise and precise, matching the exact product depicted.
+5. **Restrictions**:
+   * No conversational text, questions, or explanations.
+   * No additional formatting beyond the title itself.
+
+#### Example Transformation
+
+* **Visual Description**: "Champion brand hoodie in mulled berry red with tie-dye pattern, featuring front pocket and drawstring hood"
+* **Output Title**: `Champion Mulled Berry Tie-Dye Pullover Hoodie`
+
+### JavaScript Example
+
+Below is an example of how to use the Image-to-Title Generator API in JavaScript with the `fetch` API:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "command_name": "title_from_image",
+  "imageUrl": "https://dash.dev.lumai.ir/api/services/outputs/0194ccd6-e1c8-70fc-9083-4adef69bc112.jpg"
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://image-cap.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result)) // Output: e.g., Adidas Blue Striped Running Shorts
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+* **Invalid API Key**: Returns an error message (e.g., "Unauthorized").
+* **Missing Fields**: If `command_name` or `imageUrl` is missing, the API may return an error or fail silently.
+* **Invalid Image URL**: If the URL is inaccessible or invalid, an error may occur.
+* **Network Issues**: Handle errors in the `.catch` block of the `fetch` call.
+
+#### Example Error Output
+
+```
+Unauthorized - Invalid API Key
+```
+
+### Best Practices
+
+1. **Image Quality**: Use clear, high-quality images for accurate visual description extraction.
+2. **URL Accessibility**: Ensure the `imageUrl` is publicly accessible or properly authenticated.
+3. **Consistency**: Test with various product images to ensure title accuracy aligns with your catalog.
+4. **SEO Optimization**: The generated titles are inherently SEO-friendly due to precise keywords.
+
+### Support
+
+For API-related issues or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.

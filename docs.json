@@ -70,6 +70,28 @@
             "pages": [
               "api-reference/introduction"
             ]
+          },
+          {
+            "group": "AI Endpoints",
+            "pages": [
+              "api-reference/ai/overview",
+              "api-reference/ai/product-title-enhancement",
+              "api-reference/ai/product-description-generator",
+              "api-reference/ai/image-to-title-generator",
+              "api-reference/ai/image-to-description-generator",
+              "api-reference/ai/nsfw-detector",
+              "api-reference/ai/nsfw-image-detector",
+              "api-reference/ai/image-generation",
+              "api-reference/ai/logo-image-generator",
+              "api-reference/ai/logo-prompt-generator",
+              "api-reference/ai/shop-names-generator",
+              "api-reference/ai/domain-names-generator",
+              "api-reference/ai/shop-descriptions-generator",
+              "api-reference/ai/banner-image-generator",
+              "api-reference/ai/banner-prompt-generator",
+              "api-reference/ai/segmind-logo-generation",
+              "api-reference/ai/segmind-banner-generation"
+            ]
           }
         ],
         "openapi": "https://apiv3.droplinked.com/swagger/json"

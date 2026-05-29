@@ -1,0 +1,122 @@
+---
+title: 'Banner Prompt Generator'
+description: 'Generate a concise prompt for Flux.1 Schnell to create a web3-themed banner with a futuristic style.'
+---
+
+### API Endpoint
+
+* **URL**: `https://text-tad.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+An API key is required for access. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                              |
+| -------------- | ------ | -------- | -------------------------------------------------------- |
+| `command_name` | String | Yes      | Must be set to `"banner_prompt"` for this functionality. |
+| `description`  | String | Yes      | A brief or detailed description of the company.          |
+| `category`     | String | Yes      | The company’s category (e.g., "technology").             |
+
+#### Example Request Body
+
+```json
+{
+  "command_name": "banner_prompt",
+  "description": "droplinked , we are a company offering web3 based and onchain solution to businesses and indivisuals .",
+  "category": "technology"
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A single, vivid sentence (under 200 characters) as the prompt for the FLUX.1 Schnell model, with no additional text or formatting.
+
+#### Example Response
+
+```
+A sleek digital grid with glowing blockchain nodes and circuit patterns in a futuristic tech style.
+```
+
+### Guidelines for Banner Prompt Generation
+
+The API generates prompts based on these rules:
+
+1. **Design Focus**:
+   * Balanced layout with a focal point (e.g., blockchain link, digital node, network).
+   * Tied to web3 and onchain themes from the `description` and `category`.
+2. **Style**:
+   * Sleek, modern, and futuristic.
+   * Incorporates elements like circuit patterns, geometric shapes, or digital grids.
+3. **Content**:
+   * No text, logos, or brand names; uses visual metaphors for identity.
+   * Detailed yet clean, professional, and tech-savvy.
+4. **Output**:
+   * Single sentence, under 200 characters.
+   * No extra text, formatting, or explanations—just the prompt.
+
+### JavaScript Example
+
+Below is an example of how to use the Banner Prompt Generator API in JavaScript with the `fetch` API:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "command_name": "banner_prompt",
+  "description": "droplinked , we are a company offering web3 based and onchain solution to businesses and indivisuals .",
+  "category": "technology"
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://text-tad.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result)) // Output: A sleek digital grid with glowing blockchain nodes...
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+* **Invalid API Key**: Returns an error message (e.g., "Unauthorized").
+* **Missing Fields**: If `command_name`, `description`, or `category` is missing, the API may return an error or fail silently.
+* **Network Issues**: Handle errors in the `.catch` block of the `fetch` call.
+
+#### Example Error Output
+
+```
+Unauthorized - Invalid API Key
+```
+
+### Best Practices
+
+1. **Description Specificity**: Include key business traits in the `description` for relevant prompts.
+2. **Category Relevance**: Ensure the `category` aligns with the business (e.g., "technology" for web3).
+3. **Prompt Usage**: Feed the output directly into the FLUX.1 Schnell model for banner generation.
+4. **Testing**: Test with varied inputs to refine the visual output.
+
+### Support
+
+For assistance or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.

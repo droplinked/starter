@@ -1,0 +1,127 @@
+---
+title: 'Domain Names Generator'
+description: 'Suggest three `droplinked.io` subdomain options based on a business concept, returned as strict JSON.'
+---
+
+### API Endpoint
+
+* **URL**: `https://text-tad.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+An API key is required for access. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                              |
+| -------------- | ------ | -------- | -------------------------------------------------------- |
+| `command_name` | String | Yes      | Must be set to `"domain_names"` for this functionality.  |
+| `description`  | String | Yes      | A brief or detailed description of the shop or business. |
+
+#### Example Request Body
+
+```json
+{
+  "command_name": "domain_names",
+  "description": "A digital marketplace for NFT-based artwork with onchain verification."
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A strict JSON object containing exactly three subdomain suggestions, with no additional text or characters.
+
+#### Response Structure
+
+```json
+{
+  "domain_names": ["subdomain1", "subdomain2", "subdomain3"]
+}
+```
+
+#### Example Response
+
+```json
+{
+  "domain_names": ["nftart", "onchainart", "digitalgallery"]
+}
+```
+
+### Guidelines for Domain Name Generation
+
+The API generates output based on these rules:
+
+1. **Domain Names**:
+   * Exactly three unique subdomains reflecting the business concept from the `description`.
+   * Designed to be appended to `droplinked.io` (e.g., `droplinked.io/nftart`).
+   * Only the subdomain part is provided, without extensions or prefixes.
+2. **Output**:
+   * Strict JSON format with only the `"domain_names"` key and a three-item array.
+   * No extra text, comments, or additional fields.
+
+### JavaScript Example
+
+Below is an example of how to use the Domain Names Generator API in JavaScript with the `fetch` API:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "command_name": "domain_names",
+  "description": "A digital marketplace for NFT-based artwork with onchain verification."
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://text-tad.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => {
+    const data = JSON.parse(result);
+    console.log("Suggested Subdomains:", data.domain_names);
+  })
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+* **Invalid API Key**: Returns an error message (e.g., "Unauthorized").
+* **Missing Fields**: If `command_name` or `description` is missing, the API may return an error or fail silently.
+* **Network Issues**: Handle errors in the `.catch` block of the `fetch` call.
+
+#### Example Error Output
+
+```
+Unauthorized - Invalid API Key
+```
+
+### Best Practices
+
+1. **Description Clarity**: Include key business elements (e.g., products, technology) for relevant subdomains.
+2. **JSON Parsing**: Parse the response client-side to access the subdomain suggestions.
+3. **Domain Usage**: Append the subdomains to `droplinked.io` for use (e.g., `droplinked.io/nftart`).
+4. **Testing**: Test with different descriptions to explore subdomain options.
+
+### Support
+
+For assistance or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.

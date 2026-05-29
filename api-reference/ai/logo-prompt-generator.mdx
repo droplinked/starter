@@ -1,0 +1,121 @@
+---
+title: 'Logo Prompt Generator'
+description: 'Generate a text-to-image prompt tailored for logo creation from a company description.'
+---
+
+### API Endpoint
+
+* **URL**: `https://text-tad.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+An API key is required for access. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                             |
+| -------------- | ------ | -------- | ------------------------------------------------------- |
+| `command_name` | String | Yes      | Must be set to `"logo_prompt"` for this functionality.  |
+| `description`  | String | Yes      | A brief or detailed description of the company or shop. |
+
+#### Example Request Body
+
+```json
+{
+  "command_name": "logo_prompt",
+  "description": "droplinked , we are a company offering web3 based and onchain solution to businesses and indivisuals ."
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A raw text string representing the logo prompt, with no JSON, formatting, or additional text.
+
+#### Example Response
+
+```
+A futuristic logo for droplinked, offering web3 and onchain solutions. Bold design with blockchain-inspired elements and a sleek, modern style for businesses and individuals.
+```
+
+### Guidelines for Logo Prompt Generation
+
+The API generates prompts based on these principles:
+
+1. **Input Processing**: Extracts key details from the `description` (e.g., company name, industry, style preferences).
+2. **Output Design**:
+   * Concise and clear, tailored for text-to-image AI.
+   * Incorporates brand identity, imagery, and styling cues.
+   * Focuses on clarity and relevance to the company/shop.
+3. **Restrictions**:
+   * No extra text (e.g., no greetings, explanations, or JSON).
+   * No code blocks, disclaimers, or labels.
+   * Pure text prompt only.
+
+#### Example Transformation
+
+* **Input Description**: "We are an online bookstore called Novel Nest, specializing in rare and classic literature with a modern and minimalist vibe. We want something sleek, refined, and timeless that represents our passion for literature."
+* **Output Prompt**: `A sleek, modern, and minimalist logo for Novel Nest, specializing in rare and classic literature. Subtle nod to timeless books, refined typography, and a clean design representing passion for reading.`
+
+### JavaScript Example
+
+Below is an example of how to use the Logo Prompt Generator API in JavaScript with the `fetch` API:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "command_name": "logo_prompt",
+  "description": "droplinked , we are a company offering web3 based and onchain solution to businesses and indivisuals ."
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://text-tad.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result)) // Output: A futuristic logo for droplinked...
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+* **Invalid API Key**: Returns an error message (e.g., "Unauthorized").
+* **Missing Fields**: If `command_name` or `description` is missing, the API may return an error or fail silently.
+* **Network Issues**: Handle errors in the `.catch` block of the `fetch` call.
+
+#### Example Error Output
+
+```
+Unauthorized - Invalid API Key
+```
+
+### Best Practices
+
+1. **Description Detail**: Provide a clear description with key brand elements (e.g., name, industry, vibe) for optimal results.
+2. **Prompt Usage**: Feed the output directly into a text-to-image AI tool for logo generation.
+3. **Testing**: Experiment with different descriptions to refine the generated prompts.
+4. **Integration**: Use in workflows to automate logo ideation for businesses or clients.
+
+### Support
+
+For assistance or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.

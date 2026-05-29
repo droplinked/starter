@@ -1,0 +1,153 @@
+---
+title: 'Image Generation'
+description: 'Generate images from text prompts using Flux.1 Schnell — customizable style, background, aspect ratio. Returns a base64-encoded image.'
+---
+
+### API Endpoint
+
+* **URL**: `https://image-gen.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+An API key is required for access. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                                                  |
+| -------------- | ------ | -------- | ---------------------------------------------------------------------------- |
+| `prompt`       | String | Yes      | The main description of the image content (e.g., "a man smoking cigar").     |
+| `style`        | String | No       | The artistic style (e.g., "realistic", "cartoon"). Optional.                 |
+| `background`   | String | No       | The background setting (e.g., "party", "forest"). Optional.                  |
+| `aspect_ratio` | String | Yes      | The image aspect ratio (e.g., "1x1", "16x9"). Supported values listed below. |
+
+#### Supported Aspect Ratios
+
+| Aspect Ratio | Dimensions (Width x Height) |
+| ------------ | --------------------------- |
+| `1x1`        | 1024 x 1024                 |
+| `3x4`        | 768 x 1024                  |
+| `4x3`        | 1024 x 768                  |
+| `16x9`       | 1920 x 1080                 |
+| `9x16`       | 1080 x 1920                 |
+
+#### Example Request Body
+
+```json
+{
+  "prompt": "a man smoking cigar",
+  "style": "realistic",
+  "background": "party",
+  "aspect_ratio": "1x1"
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A base64-encoded string representing the generated image, which can be decoded and used as an image file (e.g., PNG).
+
+#### Example Response
+
+```
+data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAABHNCSVQ...
+```
+
+### Guidelines for Image Generation
+
+The API constructs the full prompt and generates the image as follows:
+
+1. **Prompt Construction**:
+   * Starts with the `prompt` value.
+   * Appends `style` (if provided) as "in a \[style] style".
+   * Appends `background` (if provided) as "with a background of \[background]".
+   * Example: "a man smoking cigar in a realistic style with a background of party".
+2. **Image Dimensions**: Set based on the specified `aspect_ratio` (see table above).
+3. **Model**: Uses the Flux.1 Schnell model (`@cf/black-forest-labs/flux-1-schnell`) for generation.
+4. **Output**: Returns a base64 string, processed in chunks to handle large data efficiently.
+
+### JavaScript Example
+
+Below is an example of how to use the Image Generation API in JavaScript with the `fetch` API, including decoding the base64 response:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "prompt": "a man smoking cigar",
+  "style": "realistic",
+  "background": "party",
+  "aspect_ratio": "1x1"
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://image-gen.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((base64String) => {
+    // Example: Display the image in an HTML img element
+    const imgElement = document.createElement("img");
+    imgElement.src = `data:image/png;base64,${base64String}`;
+    document.body.appendChild(imgElement);
+  })
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+The API provides detailed error responses in JSON format:
+
+* **405 Method Not Allowed**: If the request method isn’t `POST`.
+  * Example: `{ "error": "Method not allowed. Use POST." }`
+* **401 Unauthorized**: If the API key is missing or invalid.
+  * Example: `{ "error": "Authentication failed. Invalid API key." }`
+* **400 Bad Request**: If the JSON is invalid or required fields (`prompt`, `aspect_ratio`) are missing.
+  * Example: `{ "error": "Missing required fields: prompt or aspect_ratio." }`
+* **400 Invalid Aspect Ratio**: If `aspect_ratio` isn’t supported.
+  * Example: `{ "error": "Invalid aspect ratio specified.", "received": "2x3" }`
+* **500 Internal Server Error**: If image generation or database access fails.
+  * Example: `{ "error": "Failed to generate image.", "details": "..." }`
+
+#### Example Error Output
+
+```
+{"error":"Authentication failed. API key is missing."}
+```
+
+### Best Practices
+
+1. **Prompt Specificity**: Use clear, descriptive prompts for better results (e.g., "a woman in a red dress" vs. "a person").
+2. **Optional Fields**: Include `style` and `background` only when needed to avoid cluttering the prompt.
+3. **Aspect Ratio**: Choose an aspect ratio that matches your display needs.
+4. **Base64 Handling**: Decode the response client-side to render or save the image (e.g., as PNG).
+5. **Error Checking**: Handle errors gracefully with try-catch or `.catch` blocks.
+
+### Worker Code Insights
+
+* **Base64 Conversion**: The `uint8ArrayToBase64` function processes large image data in chunks (8192 bytes) to avoid stack overflow.
+* **Authentication**: API keys are validated against a database (`env.key_DB`).
+* **Model**: Uses Flux.1 Schnell for fast, high-quality image generation.
+* **Debugging**: Responses include a header (`X-Debug-Version`) for version tracking.
+
+### Support
+
+For assistance or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.

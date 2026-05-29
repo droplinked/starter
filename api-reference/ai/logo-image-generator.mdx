@@ -1,0 +1,141 @@
+---
+title: 'Logo Image Generator'
+description: 'Generate a 1024×1024 logo image from a company description using Flux.1 Schnell. Returns base64 image + prompt.'
+---
+
+### API Endpoint
+
+* **URL**: `https://logo.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+An API key is required for access. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following field:
+
+#### Request Body
+
+| Field         | Type   | Required | Description                                             |
+| ------------- | ------ | -------- | ------------------------------------------------------- |
+| `description` | String | Yes      | A brief or detailed description of the company or shop. |
+
+#### Example Request Body
+
+```json
+{
+  "description": "We are an online bookstore called Novel Nest, specializing in rare and classic literature with a modern and minimalist vibe. We want something sleek, refined, and timeless that represents our passion for literature."
+}
+```
+
+### Response Format
+
+* **Content-Type**: `application/json`
+* **Response**: A JSON object containing:
+  * `base64_image`: A base64-encoded string of the generated logo image.
+  * `generated_prompt`: The text prompt used to create the image.
+
+#### Example Response
+
+```json
+{
+  "base64_image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6...",
+  "generated_prompt": "A sleek, modern, and minimalist logo for Novel Nest, specializing in rare and classic literature. Subtle nod to timeless books, refined typography, and a clean design representing passion for reading."
+}
+```
+
+### Guidelines for Logo Generation
+
+The API operates as follows:
+
+1. **Prompt Generation**:
+   * Internally calls a service (bound as `env.ratatatata`) with the `"logo_prompt"` command and the provided `description`.
+   * Generates a concise text prompt capturing the brand’s identity and style.
+2. **Image Generation**:
+   * Uses the Flux.1 Schnell model (`@cf/black-forest-labs/flux-1-schnell`).
+   * Fixed dimensions: 1024x1024 pixels.
+3. **Output**:
+   * Returns the base64-encoded image and the prompt used.
+   * CORS-enabled for cross-origin requests.
+
+### JavaScript Example
+
+Below is an example of how to use the Logo Image Generator API in JavaScript with the `fetch` API, including rendering the image:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "description": "We are an online bookstore called Novel Nest, specializing in rare and classic literature with a modern and minimalist vibe. We want something sleek, refined, and timeless that represents our passion for literature."
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://logo.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => {
+    const data = JSON.parse(result);
+    // Display the image
+    const imgElement = document.createElement("img");
+    imgElement.src = `data:image/png;base64,${data.base64_image}`;
+    document.body.appendChild(imgElement);
+    console.log("Generated Prompt:", data.generated_prompt);
+  })
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+The API provides JSON error responses with CORS headers:
+
+* **405 Method Not Allowed**: If the request method isn’t `POST`.
+  * Example: `{ "error": "Method not allowed" }`
+* **401 Unauthorized**: If the API key is missing.
+  * Example: `{ "error": "API key is required in headers as 'api-key'" }`
+* **400 Bad Request**: If `description` is missing.
+  * Example: `{ "error": "Description is required" }`
+* **500 Internal Server Error**: If prompt generation or image creation fails.
+  * Example: `{ "error": "Failed to generate image" }`
+* **503 Service Unavailable**: If the internal text-tad worker is unreachable.
+  * Example: `{ "error": "Failed to connect to text-tad worker", "details": "..." }`
+
+#### Example Error Output
+
+```json
+{"error":"API key is required in headers as 'api-key'"}
+```
+
+### Best Practices
+
+1. **Description Quality**: Provide a detailed description with brand name, style, and key traits for optimal logo output.
+2. **Image Rendering**: Decode the `base64_image` client-side to display or save the logo (e.g., as PNG).
+3. **CORS**: The API supports cross-origin requests, making it versatile for web applications.
+4. **Error Handling**: Check response status and parse errors to manage failures gracefully.
+
+### Worker Code Insights
+
+* **CORS**: Configured with permissive headers (`Access-Control-Allow-Origin: *`) for broad compatibility.
+* **Service Binding**: Uses `env.ratatatata` to fetch the logo prompt internally, passing the API key and description.
+* **Image Model**: Employs Flux.1 Schnell for high-quality, fast logo generation at 1024x1024.
+* **Debugging**: Includes console logs for diagnostics (e.g., environment binding checks).
+
+### Support
+
+For assistance or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.

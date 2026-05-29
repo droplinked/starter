@@ -1,0 +1,132 @@
+---
+title: 'Product Description Generator'
+description: 'Generate engaging product descriptions in a bullet-point format with SEO keywords and benefit-driven language.'
+---
+
+### API Endpoint
+
+* **URL**: `https://text-tad.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+To use the API, an API key is required. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                                |
+| -------------- | ------ | -------- | ---------------------------------------------------------- |
+| `command_name` | String | Yes      | Must be set to `"description"` for description generation. |
+| `title`        | String | Yes      | The product title to base the description on.              |
+| `description`  | String | No       | Optional existing description to enhance (can be empty).   |
+| `tone`         | String | Yes      | The desired tone (e.g., "wellness-focused", "tech-savvy"). |
+
+#### Example Request Body
+
+```json
+{
+  "command_name": "description",
+  "title": "Wireless Bluetooth Headphones",
+  "description": "",
+  "tone": "tech-savvy"
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A plain text string containing the enhanced description, formatted with:
+  * 3-5 bullet points using hyphens (`-`)
+  * 1-2 relevant emojis maximum
+  * No JSON wrapper, Markdown, or additional explanations
+
+#### Example Response
+
+```
+Elevate your audio game with cutting-edge tech 🎧
+- Seamless wireless Bluetooth 5.0 connectivity
+- Noise-canceling for immersive sound
+- 20-hour battery life for all-day use
+- Lightweight design with comfy earpads
+```
+
+### Guidelines for Generated Descriptions
+
+The API adheres to these rules:
+
+1. **Direct Output**: Only the enhanced description is returned—no JSON, formatting markers, or explanations.
+2. **Structure**: Descriptions consist of:
+   * An introductory sentence (optional, based on input).
+   * 3-5 bullet points starting with hyphens (`-`).
+3. **Content**:
+   * Incorporates SEO keywords derived from the `title` and `description`.
+   * Uses clear, benefit-driven language tailored to the specified `tone`.
+   * Includes 1-2 relevant emojis maximum.
+4. **Restrictions**:
+   * No JSON syntax or wrappers.
+   * No Markdown (e.g., `**`, `#`).
+   * No technical notes or extraneous text.
+
+### JavaScript Example
+
+Below is an example of how to use the Product Description Generator API in JavaScript with the `fetch` API:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "command_name": "description",
+  "title": "Wireless Bluetooth Headphones",
+  "description": "",
+  "tone": "tech-savvy"
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://text-tad.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result)) // Output: See example response above
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+* **Invalid API Key**: Returns an error message (e.g., "Unauthorized").
+* **Missing Required Fields**: If `command_name`, `title`, or `tone` is missing, the API may return an error or unexpected output.
+* **Network Errors**: Handle errors in the `.catch` block of the `fetch` call.
+
+#### Example Error Output
+
+```
+Unauthorized - Invalid API Key
+```
+
+### Best Practices
+
+1. **Tone Selection**: Choose a tone that matches your target audience (e.g., "casual", "luxury", "tech-savvy").
+2. **Input Description**: Provide an optional `description` to give the API more context, though it works fine with just a `title`.
+3. **Consistency**: Use consistent tones across related products for brand coherence.
+4. **Testing**: Experiment with different titles and tones to refine the output.
+
+### Support
+
+For assistance with the API or to request an API key, contact Droplinked support at support@droplinked.com. Include details like your use case and expected request volume.

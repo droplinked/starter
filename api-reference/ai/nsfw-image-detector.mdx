@@ -1,0 +1,123 @@
+---
+title: 'NSFW Image Detector'
+description: 'Evaluate image descriptions for NSFW elements (nudity, suggestive content) — returns a boolean.'
+---
+
+### API Endpoint
+
+* **URL**: `https://text-tad.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+An API key is required for access. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                                    |
+| -------------- | ------ | -------- | -------------------------------------------------------------- |
+| `command_name` | String | Yes      | Must be set to `"NSFW_image_detector"` for this functionality. |
+| `ImageUrl`     | String | Yes      | URL of the image to analyze for NSFW content.                  |
+
+#### Example Request Body
+
+```json
+{
+  "command_name": "NSFW_image_detector",
+  "ImageUrl": "https://upload-file-droplinked.s3.amazonaws.com/thumbnail/1734440601390-womens-cropped-sweatshirt-brick-front-676176913a8d1.png"
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A plain boolean value (`true` or `false`) indicating the presence of NSFW content, with no additional text or formatting.
+
+#### Example Responses
+
+* For NSFW content: `true`
+* For safe content: `false`
+
+### Guidelines for NSFW Detection
+
+The API follows these criteria based on an internally generated textual description of the image:
+
+1. **NSFW Indicators** (returns `true` if detected):
+   * **Nudity or Partial Nudity**: Exposed skin, breasts, genitals, or buttocks.
+   * **Revealing or Transparent Clothing**: Sheer lingerie, underwear, or excessive exposure.
+   * **Sexually Suggestive Content**: Provocative poses, intimate settings, or adult themes.
+   * **Explicit Symbols or Contexts**: Adult toys, suggestive gestures, or explicit imagery.
+2. **Safe Content** (returns `false`):
+   * Descriptions lacking the above indicators (e.g., fully clothed individuals, neutral settings).
+3. **Rules**:
+   * Analyzes only the generated description from the image.
+   * Avoids false positives by requiring clear NSFW elements.
+   * Returns a plain boolean (`true` or `false`) with no explanations.
+
+#### Example Scenarios
+
+* **Generated Description**: "A woman in a sheer bodysuit, partially exposing her chest in an intimate setting" → **Output**: `true`
+* **Generated Description**: "A woman in a brick-colored cropped sweatshirt against a plain background" → **Output**: `false`
+
+### JavaScript Example
+
+Below is an example of how to use the NSFW Image Detector API in JavaScript with the `fetch` API:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "command_name": "NSFW_image_detector",
+  "ImageUrl": "https://upload-file-droplinked.s3.amazonaws.com/thumbnail/1734440601390-womens-cropped-sweatshirt-brick-front-676176913a8d1.png"
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://text-tad.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result)) // Output: e.g., false
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+* **Invalid API Key**: Returns an error message (e.g., "Unauthorized").
+* **Missing Fields**: If `command_name` or `ImageUrl` is missing, the API may return an error or fail silently.
+* **Invalid Image URL**: If the URL is inaccessible or invalid, an error may occur.
+* **Network Issues**: Handle errors in the `.catch` block of the `fetch` call.
+
+#### Example Error Output
+
+```
+Unauthorized - Invalid API Key
+```
+
+### Best Practices
+
+1. **Image Quality**: Use clear, high-resolution images for accurate description generation.
+2. **URL Accessibility**: Ensure the `ImageUrl` is publicly accessible or properly authenticated.
+3. **Moderation Integration**: Embed the API in workflows to filter NSFW images efficiently.
+4. **Testing**: Test with a variety of images to confirm detection aligns with your standards.
+
+### Support
+
+For assistance or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.
