@@ -1,0 +1,59 @@
+---
+title: "Variata — DIP parameters"
+description: "Work-in-progress reference for macroprudential and Dynamic Incentive Policy (DIP) parameter levels — including historical DYLD burn priority and initial vs. target DYLD allocation rates by participant role."
+---
+
+<Note>
+  This page is a **work in progress**. The macroprudential and Dynamic Incentive Policy (DIP)
+  parameter set is still being defined and will be revised as the protocol matures.
+</Note>
+
+This page collects the in-progress reference for the parameter levels used by the
+macroprudential and Dynamic Incentive Policy (DIP) tooling — see
+[Tokenomics overview](/guides/tokenomics/overview) for context on the DIP itself.
+
+## Historical DYLD burn priority
+
+Under the macroprudential [dynamic burn policy](/guides/tokenomics/yield-drops#macroprudential-dynamic-burn-policy),
+DYLD is burned in priority order. The historical/default priority is:
+
+<Steps>
+  <Step title="Unstaked tokens of the oldest vintage">
+    Burn unstaked tokens from the oldest vintage first.
+  </Step>
+  <Step title="Additional priority rules">
+    Subsequent priority levels to be defined.
+  </Step>
+</Steps>
+
+## DYLD allocation parameters per pool
+
+Initial vs. target levels for DYLD allocations to lenders, originators, and servicers per loan
+pool.
+
+| Parameter | Initial level | Target level |
+| --- | ---: | ---: |
+| Lender DYLD per pool | 0.40% | 0.00% |
+| Originator DYLD per pool | 0.40% | 0.10% |
+| Servicer DYLD per pool | 0.20% | 0.05% |
+
+The trajectory from initial to target reflects the DIP design intent — incentives are weighted
+more heavily during early-stage capital formation, then taper as the network matures and yield
+streams stabilize.
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Tokenomics overview" href="/guides/tokenomics/overview" icon="coins">
+    The dual-token framework and Dynamic Incentive Policy.
+  </Card>
+  <Card title="Yield DROPS (DYLD)" href="/guides/tokenomics/yield-drops" icon="chart-line">
+    Full mechanism — DYLD issuance, GMV-milestone payouts, and the dynamic burn policy.
+  </Card>
+  <Card title="Lend DROPS (DLND)" href="/guides/tokenomics/lend-drops" icon="vault">
+    Senior-secured note for institutional lenders.
+  </Card>
+  <Card title="Tech framework" href="/guides/platform/tech-framework" icon="layer-group">
+    Architecture overview behind the lending logic.
+  </Card>
+</CardGroup>
