@@ -1,0 +1,91 @@
+---
+title: "Deploy flow"
+description: "How code reaches dev.droplinked.com and droplinked.com — the dev-first, manual-promote discipline that keeps production stable."
+---
+
+Droplinked ships every backend change through a **dev-first flow with a manual production
+gate**. Dev (`dev.droplinked.com`) and live (`droplinked.com`) always run the same code from
+the same branch — what diverges is *when* each environment redeploys.
+
+## At a glance
+
+```
+PR merges to main
+  ↓
+Dev workflow auto-fires → dev.droplinked.com redeploys
+  ↓
+Smoke dev
+  ↓
+If green → operator clicks "Run workflow" on the main deploy
+            in the GitHub Actions UI → droplinked.com redeploys
+  ↓
+Re-smoke live immediately
+  ↓
+If regression → instant rollback to last-known-good ECS revision
+```
+
+<Warning>
+Nothing reaches live without a green dev smoke first. No exceptions.
+</Warning>
+
+## Why this flow exists
+
+The `droplinked-backend` repo drives two ECS services:
+
+- A dev service backing `dev.droplinked.com`
+- A live service backing `droplinked.com`
+
+These deploy from the **same branch** (`main`) so dev can actually validate live behavior.
+The dev workflow runs on every merge; the live workflow is `workflow_dispatch`-only — an
+operator manually triggers it after the dev smoke is green.
+
+<Note>
+GitHub Environment protection rules with required reviewers would be the prettier solution
+but require a paid GitHub plan tier. The `workflow_dispatch`-only pattern is the no-cost
+equivalent.
+</Note>
+
+## How to deploy a change
+
+<Steps>
+  <Step title="Open a PR against main">
+    Wait for CI (`verify`) to pass. Request a reviewer + merge.
+  </Step>
+  <Step title="Wait for the dev deploy">
+    `Deploy ECS - Dev` auto-fires on merge and completes in ~2–3 min.
+  </Step>
+  <Step title="Smoke dev">
+    Hit `dev.droplinked.com` — log in, exercise the affected endpoint, anything the diff
+    touches. Use a dev-only smoke merchant; never client accounts.
+  </Step>
+  <Step title="Promote to live">
+    Go to **Actions → Deploy ECS - main → Run workflow** in the GitHub UI. Select branch
+    `main`, click **Run workflow**.
+  </Step>
+  <Step title="Re-smoke live">
+    Smoke `droplinked.com` immediately after the deploy completes. If a regression appears,
+    revert the PR's commit or roll back the ECS service to the previous task-definition
+    revision before doing anything else.
+  </Step>
+</Steps>
+
+## Emergency overrides
+
+<Tip>
+The `workflow_dispatch` trigger lets you select any branch when running a deploy manually
+— useful for hotfixes that haven't merged yet.
+</Tip>
+
+**Emergency live deploy (critical patch, can't wait for the standard flow):** Run
+`Deploy ECS - main` against the branch carrying the fix. Skip the dev smoke step but
+document the override in the post-incident notes.
+
+**Emergency dev deploy of a non-`main` branch (testing an unmerged fix):** Run
+`Deploy ECS - Dev` against the branch under test.
+
+## Related
+
+- See [Environment variables](/guides/environment-variables) for the runtime configuration
+  surface each environment expects.
+- See [Order lifecycle](/guides/order-lifecycle) for what an end-to-end smoke should
+  exercise post-deploy.

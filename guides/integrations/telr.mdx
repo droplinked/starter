@@ -1,0 +1,149 @@
+---
+title: "Telr"
+description: "Telr — MENA/GCC payment processor. Hosted payment page, SHA1 webhook signature, idempotent state machine, and refunds."
+---
+
+Telr is Droplinked's preferred MENA/GCC payment processor. The integration uses Telr's
+**hosted payment page** (PCI scope stays on Telr), forwards transaction-advice webhooks back
+to the Droplinked backend, and supports refunds + status polls.
+
+## Architecture
+
+```
+                ┌────────────────────────────────┐
+                │  Merchant store on Droplinked  │
+                │  (selects Telr in settings)    │
+                └────────────────┬───────────────┘
+                                 │
+   POST /telr/payment            │
+   ───────────────────────────▶  │   creates Telr order via Gateway API
+                                 │   (store_id + auth_key)
+                                 ▼
+                ┌────────────────────────────────┐
+                │      Telr hosted page          │
+                │  (PCI scope stays on Telr)     │
+                └────────────────┬───────────────┘
+                                 │ customer pays
+                                 ▼
+   POST /telr/webhook            │   transaction-advice POST
+   ◀───────────────────────────  │   form-encoded, signed with SHA1
+                                 │
+   GET /telr/transactions/:id/status   ← merchant or backend poll
+   POST /telr/transactions/:id/refund  ← merchant-initiated refund
+```
+
+Droplinked remains merchant-of-record. Telr never sees the catalog or customer data beyond
+what's carried in the order body.
+
+## Endpoints
+
+All endpoints are under `https://apiv3.droplinked.com`.
+
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/telr/payment` | POST | Merchant JWT | Create a hosted payment session; returns Telr-hosted URL the storefront redirects to |
+| `/telr/webhook` | POST | **Signature only** (see below) | Telr → Droplinked transaction-advice. Idempotent, signature-verified. Always replies 200 even on duplicate |
+| `/telr/transactions/:transactionId/refund` | POST | Merchant JWT + role check | Initiate a refund. Body: `{ amount: "25.00", reason: "string" }` |
+| `/telr/transactions/:transactionId/status` | GET | Merchant JWT | Backend-side status poll (webhook is preferred) |
+
+## Webhook signature scheme
+
+Droplinked verifies the standard Telr advice signature:
+
+```
+hash = SHA1( store_id : auth_key : order_ref : amount : currency : status )
+```
+
+- Colon-joined, raw bytes, no trailing newline
+- Compared with `crypto.timingSafeEqual` (side-channel safe)
+- Mismatch returns **HTTP 401** (not 400) so attackers can't probe whether a `cartId` exists
+
+### Required form fields posted to `/telr/webhook`
+
+| Field | Source | Notes |
+|-------|--------|-------|
+| `store_id` | Telr | Must match `TELR_STORE_ID` |
+| `order_ref` | Telr | Echoed back from the original `/telr/payment` request |
+| `cart_id` | Droplinked-originated | Optional, useful for fast lookup |
+| `amount` | Telr | Decimal string, e.g. `25.00` |
+| `currency` | Telr | ISO 4217 (AED, SAR, USD, EUR, …) |
+| `status` | Telr | One of `A`, `H`, `P`, `E`, `D`, `C` or `authorised`/`paid`/`declined`/`cancelled` |
+| `hash` | Telr | Hex SHA1 of the canonical string above |
+
+### Status mapping
+
+| Telr status | Droplinked `TelrTransactionStatus` |
+|-------------|------------------------------------|
+| `A`, `H`, `authorised` | `AUTHORIZED` |
+| `P`, `paid` | `CAPTURED` |
+| `E`, `D`, `declined` | `DECLINED` |
+| `C`, `cancelled` | `CANCELLED` |
+
+## Idempotency + state-machine guarantees
+
+<Tip>
+Telr's webhook handler is fully idempotent. Telr can safely retry on a schedule like
+1m / 5m / 30m / 2h / 24h with exponential backoff — we've verified 24h replay safety.
+</Tip>
+
+- Every webhook event is persisted by `signature` into `telrTransaction.webhookEventIds`
+- State transitions run through a `canTransition` check — **irreversibly forward-only**
+- A stale `AUTHORIZED` event arriving after `CAPTURED` is **dropped** (state never rewinds)
+- The DB update + idempotency-list push run inside a single transaction so partial failures
+  don't desync state
+
+## Refund flow
+
+```http
+POST /telr/transactions/:transactionId/refund
+```
+
+```json
+{
+  "amount": "25.00",
+  "reason": "Customer cancelled within 24h"
+}
+```
+
+- Requires the merchant JWT for the shop that owns the transaction
+- Calls Telr's Order API with `ivp_method=refund`, `tran_ref`, `tran_amount`, `tran_currency`
+- Successful refunds are recorded as child entries in `telrTransaction.refunds[]`
+- **Partial refunds supported** (`amount < captured_amount`); subsequent attempts validate
+  `cumulative_refunded ≤ captured`
+
+## Test mode
+
+- Toggled by env: `TELR_TEST_MODE=true` (sends `ivp_test=1` on the order body)
+- Telr issues a **separate** `store_id` / `auth_key` pair for sandbox; same base URL
+  (`https://secure.telr.com`)
+
+## Configuration
+
+| Variable | Description |
+|----------|-------------|
+| `TELR_STORE_ID` | Issued by Telr (per environment) |
+| `TELR_AUTH_KEY` | Held in your secrets manager; rotate quarterly |
+| `TELR_BASE_URL` | Defaults to `https://secure.telr.com` |
+| `TELR_ENABLED` | Master gate for routing through Telr |
+| `TELR_TEST_MODE` | `true` in sandbox, `false` in production |
+| `SHOPFRONT_BASE_URL` | Where Telr redirects the customer post-payment |
+
+### Supported currencies
+
+AED, SAR, KWD, BHD, QAR, OMR, USD, EUR. Additional currencies can be enabled in the Telr
+merchant portal — Droplinked auto-detects supported currencies from the order-create
+response.
+
+## Production checklist
+
+- Telr merchant onboarding complete
+- Webhook URL registered with Telr: `https://apiv3.droplinked.com/telr/webhook`
+- HMAC verification + idempotency live
+- Refund flow tested
+- State-machine prevents status rollback
+- Sandbox `store_id` + `auth_key` provisioned for `apiv3dev.droplinked.com`
+
+## Related
+
+- [Order lifecycle](/guides/order-lifecycle) — how Telr fits the broader payment flow.
+- [Checkout stability](/guides/testing/checkout-stability) — cross-PSP test matrix.

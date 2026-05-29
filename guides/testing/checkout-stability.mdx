@@ -1,0 +1,227 @@
+---
+title: "Checkout stability playbook"
+description: "Enterprise-grade test sequences for the customer checkout flow — fixtures, smoke matrix, cross-PSP coverage, idempotency, and chaos drills."
+---
+
+This playbook is the minimum required test matrix before any change to cart, shipping,
+payment, or order modules merges to `main`. It pairs backend orchestration, the payment
+gateway, the checkout UI, and the storefront — a missed regression in any of these costs
+real orders.
+
+## Cadence
+
+- **Per PR** touching cart, order, payments, or any PSP module: run the smoke sequence
+- **Weekly** against production: full matrix (smoke + cross-PSP + idempotency)
+- **Pre-release** for every backend tag: full matrix + chaos drills
+
+## 1. Test fixtures
+
+A reliable stability program needs known-good and known-broken fixtures so every regression
+test has predictable inputs.
+
+<Warning>
+Never point smoke tests at real merchant shops. Use the fixture shops below.
+</Warning>
+
+### Fixture shops
+
+| Slug | Purpose | Shipping profile | Payment methods |
+|------|---------|------------------|-----------------|
+| `qa-physical-easypost` | Real EasyPost rates, physical goods, US→US | EasyPost | Stripe (test), PayMob (sandbox), Bonum (sandbox) |
+| `qa-physical-printful` | POD goods via Printful | Printful | Stripe (test) |
+| `qa-physical-uae` | UAE→MENA, exercises Telr + PayMob | Custom flat-rate by country | Telr (sandbox), PayMob (sandbox), Stripe (test) |
+| `qa-digital-only` | Pure digital items, no shipping | none | Stripe (test), Bonum (sandbox) |
+| `qa-mixed` | Physical + digital, split shipping | EasyPost (physical only) | Stripe (test) |
+| `qa-crypto` | Web3 product, on-chain settlement | none / digital | x402 / Coinbase Commerce / SOL Pay |
+
+### Fixture customer accounts
+
+Test-mode-only — never real cards.
+
+| Email | Card | Address country | Why |
+|-------|------|-----------------|-----|
+| `qa+stripe-pass@...` | `4242 4242 4242 4242` | US | Happy path |
+| `qa+stripe-3ds@...` | `4000 0025 0000 3155` | US | Forces 3DS challenge |
+| `qa+stripe-decline@...` | `4000 0000 0000 0002` | US | Generic decline |
+| `qa+stripe-insufficient@...` | `4000 0000 0000 9995` | US | Insufficient funds |
+| `qa+stripe-disputed@...` | `4000 0000 0000 0259` | US | Triggers dispute post-charge |
+| `qa+stripe-mena@...` | `4242 4242 4242 4242` | AE / SA / EG | AVS variations, currency conversion |
+
+### Fixture environments
+
+- **Stage** (`apiv3stage` + `checkoutstage`) — primary smoke target. Hits Stripe **test mode**,
+  EasyPost test API, PayMob sandbox, Telr sandbox.
+- **Production** (`apiv3prod` + `checkout.droplinked.io`) — full live target. Run from a
+  UAE-IP runner for IP-allowlist coverage.
+- **Local docker compose** — backend-only assertions; can't exercise full Stripe Elements.
+
+### Fixture freshness
+
+Schedule a weekly clean of `qa-*` shop carts older than 7 days, void all `qa+*` test
+charges, and archive completed test orders. Stops fixture rot from masking regressions.
+
+## 2. Per-PR smoke sequence
+
+Twelve assertions. Should complete in under 10 minutes against stage.
+
+| # | Scenario | Fixture | Expected |
+|---|----------|---------|----------|
+| **S1** | Add 1 physical item → checkout init | `qa-physical-easypost` | 200, cart ID returned, totals match items + 0 shipping |
+| **S2** | Enter US shipping address → `availableShipping` populated | + US addr | ≥1 shipping group, ≥1 rate per group with `rateId` + price + carrier |
+| **S3** | Select shipping rate → totals update | continued | `totals.shipping` reflects rate; `totals.total = items + shipping + tax` |
+| **S4** | Create Stripe PaymentIntent → `client_secret` | continued | `clientSecret` + `paymentIntentId` present, no shipping mismatch |
+| **S5** | Pay with `4242…` → order moves to `PAID` | continued | Order flips `PENDING`→`PAID` within 30s of webhook |
+| **S6** | Stripe charge has populated branding fields | Stripe dashboard test mode | `statement_descriptor_suffix`, `receipt_email`, `shipping` block populated |
+| **S7** | Digital-only cart skips shipping entirely | `qa-digital-only` | Frontend hides shipping section; checkout completes with billing only |
+| **S8** | Mixed cart splits shipping correctly | `qa-mixed` | Only physical item in `availableShipping`; digital is unshippable but non-blocking |
+| **S9** | EasyPost-tagged product gets real carrier rates | `qa-physical-easypost`, US→US | USPS / UPS / FedEx appear; no silent fallthrough to custom strategy |
+| **S10** | Printful-tagged product gets Printful rates | `qa-physical-printful` | Printful strategy fires; no EasyPost call |
+| **S11** | 3DS challenge card completes payment | `qa+stripe-3ds@…` | Redirects to 3DS challenge, returns, charge completes |
+| **S12** | Decline card lands clean error | `qa+stripe-decline@…` | Generic "card declined" surfaced, cart preserved, no order created |
+
+<Warning>
+A PR that breaks any of S1–S12 against stage must not merge.
+</Warning>
+
+S1–S6 + S7 + S9 should run automatically in CI. S5, S11, S12 require Stripe sandbox client
+interaction (Playwright against test mode).
+
+## 3. Cross-PSP matrix (weekly)
+
+Run the same 12 scenarios across each enabled PSP for the relevant currency.
+
+| PSP | Currency | Origin | Dest |
+|-----|----------|--------|------|
+| Stripe | USD | US | US |
+| Stripe | AED | AE | AE |
+| Stripe | AED | AE | SA |
+| PayMob | EGP | EG | EG |
+| PayMob | AED | AE | AE |
+| Telr | AED | AE | AE |
+| Bonum | MNT | MN | MN |
+| Coinbase Commerce | USDC | global | digital (digital-only carts) |
+| x402 / SOL Pay | USDC | global | digital (digital-only carts) |
+| PayPal | USD | US | US |
+
+For each row, capture:
+
+- Time-to-complete checkout (p50, p95)
+- Webhook latency (PSP → integration service → backend)
+- Order status transition path
+- Cart-preserved-on-failure behavior
+
+## 4. Idempotency + replay matrix
+
+Every PR that touches webhook handlers or cart-status transitions must pass:
+
+| # | Scenario | Expected |
+|---|----------|----------|
+| **I1** | Same webhook delivered twice (Stripe replay) | Second is no-op; no double-paid; no duplicate emails |
+| **I2** | Webhook arrives before payment-intent succeeded callback | Backend resolves to correct final state regardless of arrival order |
+| **I3** | Webhook arrives 24h late (Stripe retries) | Still processed correctly; idempotency key honored |
+| **I4** | Two concurrent "Pay Now" clicks | One PaymentIntent created; second click 4xxs cleanly (no double-charge) |
+| **I5** | User abandons checkout, returns next day | Cart preserved if not expired; expired carts show empty-state, not 500 |
+| **I6** | Selected shipping rate expires (EasyPost ~15min TTL) | Backend revalidates; customer asked to reselect; no silent total drift |
+| **I7** | Network failure mid-payment (Stripe `requires_action` → connection drop) | Order reconciles via webhook within 5 minutes |
+
+## 5. Chaos drills (pre-release / monthly)
+
+Test failure modes that only happen in production.
+
+| # | Drill | How to simulate | Pass criteria |
+|---|-------|-----------------|---------------|
+| **C1** | EasyPost insufficient funds | Drain EasyPost wallet in sandbox | Backend alerts ops; existing checkouts fall back to flat-rate; new checkouts surface a graceful banner |
+| **C2** | Stripe 5xx | Toxiproxy outage simulation | Backend retries once, then fails gracefully; cart preserved |
+| **C3** | Mongo Atlas connection drop | Block Atlas IP in test env | Backend serves cached cart; surfaces error on writes; no 500s to reads |
+| **C4** | Integration service down | Stop the 3rdp container | Backend opens circuit breaker after 3 failures; surfaces "Payment provider unavailable" within 2s |
+| **C5** | Webhook signature failure (rotated key) | Send webhook with stale HMAC | 401, log, alert; do NOT process the event |
+| **C6** | Restricted Stripe key from unauthorized IP | Spin up runner without IP allowlist | Stripe returns 403; backend should not retry-loop |
+| **C7** | UAE→US Stripe currency conversion | AED-priced order, US card | Conversion happens once; receipt + dashboard agree on FX rate |
+| **C8** | Mixed cart with one out-of-stock item | Stock one item to 0 mid-checkout | Item removed with clear message; cart total recomputes; selected shipping rate revalidates |
+
+## 6. Known regression — EasyPost silently uses custom strategy
+
+<Warning>
+A product configured with `shippingProfileId = 'easypost'` can silently fall through to the
+custom shipping strategy if the strategy factory only registers Printful + Custom. The
+custom strategy's `canHandle` returns true for any non-Printful profile, so EasyPost-tagged
+products get routed to a strategy expecting merchant flat-rate config. Result: empty
+`availableShipping`, checkout dead-ends at "Shipping these items is not available to this
+address."
+</Warning>
+
+**Fix path:**
+
+<Steps>
+  <Step title="Implement an EasyPost shipping strategy">
+    Wrap the `easy-post` module's rate-fetch in a `ShippingRateStrategy` adapter.
+  </Step>
+  <Step title="Register it ahead of the custom strategy">
+    Add it to the strategy factory's default-initialization list before the custom strategy.
+  </Step>
+  <Step title="Tighten canHandle">
+    Update the custom strategy to only return `true` for explicit `'custom'` / `'flat-rate'`
+    identifiers — never as a catch-all.
+  </Step>
+  <Step title="Guard the regression">
+    S9 in the per-PR smoke matrix is the standing regression guard once the strategy ships.
+  </Step>
+</Steps>
+
+## 7. Tooling roadmap
+
+What we have:
+
+- A narrowly-Bonum stress-test script — pattern-extend for other PSPs
+- Some payment-gateway specs needing repo-level jest cleanup
+- A backend CI workflow with lint+test as a soft-fail
+
+What we need:
+
+<Steps>
+  <Step title="Playwright suite for S1–S12">
+    Drive Stripe Elements test-mode card entry; assert on backend cart state via direct
+    API checks between UI steps.
+  </Step>
+  <Step title="GitHub Actions workflow">
+    `checkout-smoke.yml` runs the Playwright suite on every PR labelled `area:checkout` or
+    touching cart/order/payments modules.
+  </Step>
+  <Step title="Tagged Stripe test-mode dashboard">
+    Isolate regressions from real-money flow with a dedicated dashboard tag.
+  </Step>
+  <Step title="Weekly UAE-egress cron">
+    Run sections 2 + 3 + 4 against production weekly from a UAE-IP runner; post to a
+    `#stability` channel.
+  </Step>
+  <Step title="Chaos toolkit">
+    Toxiproxy (or similar) for section 5 drills.
+  </Step>
+</Steps>
+
+## Appendix — "Shipping these items is not available" fault tree
+
+```
+"Shipping these items is not available to this address"
+└── frontend: MethodsLoader status === 'failed'
+    └── ShippingMethodsSection: noShippingAvailable === true
+        └── cart.availableShipping has length 0
+            ├── FetchShippingRateUseCase returned hasErrors: true
+            │   ├── No strategy matched profileId
+            │   ├── Strategy threw (EasyPost outage, Printful 5xx)
+            │   └── Address mapping failed (country not in DB)
+            └── FetchShippingRateUseCase returned empty responses
+                ├── Custom strategy: shop has no flat-rate config for destination
+                ├── Printful strategy: API returned no shippable carriers
+                └── EasyPost insufficient funds (manifests as no rates)
+```
+
+Walk this tree from leaf upward to pin which node fired. Update the tree when a new node
+is discovered.
+
+## Related
+
+- [Order lifecycle](/guides/order-lifecycle)
+- [Stripe](/guides/integrations/stripe), [PayPal](/guides/integrations/paypal),
+  [Bonum](/guides/integrations/bonum), [Telr](/guides/integrations/telr)
+- [EasyPost](/guides/integrations/easypost), [Printful](/guides/integrations/printful)

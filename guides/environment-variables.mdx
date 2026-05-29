@@ -1,0 +1,104 @@
+---
+title: "Environment variables"
+description: "Reference for runtime configuration of the Droplinked backend — core app, payments, email, and affiliate network."
+---
+
+All secrets live in a secrets manager. Real values are never committed to source — `.env`
+files in the repo contain placeholders only.
+
+<Warning>
+Never put live keys (Stripe, PayPal, AWS, Atlas) in plaintext config. The team configures
+production values through AWS Secrets Manager and they're loaded into the ECS task at boot.
+</Warning>
+
+## Core application
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `APP_PORT` | number | HTTP port the server listens on | `80` |
+| `NODE_ENV` | string | Runtime environment | `production` |
+| `DATABASE_URL` | string | MongoDB connection string (Prisma) | `mongodb+srv://...` |
+| `REDIS_URL` | string | Redis connection string (managed — ElastiCache or Upstash) | `redis://...` |
+| `JWT_SECRET` | string | Secret for signing JWTs | — |
+
+## Stripe
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `STRIPE_SECRET_KEY` | string | Stripe secret key | `sk_live_...` |
+| `STRIPE_WEBHOOK_SECRET` | string | Stripe webhook signing secret | `whsec_...` |
+
+## PayPal
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `PAYPAL_MODE` | string | `sandbox` or `live` | `live` |
+| `PAYPAL_CLIENT_ID` | string | PayPal OAuth2 client ID | — |
+| `PAYPAL_CLIENT_SECRET` | string | PayPal OAuth2 client secret (a.k.a. `PAYPAL_SECRET`) | — |
+| `PAYPAL_PARTNER_ID` | string | PayPal Partner ID for marketplace onboarding | — |
+| `PAYPAL_BN_CODE` | string | Build Notation Code (attribution) | — |
+| `PAYPAL_WEBHOOK_ID` | string | ID of the webhook listener configured in PayPal | — |
+
+## Telr
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `TELR_STORE_ID` | string | Telr store ID issued by Telr | — |
+| `TELR_AUTH_KEY` | string | Telr auth key (rotate quarterly) | — |
+| `TELR_BASE_URL` | string | Defaults to `https://secure.telr.com` | — |
+| `TELR_ENABLED` | boolean | Master gate for Telr routing | `true` |
+| `TELR_TEST_MODE` | boolean | Send `ivp_test=1` on order create | `false` |
+
+## Bonum
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `BONUM_API_BASE_URL` | — | `https://testpsp.bonum.mn` for sandbox |
+| `BONUM_MERCHANT_KEY` | — | Issued by MCredit |
+| `SETTLEMENT_CRON_SCHEDULE` | `0 2 * * *` | Adjust for the operating timezone |
+| `MERCHANT_PREFIX_DIGITS` | `6` | Confirm with the PSP before go-live |
+
+## Coinbase Commerce
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `COINBASE_COMMERCE_API_KEY` | string | Coinbase Commerce API key |
+| `COINBASE_COMMERCE_WEBHOOK_SECRET` | string | Coinbase Commerce webhook shared secret |
+
+## Fulfillment
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `EASY_POST_API_KEY` | string | Private API key from your EasyPost dashboard |
+| `PRINTFUL_API_KEY` | string | API key from Printful → Settings → API |
+| `PRINTFUL_STORE_ID` | string | Store ID from Printful's stores section |
+
+## Email
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `SENDGRID_API_KEY` | string | SendGrid API key for transactional email | — |
+| `EMAIL_FROM` | string | Sender address | `noreply@droplinked.com` |
+
+## Affiliate network
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `AFFILIATE_KMS_KEY_ARN` | string | ARN of the KMS `ECC_SECG_P256K1` key used to sign USDC payout transactions |
+| `AFFILIATE_REDIRECT_BASE_URL` | string | Public base URL for affiliate redirect links (e.g. `https://go.droplinked.com`) |
+| `AFFILIATE_COOKIE_SECRET` | string | HMAC secret for signing the `dl_aff` attribution cookie |
+| `AFFILIATE_COMMISSION_DEFAULT_PERCENT` | number | Default commission rate when not set per product |
+| `AFFILIATE_ATTRIBUTION_TTL_DAYS` | number | Days before an attribution session expires |
+| `USDC_PAYOUT_WALLET_ADDRESS` | string | Avalanche C-Chain wallet address for USDC payouts (must be funded) |
+| `AVALANCHE_RPC_URL` | string | Avalanche C-Chain RPC endpoint |
+
+<Note>
+Rotate `AFFILIATE_COOKIE_SECRET` and `JWT_SECRET` every 90 days. KMS keys are rotated on a
+coordinated schedule with the security lead.
+</Note>
+
+## Related
+
+- [Deploy flow](/guides/deploy-flow) — how config changes reach dev and live.
+- [Supply chain integrity](/guides/security/supply-chain) — how the build verifies what
+  gets shipped alongside these values.
