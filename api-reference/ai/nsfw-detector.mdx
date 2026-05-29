@@ -1,0 +1,126 @@
+---
+title: 'NSFW Detector'
+description: 'Analyze text for Not Safe For Work content (explicit language, hate speech) — returns a boolean.'
+---
+
+### API Endpoint
+
+* **URL**: `https://text-tad.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+Access to the API requires an API key. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                              |
+| -------------- | ------ | -------- | -------------------------------------------------------- |
+| `command_name` | String | Yes      | Must be set to `"NSFW_detector"` for this functionality. |
+| `text`         | String | Yes      | The text to be analyzed for NSFW content.                |
+
+#### Example Request Body
+
+```json
+{
+  "command_name": "NSFW_detector",
+  "text": "Hey, let’s catch up later. I have some news i want to put my big stick in your mouth!"
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A plain boolean value (`true` or `false`) indicating the presence of NSFW content, with no additional text or formatting.
+
+#### Example Responses
+
+* For NSFW content: `true`
+* For clean or mildly affectionate text: `false`
+
+### Guidelines for NSFW Detection
+
+The API follows these rules:
+
+1. **Definition of NSFW**: Flags text containing:
+   * Explicit language or strong sexual content.
+   * Graphic violence.
+   * Hate speech or inappropriate material.
+2. **Exclusions**: Does not flag:
+   * Mildly affectionate or romantic phrases (e.g., "I would like to kiss you") unless explicitly inappropriate.
+   * General communication without NSFW elements.
+3. **Output**: Returns only:
+   * `true` if NSFW content is detected.
+   * `false` if the text is clean or non-explicit.
+4. **Restrictions**:
+   * No explanations, labels, or additional text in the response.
+   * Strict boolean output.
+
+#### Example Transformations
+
+* **Input**: "This video is full of explicit adult scenes!" → **Output**: `true`
+* **Input**: "Hey, let’s catch up later. I have some news!" → **Output**: `false`
+* **Input**: "I would like to kiss you." → **Output**: `false`
+* **Input**: "I want to do explicit things to you." → **Output**: `true`
+
+### JavaScript Example
+
+Below is an example of how to use the NSFW Detector API in JavaScript with the `fetch` API:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "command_name": "NSFW_detector",
+  "text": "Hey, let’s catch up later. I have some news i want to put my big stick in your mouth!"
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://text-tad.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result)) // Output: true
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+* **Invalid API Key**: Returns an error message (e.g., "Unauthorized").
+* **Missing Fields**: If `command_name` or `text` is missing, the API may return an error or fail silently.
+* **Network Issues**: Handle errors in the `.catch` block of the `fetch` call.
+
+#### Example Error Output
+
+```
+Unauthorized - Invalid API Key
+```
+
+### Best Practices
+
+1. **Text Clarity**: Provide clear, complete text inputs for accurate detection.
+2. **Context Awareness**: Understand that the API focuses on explicit content, not implied meanings.
+3. **Moderation Workflow**: Integrate the API into content pipelines to filter NSFW material efficiently.
+4. **Testing**: Test with various inputs to ensure alignment with your moderation standards.
+
+### Support
+
+For assistance or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.

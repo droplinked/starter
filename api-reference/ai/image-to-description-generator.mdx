@@ -1,0 +1,128 @@
+---
+title: 'Image-to-Description Generator'
+description: 'Produce a 150–250 character product description paragraph from image-derived visual details.'
+---
+
+### API Endpoint
+
+* **URL**: `https://image-cap.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+An API key is required to access the API. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                                          |
+| -------------- | ------ | -------- | -------------------------------------------------------------------- |
+| `command_name` | String | Yes      | Must be set to `"description_from_image"` for this functionality.    |
+| `imageUrl`     | String | Yes      | URL of the product image to analyze and generate a description from. |
+
+#### Example Request Body
+
+```json
+{
+  "command_name": "description_from_image",
+  "imageUrl": "https://dash.dev.lumai.ir/api/services/outputs/0194ccd6-e1c8-70fc-9083-4adef69bc112.jpg"
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A single-paragraph string containing the product description, with no quotes, labels, or additional text.
+
+#### Example Response
+
+```
+Step up your run with these Nike shoes in black mesh - Featuring a bold red swoosh and cushioned sole - Lightweight breathable design enhances comfort - Durable rubber outsole ensures lasting performance
+```
+
+### Guidelines for Generated Descriptions
+
+The API adheres to these strict rules:
+
+1. **Mode**: Operates in `GENERATE_DESCRIPTION_MODE: TRUE`, creating descriptions from visual data.
+2. **Input**: Uses a product visual description extracted from the image (processed internally).
+3. **Output**: Produces a single-paragraph description with:
+   * 150-250 characters.
+   * Brand name (if visible).
+   * Exact colors and patterns.
+   * Material and style details.
+   * Key features using hyphens (`-`) to separate points.
+4. **Format**:
+   * Single flowing paragraph.
+   * No quotes or introductory/explanatory text.
+   * Describes only what is visible in the image.
+5. **Restrictions**:
+   * No conversation, questions, or assumptions.
+   * No additional formatting or text beyond the description.
+
+#### Example Transformation
+
+* **Visual Description**: "Champion brand hoodie in mulled berry red color with tie-dye pattern throughout, featuring kangaroo pocket, drawstring hood, and ribbed cuffs"
+* **Output Description**: `Elevate your casual style with this Champion tie-dye hoodie in rich mulled berry - Features a classic kangaroo pocket and adjustable drawstring hood - Premium cotton blend construction with tie-dye pattern throughout - Perfect blend of comfort and trendy streetwear appeal`
+
+### JavaScript Example
+
+Below is an example of how to use the Image-to-Description Generator API in JavaScript with the `fetch` API:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "command_name": "description_from_image",
+  "imageUrl": "https://dash.dev.lumai.ir/api/services/outputs/0194ccd6-e1c8-70fc-9083-4adef69bc112.jpg"
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://image-cap.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result)) // Output: e.g., Step up your run with these Nike shoes...
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+* **Invalid API Key**: Returns an error message (e.g., "Unauthorized").
+* **Missing Fields**: If `command_name` or `imageUrl` is missing, the API may return an error or fail silently.
+* **Invalid Image URL**: If the URL is inaccessible or invalid, an error may occur.
+* **Network Issues**: Handle errors in the `.catch` block of the `fetch` call.
+
+#### Example Error Output
+
+```
+Unauthorized - Invalid API Key
+```
+
+### Best Practices
+
+1. **Image Clarity**: Use high-resolution images to ensure accurate detail extraction.
+2. **URL Validity**: Verify that the `imageUrl` is accessible and points to a valid image.
+3. **Consistency**: Test with diverse products to ensure descriptions align with your catalog.
+4. **SEO Benefits**: The descriptions naturally include keywords from visual details, enhancing searchability.
+
+### Support
+
+For assistance or to request an API key, contact Droplinked support at support@droplinked.com. Include details such as your use case and expected request volume.

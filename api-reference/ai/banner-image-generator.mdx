@@ -1,0 +1,138 @@
+---
+title: 'Banner Image Generator'
+description: 'Generate a 1920×512 banner image for a web3 business — uses Flux.1 Schnell with built-in retry. Returns base64 image.'
+---
+
+### API Endpoint
+
+* **URL**: `https://banner.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+An API key is required for access. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field         | Type   | Required | Description                                     |
+| ------------- | ------ | -------- | ----------------------------------------------- |
+| `description` | String | Yes      | A brief or detailed description of the company. |
+| `category`    | String | Yes      | The company’s category (e.g., "technology").    |
+
+#### Example Request Body
+
+```json
+{
+  "description": "droplinked , we are a company offering web3 based and onchain solution to businesses and indivisuals .",
+  "category": "technology"
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A base64-encoded string representing the generated banner image.
+
+#### Example Response
+
+```
+data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAB4AAAAMAAAACAYAAAD0eNT6...
+```
+
+### Guidelines for Banner Generation
+
+The API operates as follows:
+
+1. **Prompt Generation**:
+   * Calls an internal `text_llm` service with the `"banner_prompt"` command, passing `description` and `category`.
+   * Receives a cleaned, Flux-optimized prompt (e.g., "A sleek digital grid with glowing blockchain nodes, corporate banner style, high quality, detailed, professional, digital art").
+2. **Image Generation**:
+   * Uses the Flux.1 Schnell model (`@cf/black-forest-labs/flux-1-schnell`).
+   * Fixed dimensions: 1920x512 pixels (divisible by 8 for model compatibility).
+   * Applies retries (up to 3) with exponential backoff and prompt simplification if generation fails.
+3. **Output**:
+   * Converts the image to base64 using a robust utility function handling various input types.
+   * Returns only the base64 string, no additional metadata.
+
+### JavaScript Example
+
+Below is an example of how to use the Banner Image Generator API in JavaScript with the `fetch` API, including rendering the image:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "description": "droplinked , we are a company offering web3 based and onchain solution to businesses and indivisuals .",
+  "category": "technology"
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://banner.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((base64String) => {
+    // Display the image
+    const imgElement = document.createElement("img");
+    imgElement.src = `data:image/png;base64,${base64String}`;
+    document.body.appendChild(imgElement);
+  })
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+The API provides JSON error responses with a debug header (`X-Debug-Version`):
+
+* **405 Method Not Allowed**: If the method isn’t `POST`.
+  * Example: `{ "error": "Method not allowed. Use POST." }`
+* **401 Unauthorized**: If the API key is missing or invalid.
+  * Example: `{ "error": "Authentication failed. Invalid API key." }`
+* **400 Bad Request**: If `description` or `category` is missing.
+  * Example: `{ "error": "Missing required fields: 'description' and/or 'category'." }`
+* **500 Internal Server Error**: If prompt generation, image creation, or base64 conversion fails.
+  * Example: `{ "error": "Failed to generate image after multiple attempts.", "details": "..." }`
+* **503 Service Unavailable**: If the `text_llm` service fails.
+  * Example: `{ "error": "Failed to call text-llm worker.", "details": "..." }`
+
+#### Example Error Output
+
+```json
+{"error":"Authentication failed. API key is missing."}
+```
+
+### Best Practices
+
+1. **Input Quality**: Provide a detailed `description` and relevant `category` for optimal banners.
+2. **Image Usage**: Decode the base64 string client-side to render or save the image (e.g., as PNG).
+3. **Retry Logic**: The API includes built-in retries; ensure your client handles final failures gracefully.
+4. **Testing**: Test with various inputs to refine the output for your needs.
+
+### Worker Code Insights
+
+* **Base64 Conversion**: The `uint8ArrayToBase64` function handles multiple input types (Uint8Array, ArrayBuffer, arrays) and processes large data in chunks (8192 bytes).
+* **Prompt Formatting**: The `formatFluxPrompt` function cleans the prompt and adds Flux-specific quality boosters (e.g., "high quality, professional").
+* **Retries**: Implements exponential backoff (starting at 500ms) with prompt simplification across 3 attempts for reliability.
+* **Debugging**: Includes detailed logging and a version header (`X-Debug-Version`) for diagnostics.
+
+### Support
+
+For assistance or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.

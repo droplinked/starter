@@ -1,0 +1,118 @@
+---
+title: 'Product Title Enhancement'
+description: 'Optimize product titles for SEO and engagement — concise, keyword-rich output under 60 characters with optional emojis.'
+---
+
+### Overview
+
+The Title Enhancement API is a powerful tool designed to optimize and enhance product titles for better engagement and search engine optimization (SEO). It transforms plain product titles into concise, keyword-rich, and appealing versions while adhering to specific guidelines. This API is ideal for e-commerce platforms, content creators, and marketers looking to improve product visibility and click-through rates.
+
+### API Endpoint
+
+* **URL**: `https://text-tad.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+To access the API, you need an API key. Contact Droplinked support to obtain your API key. Include the API key in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                                          |
+| -------------- | ------ | -------- | -------------------------------------------------------------------- |
+| `command_name` | String | Yes      | Must be set to `"title"` for title enhancement.                      |
+| `title`        | String | Yes      | The original product title to be enhanced.                           |
+| `tone`         | String | Yes      | The desired tone for the title (e.g., "professional", "tech-savvy"). |
+
+#### Example Request Body
+
+```json
+{
+  "command_name": "title",
+  "title": "Wireless Bluetooth Headphones",
+  "tone": "tech-savvy"
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A single-line string representing the enhanced title, with no quotation marks or additional explanations.
+
+#### Example Response
+
+```
+Tech-Savvy Wireless Bluetooth Headphones 🎧
+```
+
+### Guidelines for Enhanced Titles
+
+The API follows these rules when generating enhanced titles:
+
+1. **Character Limit**: The output title will not exceed 60 characters.
+2. **SEO Optimization**: Relevant keywords are naturally incorporated to improve searchability.
+3. **Tone Adaptation**: The title reflects the specified tone (e.g., "professional", "tech-savvy").
+4. **Emojis**: Relevant emojis are added only when they enhance appeal and align with the tone.
+5. **Clean Output**: No unnecessary symbols (e.g., `**`, `--`) or extraneous text are included.
+
+### JavaScript Example
+
+Below is an example of how to use the Title Enhancement API in JavaScript using the `fetch` API:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "command_name": "title",
+  "title": "Wireless Bluetooth Headphones",
+  "tone": "tech-savvy"
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://text-tad.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result)) // Output: Tech-Savvy Wireless Bluetooth Headphones 🎧
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+* **Invalid API Key**: Returns an error message (e.g., "Unauthorized").
+* **Missing Fields**: If `command_name`, `title`, or `tone` is missing, the API may return an error or unexpected behavior.
+* **Network Issues**: Handle errors in the `.catch` block of the `fetch` call.
+
+#### Example Error Output
+
+```
+Unauthorized - Invalid API Key
+```
+
+### Best Practices
+
+1. **Tone Selection**: Choose a tone that aligns with your brand or audience (e.g., "casual", "professional", "fun").
+2. **Title Length**: Provide input titles that allow room for enhancement within the 60-character limit.
+3. **Testing**: Test with various titles and tones to ensure the output meets your needs.
+
+### Support
+
+For issues with the API or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected volume of requests.

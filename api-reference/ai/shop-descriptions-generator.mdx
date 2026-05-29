@@ -1,0 +1,130 @@
+---
+title: 'Shop Descriptions Generator'
+description: 'Generate three concise, engaging shop descriptions from a business description, returned as strict JSON.'
+---
+
+### API Endpoint
+
+* **URL**: `https://text-tad.droplinked.workers.dev/`
+* **Method**: `POST`
+* **Content-Type**: `application/json`
+
+### Authentication
+
+An API key is required for access. Contact Droplinked support to obtain your API key. Include it in the request headers as follows:
+
+* **Header**: `api-key`
+* **Value**: `<YOUR_API_KEY>` (provided by Droplinked)
+
+### Request Format
+
+The API accepts a JSON payload with the following fields:
+
+#### Request Body
+
+| Field          | Type   | Required | Description                                                  |
+| -------------- | ------ | -------- | ------------------------------------------------------------ |
+| `command_name` | String | Yes      | Must be set to `"shop_descriptions"` for this functionality. |
+| `description`  | String | Yes      | A brief or detailed description of the shop or business.     |
+
+#### Example Request Body
+
+```json
+{
+  "command_name": "shop_descriptions",
+  "description": "A web3 platform offering decentralized cloud storage solutions for creators."
+}
+```
+
+### Response Format
+
+* **Content-Type**: `text/plain`
+* **Response**: A strict JSON object containing exactly three shop descriptions, with no additional text or characters.
+
+#### Response Structure
+
+```json
+{
+  "shop_descriptions": ["Description 1", "Description 2", "Description 3"]
+}
+```
+
+#### Example Response
+
+```json
+{
+  "shop_descriptions": [
+    "A web3 platform delivering secure decentralized storage for creators.",
+    "Empower your creations with our onchain cloud storage solutions.",
+    "Decentralized storage redefined for the modern creator community."
+  ]
+}
+```
+
+### Guidelines for Shop Description Generation
+
+The API generates output based on these rules:
+
+1. **Shop Descriptions**:
+   * Exactly three concise and engaging descriptions derived from the `description`.
+   * Tailored to highlight key aspects of the business (e.g., web3, decentralized storage, creators).
+2. **Output**:
+   * Strict JSON format with only the `"shop_descriptions"` key and a three-item array.
+   * No extra text, explanations, or additional fields.
+
+### JavaScript Example
+
+Below is an example of how to use the Shop Descriptions Generator API in JavaScript with the `fetch` API:
+
+```javascript
+// Set up headers
+const myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+myHeaders.append("api-key", "<YOUR_API_KEY>"); // Replace with your Droplinked API key
+
+// Define the request payload
+const raw = JSON.stringify({
+  "command_name": "shop_descriptions",
+  "description": "A web3 platform offering decentralized cloud storage solutions for creators."
+});
+
+// Configure request options
+const requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow"
+};
+
+// Make the API call
+fetch("https://text-tad.droplinked.workers.dev/", requestOptions)
+  .then((response) => response.text())
+  .then((result) => {
+    const data = JSON.parse(result);
+    console.log("Suggested Descriptions:", data.shop_descriptions);
+  })
+  .catch((error) => console.error(error));
+```
+
+### Error Handling
+
+* **Invalid API Key**: Returns an error message (e.g., "Unauthorized").
+* **Missing Fields**: If `command_name` or `description` is missing, the API may return an error or fail silently.
+* **Network Issues**: Handle errors in the `.catch` block of the `fetch` call.
+
+#### Example Error Output
+
+```
+Unauthorized - Invalid API Key
+```
+
+### Best Practices
+
+1. **Description Specificity**: Include key business traits (e.g., products, technology, audience) for relevant descriptions.
+2. **JSON Parsing**: Parse the response client-side to access the descriptions.
+3. **Marketing Use**: Use the output for website copy, ads, or promotional materials.
+4. **Testing**: Experiment with different descriptions to generate varied content.
+
+### Support
+
+For assistance or to request an API key, contact Droplinked support at support@droplinked.com. Provide details such as your use case and expected request volume.

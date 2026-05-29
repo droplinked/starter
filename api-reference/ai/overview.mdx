@@ -1,0 +1,45 @@
+---
+title: 'AI Endpoints'
+description: 'A suite of AI-powered tools for e-commerce content, branding, and moderation — title and description enhancement, image and logo generation, NSFW detection, and more.'
+---
+
+## Overview of AI Tools Documentation
+
+This documentation provides a comprehensive guide to a suite of AI-powered tools designed to enhance e-commerce, content creation, and branding workflows, particularly for businesses leveraging web3 and onchain technologies. Each tool is accessible via a dedicated API endpoint, requiring authentication with an API key (see Authentication). Below is a summary of the tools covered:
+
+* **Product Title Enhancement**: Optimizes product titles for SEO and engagement, ensuring concise, keyword-rich outputs within 60 characters, with optional emojis for appeal.
+* **Product Description Generator**: Creates engaging product descriptions in a bullet-point format, incorporating SEO keywords and benefit-driven language, limited to 3-5 points with 1-2 relevant emojis.
+* **Image-to-Title Generator**: Generates precise product titles from image-based visual descriptions, focusing on brand, color, pattern, and product type, with a maximum of 60 characters.
+* **Image-to-Description Generator**: Produces detailed product descriptions from image-derived details, formatted as a single paragraph with 150-250 characters, focusing on exact visual elements.
+* **NSFW Detector**: Analyzes text for Not Safe For Work (NSFW) content, such as explicit language or hate speech, returning a boolean (`true` for NSFW, `false` for safe).
+* **NSFW Image Detector**: Evaluates image descriptions for NSFW elements (e.g., nudity, suggestive content), returning a boolean (`true` for NSFW, `false` for safe).
+* **Image Generator**: Creates images based on text prompts using the Flux.1 Schnell model, allowing customization of style, background, and aspect ratio, returning a base64-encoded image.
+* **Logo Prompt Generator**: Generates text prompts for logo creation based on a company description, tailored for text-to-image AI tools, focusing on brand identity and style.
+* **Logo Image Generator**: Produces logo images by generating a prompt from a description and rendering a 1024x1024 image via Flux.1 Schnell, returning a base64 image and the prompt.
+* **Shop Info Generator**: Provides three suggestions each for shop names, subdomains (for `droplinked.io`), and descriptions based on a business concept, returned in a structured JSON format.
+* **Shop Names Generator**: Suggests three shop names tailored to the business description, output in a strict JSON format.
+* **Domain Names Generator**: Offers three subdomain suggestions for `droplinked.io` based on the business concept, returned in a strict JSON format.
+* **Shop Descriptions Generator**: Creates three concise and engaging shop descriptions from a business description, output in a strict JSON format.
+* **Banner Prompt Generator**: Generates a concise text prompt for the Flux.1 Schnell model to create a banner, focusing on web3 themes with a futuristic style, avoiding text or logos.
+* **Banner Image Generator**: Produces a 1920x512 banner image by generating a prompt and using Flux.1 Schnell, returning a base64-encoded image with retry logic for reliability.
+
+Each API is designed for seamless integration into workflows, offering robust error handling, CORS support where applicable, and detailed usage examples in JavaScript. For access or support, contact Droplinked support to obtain an API key and discuss your use case.
+
+## Endpoints
+
+* [Product Title Enhancement](/api-reference/ai/product-title-enhancement)
+* [Product Description Generator](/api-reference/ai/product-description-generator)
+* [Image-to-Title Generator](/api-reference/ai/image-to-title-generator)
+* [Image-to-Description Generator](/api-reference/ai/image-to-description-generator)
+* [NSFW Detector](/api-reference/ai/nsfw-detector)
+* [NSFW Image Detector](/api-reference/ai/nsfw-image-detector)
+* [Image Generation](/api-reference/ai/image-generation)
+* [Logo Image Generator](/api-reference/ai/logo-image-generator)
+* [Logo Prompt Generator](/api-reference/ai/logo-prompt-generator)
+* [Shop Names Generator](/api-reference/ai/shop-names-generator)
+* [Domain Names Generator](/api-reference/ai/domain-names-generator)
+* [Shop Descriptions Generator](/api-reference/ai/shop-descriptions-generator)
+* [Banner Image Generator](/api-reference/ai/banner-image-generator)
+* [Banner Prompt Generator](/api-reference/ai/banner-prompt-generator)
+* [Segmind Logo generation](/api-reference/ai/segmind-logo-generation)
+* [Segmind Banner Generation](/api-reference/ai/segmind-banner-generation)
