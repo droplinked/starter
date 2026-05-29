@@ -71,6 +71,23 @@
               "guides/library/use-cases",
               "guides/library/whats-new"
             ]
+          },
+          {
+            "group": "Platform & Architecture",
+            "pages": [
+              "guides/platform/overview",
+              "guides/platform/toolbox",
+              "guides/platform/tech-framework"
+            ]
+          },
+          {
+            "group": "Tokenomics",
+            "pages": [
+              "guides/tokenomics/overview",
+              "guides/tokenomics/lend-drops",
+              "guides/tokenomics/yield-drops",
+              "guides/tokenomics/variata"
+            ]
           }
         ]
       },

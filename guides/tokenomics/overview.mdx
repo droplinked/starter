@@ -1,0 +1,155 @@
+---
+title: "Tokenomics overview"
+description: "Droplinked uses a dual-token model — Lend DROPS (DLND) as senior claim on principal and interest, with Yield DROPS (DYLD) as junior risk-buffer — mirroring senior/junior tranching in traditional securitization. Includes the Dynamic Incentive Policy, emissions, and GMV milestones."
+---
+
+## Dual-token framework
+
+Droplinked uses a **dual-token model** to track, incentivize, and reward constructive behavior
+in the ecosystem, pairing **Lend DROPS (DLND)** as the senior claim on principal and interest
+for on-chain financing with **Yield DROPS (DYLD)** as a junior risk-buffer. This structure
+**mirrors** the senior/junior tranching found in the traditional securitization market, where
+subordinated residual tranches absorb losses first — providing **principal protection** and
+**credit enhancement** to DLND holders.
+
+Both tokens serve multiple functions, offering thoughtful and highly aligned incentives rooted
+in the financial primitives of borrow/lend, time value of money, pooled risk, diversification,
+and economic fairness. These incentives provide a robust foundation for a growth-focused stable
+network, and a familiar interface for TradFi natives seeking digital yields.
+
+<CardGroup cols={2}>
+  <Card title="Lend DROPS (DLND)" href="/guides/tokenomics/lend-drops" icon="vault">
+    Senior secured note for institutional lenders. 1:1 with USD stablecoin paid-in, with
+    credit enhancement from DYLD.
+  </Card>
+  <Card title="Yield DROPS (DYLD)" href="/guides/tokenomics/yield-drops" icon="chart-line">
+    Junior tranche and primary credit enhancement layer. First-loss capital that earns network
+    fees in exchange for risk.
+  </Card>
+</CardGroup>
+
+## Design philosophy
+
+The Droplinked tokenomics design is built **from first principles**, with a foundation in
+traditional finance primitives — modeled after structures commonly recognized across public and
+private fixed-income and equity markets, and more specifically, **asset-backed securities
+(ABS)**.
+
+The design also incorporates biomimetic inspiration through unique feedback loops, stakeholder
+gateway access and control, and the **Dynamic Incentive Policy**. Additionally, Droplinked
+embeds a number of macroprudential tools and options. These innovations help create a novel,
+robust, and anti-fragile network through incentive alignment.
+
+## Dynamic Incentive Policy (DIP)
+
+Droplinked has developed a **Dynamic Incentive Policy (DIP)**. Acknowledging that our product
+exists in the midst of an accelerating technological revolution, we believe fixed incentive
+policies should not be applied to the fluidity of global commerce.
+
+Through the DIP, the Droplinked foundation may tactically and strategically fine-tune network
+incentives to ensure network stability and fairness for all. The DIP also provides a means for
+**gradual decentralization** of the protocol as the network matures, incentives stabilize
+toward long-run averages, and decentralized governance develops.
+
+## Lend DROPS (DLND)
+
+Lend DROPS provide a **stable yield** with **strong principal protection** for lenders,
+grounded in real economic cash flow driven by global trade. It also provides a robust capital
+foundation for Droplinked merchants, creating unique ecosystem efficiency for loan operations
+with on-chain inventory records and smart contract automated revenue distribution and
+settlement.
+
+Lend DROPS are issued **1:1 with USD stablecoin value** deposited into lending pools to ensure
+Lend DROPS maintain a real, practical tie to the value of outstanding loan principal.
+
+See [Lend DROPS (DLND)](/guides/tokenomics/lend-drops) for the full mechanism.
+
+## Yield DROPS (DYLD)
+
+Yield DROPS provide strong **credit enhancement** for DLND holders, as DYLD is staked for
+network yield against protocol-wide diversified risk exposures. The network yield is generated
+from small rates charged across the network for various types of activity and collected into the
+**Droplinked Treasury**. These accumulated network fees are distributed upon GMV sales
+milestones, providing novel incentives for network growth from all participants.
+
+Upon reaching these milestones, portions of network yield will be distributed as follows:
+
+<Steps>
+  <Step title="DLND stakers of matured pools">
+    First, to DLND stakers of matured lending pools to cover default losses.
+  </Step>
+  <Step title="Droplinked foundation">
+    Then, to the Droplinked foundation for strategic liquidity reserves and growth capital.
+  </Step>
+  <Step title="DYLD stakers">
+    Finally, to DYLD stakers for network participation and risk sharing.
+  </Step>
+</Steps>
+
+See [Yield DROPS (DYLD)](/guides/tokenomics/yield-drops) for the full mechanism.
+
+## Emissions
+
+<Note>
+  This section is a work in progress and may change as the protocol matures.
+</Note>
+
+Aside from the pre-allocated supply tokens, the only way for new DROPS tokens to be generated is
+through **sales activity related to smart product contract (SPC) listings**. These new tokens
+are allocated to contributors along the commerce supply chain, with pre-defined splits defined
+by the producer. Tokens are only distributed once a sale is recorded and settled. As such, the
+aggregate amount of tokens paid to producers and publishers is variable, leading to a variable
+total supply based upon network activity.
+
+### Pre-allocated supply
+
+| Allocation | Amount (DROPS) |
+| --- | ---: |
+| Investors | 25,000,000 |
+| Team & development | 15,000,000 |
+| C-Corp allocation | 10,000,000 |
+| Marketing & promotions | 10,000,000 |
+
+Token distribution is released over an **18-month period** with a **6-month cliff** from TGE.
+
+## Network milestones
+
+DYLD payouts occur when the network hits **GMV sales milestones**. As DROPS tokens are issued in
+proportion to total network sales, outstanding DROPS at each milestone can be estimated, along
+with the estimated annualized yield for stakers. In the modeling, ~55M DROPS tokens are assumed
+to be unlocked to investors, team, etc. between Phase 2 and Phase 4.
+
+## Framework and definitions
+
+### Droplinked SPC pool
+
+This allocation is reserved for the decentralized registration of products linked to smart
+contracts. When a manufacturer or producer lists an item through Droplinked's decentralized
+inventory management system, they define their payout amounts along with the % or commission fee
+paid to a publisher or promoter for generating the sale. By default, every conversion
+contributes **1% of each sale as a network fee** back into the Droplinked treasury vault.
+
+### Droplinked treasury vault
+
+The tokenized yield stored into the Droplinked treasury will be converted to **USD stablecoins**
+to maintain value while minimizing volatility. **Threshold milestones** trigger yield payouts
+based on phases for the total amount of gross merchandise value sold across the network.
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Lend DROPS (DLND)" href="/guides/tokenomics/lend-drops" icon="vault">
+    Senior secured note design, pool vintaging, primary issuance via dLend, redemption, and
+    DYLD credit enhancement.
+  </Card>
+  <Card title="Yield DROPS (DYLD)" href="/guides/tokenomics/yield-drops" icon="chart-line">
+    Junior capital, global risk pooling, GMV-milestone yield distribution, primary exchange,
+    and the macroprudential dynamic burn policy.
+  </Card>
+  <Card title="Variata" href="/guides/tokenomics/variata" icon="sliders">
+    Initial vs. target levels for macroprudential and DIP policy parameters.
+  </Card>
+  <Card title="Platform overview" href="/guides/platform/overview" icon="cube">
+    How the protocol's four critical functions tie back into the dual-token economic model.
+  </Card>
+</CardGroup>

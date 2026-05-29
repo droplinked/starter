@@ -1,0 +1,228 @@
+---
+title: "Yield DROPS (DYLD)"
+description: "DYLD is the junior tranche of Droplinked's dual-token ecosystem — first-loss layer and primary credit enhancement for DLND. Covers protocol-wide junior capital, issuance, GMV-milestone yield distribution, network fee sources, originator/servicer incentives, the primary exchange, and the macroprudential dynamic burn policy."
+---
+
+## Overview
+
+**Yield DROPS (DYLD)** represent the **junior tranche** in Droplinked's dual-token ecosystem,
+acting as the **first-loss layer** and **primary credit enhancement** for Lend DROPS (DLND). By
+absorbing initial losses and benefiting from residual platform fees, DYLD holders are
+incentivized to maintain network health and sustainable growth.
+
+DYLD serves multiple critical functions:
+
+<CardGroup cols={3}>
+  <Card title="Protocol-wide junior capital" icon="shield-halved">
+    First-loss layer providing credit enhancement to DLND across all loan vintages.
+  </Card>
+  <Card title="Macroprudential adjustment" icon="sliders">
+    Used by the protocol as a tool to manage incentives and capital adequacy over time.
+  </Card>
+  <Card title="Eventual platform governance" icon="landmark">
+    Long-term governance rights as the protocol decentralizes.
+  </Card>
+</CardGroup>
+
+## Design philosophy
+
+Yield DROPS represent the **upside** of the Droplinked ecosystem. DYLD entitles stakers to
+**network fees** earned from real economic cash flow, and allows network growth to **compound
+returns** for early adopters.
+
+Broadly speaking, upside is the return paid for taking risk. Given the diversity of participants
+in our ecosystem, early adopters of various types will be taking real risks through exposure to
+Droplinked. In this way, DYLD can be viewed as an **incentive token**, offering network
+participants upside in exchange for taking a risk on Droplinked.
+
+In the early stage of Droplinked, we seek to incentivize network participation. Initially, DYLD
+tokens will be allocated to network participants relative to their activity on the network.
+
+While our initial framework for DYLD allocation is well optimized for an early-stage protocol,
+we are confident that what Droplinked needs to incentivize for growth tomorrow will be different
+than today. As a result, we have chosen a **protocol-wide risk-sharing mechanism**, a **dynamic
+incentive policy**, and **macroprudential tools** to maximize the value of this real-yield
+incentive token for all network participants while maintaining flexibility in an evolving and
+competitive environment.
+
+Given that DYLD is a token that provides access to real yield, upside will come in from both USD
+stablecoin proceeds from network activity, and token value appreciation through projections of
+network growth and yield distribution. As the network matures, outstanding DYLD volume will grow
+along with token value. Yield, on a percentage basis, will decrease as a result of this
+**inflationary pressure**.
+
+Our final design element is aimed at increasing the **velocity of money** through the Droplinked
+network while better aligning risk and reward. Specifically, while early adopters certainly take
+meaningful risk in the early days, eventually network adoption leads to scale that de-risks
+their participation. We expect the yield from network activity to pay multiples to the value
+contributions of early adopters as a result of growth.
+
+<Note>
+  To ensure reward paid at any given time *t* is aligned with risk being taken by the network at
+  least in the neighborhood of time *t*, Droplinked reserves the right to **dynamically burn
+  older-vintage DYLD** — with some protections for foundational DYLD holders such as Droplinked
+  itself, the team, early investors, and initial lenders, servicers, and origination partners.
+</Note>
+
+## Protocol-wide junior capital
+
+DYLD utilizes a **global staking model** designed to efficiently mutualize risk across the
+entire Droplinked lending platform.
+
+### Global risk pooling
+
+- DYLD staked tokens collectively form a diversified buffer against default risks across
+  multiple lending vintages.
+- Mitigates concentration risk, distributing losses broadly rather than isolating them to
+  single pools.
+
+### Stake lock-in
+
+- DYLD tokens, once staked, **remain locked until network GMV milestones are reached**.
+- Ensures stability and predictability for DLND investors by guaranteeing stable junior-capital
+  protection.
+
+### Capital adequacy ratio
+
+- Droplinked maintains a targeted **DLND to staked DYLD capital adequacy ratio** (e.g., 9:1).
+- The protocol monitors and manages DYLD staking incentives to ensure adequate capital support
+  aligns with network growth.
+
+## DYLD issuance
+
+Initially, DYLD tokens will be allocated to network participants to incentivize constructive
+behavior on the network.
+
+| Participant | Primary issuance |
+| --- | --- |
+| **Merchants** | Issued primary-market DYLD **1:1** in exchange for contributing a % of sale proceeds to the Droplinked treasury **in excess of the 1% network fee** |
+| **Affiliates** | Issued primary-market DYLD **1:1** in exchange for contributing a % of sales proceeds to the Droplinked treasury **in excess of the 1% network fee** |
+| **Lenders** | Allocated **secondary-market** DYLD from the marketing & promotion budget early on to encourage capital formation |
+| **Servicers** | Issued primary-market DYLD **inversely proportional to delinquent-loan experience** |
+| **Underwriters** | Issued primary-market DYLD **inversely proportional to loan-loss experience** |
+| **Investors** | Issued DYLD **1:1 with $ value paid in at TGE** |
+| **Team, C-Corp, Marketing** | Issued at TGE |
+
+<Note>
+  Investor and Droplinked allocations, except the marketing allocation, are subject to a
+  **6-month lock-up** for a **12-month vest**.
+</Note>
+
+## Yield distribution: GMV milestones
+
+DYLD yield distribution incorporates **cumulative Gross Merchandise Value (GMV) thresholds**,
+synchronizing token release with tangible economic growth.
+
+This creates performance-driven incentives for early participants and team members, linking
+token liquidity directly to **successful platform scaling**.
+
+## Network fee sources
+
+DYLD holders, bearing higher risks, receive substantial compensation from diversified income
+streams.
+
+### Sources
+
+- **Network fee** of 1% on GMV value of all goods and services sold across the network
+- **Origination fees** from new loans — acts as insurance for lenders given DYLD
+- **Loan pool management fee**
+- **Early-exit fees** from DLND holders redeeming prematurely
+- **Excess yield generation**
+- **Strategic reserve capital release** from low default rates
+
+### Cash-flow waterfall
+
+<Steps>
+  <Step title="DLND stakers of matured pools — default losses">
+    Cover realized default losses on recovered loans first.
+  </Step>
+  <Step title="DLND stakers of matured pools — outstanding principal">
+    Cover outstanding loan principal in matured pools awaiting recovery, by buying outstanding
+    DLND.
+  </Step>
+  <Step title="Droplinked foundation">
+    Strategic reserves and growth capital.
+  </Step>
+  <Step title="DYLD stakers">
+    Network participation and risk sharing.
+  </Step>
+</Steps>
+
+### Income distribution
+
+- Regular distributions occur through **stablecoin payouts**.
+- Ensures steady economic returns, blending income yield with token-appreciation opportunities.
+
+<Note>
+  **DIP parameters managed under this policy:** network fee on GMV sales, loan origination fee,
+  loan pool management fee, early-exit fees for DLND holders.
+</Note>
+
+## Originator and servicer incentives
+
+DYLD incentives extend to loan originators and servicers to maintain alignment across the
+lending ecosystem.
+
+### Skin-in-the-game requirement
+
+- Originators and servicers required to **stake all DYLD earned initially**, aligning
+  underwriting quality with direct economic exposure to defaults.
+- Enhances lender confidence through demonstrable commitment from origination partners.
+
+### Performance-based rewards
+
+- Servicers and originators earn DYLD incentives for maintaining default and recovery rates
+  within predefined performance thresholds.
+
+## Primary exchange
+
+All primary issuance of DYLD is initially **staked until the next GMV milestone**. If holders of
+DYLD then unstake to sell their tokens, they must first sell through the **Droplinked primary
+exchange**.
+
+The Droplinked primary exchange offers whitelisted lenders (DLND holders) a **transferable
+right of first refusal** as DYLD liquidity providers on the primary exchange.
+
+This mechanism gives lenders an additional avenue of recourse, allowing them to **buy DYLD
+tokens at a discount** before they are sold to secondary-market sources.
+
+## Macroprudential dynamic burn policy
+
+Droplinked implements **adaptive burn policies** for DYLD as a proactive macroprudential
+management tool.
+
+<Note>
+  **Worked example:** if target loan-pool demand is **$100 million** for a given quarter, but
+  staked DYLD only amounts to **$8 million** of USD stablecoin in the treasury to back that
+  pool, Droplinked may announce a **partial burn** — beginning with a portion of unstaked DYLD
+  tokens released during the oldest loan vintages. Simultaneously, Droplinked issues new DYLD
+  at a discount to market through the primary portal to capitalize against the loan pool.
+</Note>
+
+Such a dynamic burn mechanism offers numerous unique incentives for DYLD holders, and
+particularly early adopters, to **maintain their staking** of DYLD. Particularly given that DYLD
+positions which are never unstaked are **immune to burning**. It also offers a DYLD deflationary
+counterbalance to the inflation associated with persistent primary-market issuance of DYLD
+through sales and lending.
+
+These sophisticated mechanics position Droplinked as a **robust, self-regulating trade
+ecosystem** — offering financing options, digital infrastructure, dynamic risk management, and
+global incentive alignment to sustain long-term stability and growth.
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Lend DROPS (DLND)" href="/guides/tokenomics/lend-drops" icon="vault">
+    The senior secured note that DYLD enhances — pool vintaging, redemption, and the 10%
+    credit-enhancement target.
+  </Card>
+  <Card title="Tokenomics overview" href="/guides/tokenomics/overview" icon="coins">
+    The dual-token framework, Dynamic Incentive Policy, and emissions schedule.
+  </Card>
+  <Card title="Variata" href="/guides/tokenomics/variata" icon="sliders">
+    Initial vs. target levels for macroprudential and DIP policy parameters.
+  </Card>
+  <Card title="Tech framework" href="/guides/platform/tech-framework" icon="layer-group">
+    How lending logic combines on-chain inventory records with attested payment history.
+  </Card>
+</CardGroup>

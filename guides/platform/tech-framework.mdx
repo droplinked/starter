@@ -1,0 +1,109 @@
+---
+title: "Tech framework"
+description: "Architecture overview of the Droplinked stack and supporting libraries — NestJS backend, React/Next.js frontend, MongoDB, AWS cloud infrastructure, and the lending logic that combines on-chain inventory records with attested payment history."
+---
+
+The Droplinked technology stack was chosen to align with the goal of delivering a **scalable,
+efficient, and user-friendly** platform for both traditional and forward-thinking businesses.
+
+The technical library repository is available at
+[github.com/orgs/droplinked/repositories](https://github.com/orgs/droplinked/repositories).
+
+## Backend — NestJS
+
+**NestJS** was selected for the backend due to its robust architecture, which leverages
+TypeScript and supports modular development. This allows for highly maintainable and scalable
+code.
+
+NestJS also provides built-in support for **GraphQL** and **WebSockets**, essential for
+real-time data handling and API management — which is crucial for the project's dynamic nature.
+Its strong typing and dependency injection features ensure the codebase remains clean and
+manageable, facilitating seamless integration with on-chain technologies and ensuring secure and
+efficient handling of blockchain interactions.
+
+## Frontend — React + Next.js
+
+**React** was chosen for the frontend due to its component-based architecture, which promotes
+reusability and maintainability. React's virtual DOM ensures high performance by minimizing
+direct DOM manipulation, resulting in faster user interface updates. Its extensive ecosystem and
+strong community support provide access to a wide range of libraries and tools, enabling rapid
+development and iteration. React's declarative nature simplifies the development process,
+allowing us to create a dynamic and responsive user experience aligned with the goal of
+delivering an intuitive and engaging platform.
+
+**Next.js** powers the custom shopfront for SEO-friendliness and server-side rendering of
+storefront pages.
+
+## Data layer
+
+<CardGroup cols={2}>
+  <Card title="MongoDB" icon="database">
+    Primary application database — cost-efficient, reliable, and well-suited to the dynamic
+    schema of products, listings, and orders.
+  </Card>
+  <Card title="Amazon S3" icon="bucket">
+    Object storage for product images, banners, exports, and other binary assets.
+  </Card>
+</CardGroup>
+
+## Cloud infrastructure (AWS)
+
+Droplinked runs on AWS using the services that map naturally to its commerce + AI workloads.
+
+| Service | Used for |
+| --- | --- |
+| ECS | Containerized service orchestration (backend, 3rdp, services) |
+| ECR | Image registry for the service containers |
+| CloudFront | CDN for storefronts and static assets |
+| S3 | Object storage |
+| EC2 | Long-running compute |
+| ELB | Load balancing |
+| SageMaker | ML model training and hosting |
+| Bedrock | Managed foundation models (image, text, NSFW classification) |
+| Lambda | Event-driven serverless workloads |
+
+## Lending logic and mechanics
+
+Droplinked combines **on-chain inventory records** with **attested payment-history data** for
+loan origination. This is the foundation of the dual-token framework — Lend DROPS (DLND) for
+senior secured exposure to real-world trade finance, with Yield DROPS (DYLD) as junior
+risk-buffer capital.
+
+<CardGroup cols={2}>
+  <Card title="Origination" icon="hand-holding-dollar">
+    Combining on-chain inventory records with attested payment history data — borrowers are
+    underwriten using verifiable network activity rather than only off-chain bank statements.
+  </Card>
+  <Card title="Competitive logic flow" icon="git-compare">
+    Compared to traditional origination lending, the on-chain flow compresses the parties
+    involved and the steps needed to move from application to funded principal.
+  </Card>
+  <Card title="Automated commercial filings" icon="file-signature">
+    The framework supports automated commercial filings based on geography and jurisdiction
+    for liabilities — so the legal wrapper around each loan pool stays in sync with the
+    on-chain state.
+  </Card>
+  <Card title="Tokenomics integration" icon="link" href="/guides/tokenomics/overview">
+    Lending mechanics tie directly into the DLND/DYLD dual-token framework and the Dynamic
+    Incentive Policy.
+  </Card>
+</CardGroup>
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Tokenomics overview" href="/guides/tokenomics/overview" icon="coins">
+    The dual-token framework — DLND (senior) and DYLD (junior) — plus emissions, treasury, and
+    GMV milestones.
+  </Card>
+  <Card title="Lend DROPS (DLND)" href="/guides/tokenomics/lend-drops" icon="vault">
+    The senior secured note for institutional lenders — pool vintaging, 1:1 principal
+    representation, credit enhancement.
+  </Card>
+  <Card title="Yield DROPS (DYLD)" href="/guides/tokenomics/yield-drops" icon="chart-line">
+    The junior tranche, network fee distribution, and macroprudential burn policy.
+  </Card>
+  <Card title="API Reference" href="/api-reference/introduction" icon="code">
+    Programmatic access to stores, products, carts, and Web3 payments.
+  </Card>
+</CardGroup>

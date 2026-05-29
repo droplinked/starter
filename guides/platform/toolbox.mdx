@@ -1,0 +1,109 @@
+---
+title: "Droplinked toolbox"
+description: "Tools and endpoints to unlock the power of Web3 commerce as a producer or publisher — developer sandbox libraries, OAuth, DIMST Console, embeddable cards, MetaMask Snap, and the testnet roadmap."
+---
+
+Learn how to use Droplinked tools and endpoints to unlock the power of Web3 commerce as a
+producer or publisher.
+
+This guide provides documentation for the tools necessary to interact with the Droplinked
+protocol. It is geared towards users, system administrators, and technical resources wishing to
+understand and integrate with the protocol.
+
+## Droplinked developer sandbox
+
+There are various libraries that provide the base infrastructure required for Droplinked's
+operation on any given chain.
+
+<CardGroup cols={2}>
+  <Card title="NFT Fractionalizer" icon="layer-group" href="https://fractionalizer.droplinked.com/">
+    Fractionalize product NFTs so each fraction represents one purchasable unit on a chain of
+    your choice.
+  </Card>
+  <Card title="Droplinked Sandbox APIs" icon="code">
+    Full suite of Web2 and Web3 enabled functionalities for headless, no-code, and low-code
+    environments — AI agents, software platforms, and developers.
+  </Card>
+  <Card title="DIMST Registry" icon="database">
+    Decentralized Inventory Management and Sales Tracking registry available per chain of
+    choice.
+  </Card>
+  <Card title="Droplinked Events DApp" icon="ticket">
+    Proof of Attendance (POAP) for on-chain ticket and event management.
+  </Card>
+</CardGroup>
+
+### DIMST registry by chain
+
+Open-source contracts implementing the Decentralized Inventory Management and Sales Tracking
+registry across supported chains.
+
+| Chain | Source |
+| --- | --- |
+| Stacks | [gitlab.com/flatlay/droplinked-contract](https://gitlab.com/flatlay/droplinked-contract) |
+| NEAR | [github.com/FLATLAY/Droplinked-NEAR-Contract](https://github.com/FLATLAY/Droplinked-NEAR-Contract/blob/main/README.md) |
+| SKALE | [github.com/FLATLAY/droplinked_skale](https://github.com/FLATLAY/droplinked_skale) |
+| XRPL (EVM side-chain) | [github.com/FLATLAY/droplinked-ripple](https://github.com/FLATLAY/droplinked-ripple/blob/main/README.md) |
+| Hedera | Supported |
+| Base | Supported |
+| Polygon | Supported |
+| Solana | Supported |
+| Bitlayer | Supported |
+| Redbelly Network | Supported |
+
+## Interacting with the protocol
+
+To interact with the Droplinked protocol, Droplinked provides a set of key tools.
+
+### OAuth
+
+Use crypto-wallet credentials to authenticate and interact with the Droplinked protocol. Wallet
+OAuth removes friction for both merchants and customers and keeps the authorization surface
+entirely Web3-native.
+
+### DIMST Console
+
+CLI and UI for simple execution of product registration, inventory management, sales tracking,
+and batch operations.
+
+### Embeddable cards
+
+Headless embeddable units for inventory display that allow producers and publishers to quickly
+and easily embed Droplinked-registered inventory onto their own pages, properties, and sites
+with an iFrame component. The cards operate completely decentralized — or with minimal
+centralized functionalities for Web2/Web3 enablement.
+
+### MetaMask Snap
+
+A direct integration with the native MetaMask userbase to interact with the protocol — create
+decentralized shopfronts, product drops, and checkout flows.
+
+## Timeline
+
+Deployment across the supported networks allows for commerce settlement in the native token for
+each respective network and will serve as the foundation for cross-chain interoperability
+bridges to Droplinked's protocol.
+
+<Note>
+  Droplinked testnet development is underway. The testnet will tie together the base
+  infrastructure that allows for a holistic cross-chain protocol — complete with token
+  contracts, the Droplinked treasury, and staking functionality.
+</Note>
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Tech framework" href="/guides/platform/tech-framework" icon="layer-group">
+    Architecture overview of the stack — backend, frontend, infrastructure, and lending
+    mechanics.
+  </Card>
+  <Card title="Tokenomics" href="/guides/tokenomics/overview" icon="coins">
+    The DLND/DYLD dual-token framework and how staking earns network yield.
+  </Card>
+  <Card title="API Reference" href="/api-reference/introduction" icon="code">
+    Programmatic access to the protocol — stores, products, carts, checkout.
+  </Card>
+  <Card title="Agentic Commerce" href="/agentic/overview" icon="robot">
+    MCP server + ACP feed for agentic discovery and checkout against Droplinked merchants.
+  </Card>
+</CardGroup>

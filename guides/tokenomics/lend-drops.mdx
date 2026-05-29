@@ -1,0 +1,237 @@
+---
+title: "Lend DROPS (DLND)"
+description: "DLND is the main vehicle for institutional lenders in the Droplinked ecosystem — functioning like a senior secured note in a structured product. Covers pool vintaging, 1:1 principal representation, the dLend primary portal, redemption mechanics, and the 10% DYLD credit enhancement."
+---
+
+## Overview
+
+**Lend DROPS (DLND)** is the main vehicle for institutional lenders to participate in the
+Droplinked ecosystem. The token functions much like a **senior secured note** in a structured
+product, aiming to give lenders **attractive interest rates** with **strong principal
+protection**.
+
+DLND supports CDP-style lending against real-world assets (RWAs) with on-chain inventory records
+as part of the collateral picture.
+
+## Design philosophy
+
+"Never lose money" is an unspoken rule of institutional finance, particularly the debt investors
+that find this product attractive. DLND is designed to ensure Droplinked lenders have:
+
+<Steps>
+  <Step title="Loan pool vintaging">
+    Clear delineation of asset risk and return through loan-pool **vintaging**, mimicking
+    traditional finance securitization managers and their associated shelves.
+  </Step>
+  <Step title="1:1 principal representation">
+    Direct representation of outstanding principal through the **1:1 relationship** of USD
+    stablecoin paid-in vs. DLND issued.
+  </Step>
+  <Step title="Credit enhancement via DYLD staking">
+    Principal protection from DYLD as junior risk-buffer capital.
+  </Step>
+  <Step title="Originator and servicer alignment">
+    DYLD reward pool tied to default experience — originators and servicers earn (or lose)
+    rewards based on loan quality.
+  </Step>
+  <Step title="Novel recourse mechanism">
+    Exclusive primary-exchange LP rights for DYLD — another avenue of recourse for DLND
+    holders.
+  </Step>
+  <Step title="Legal enforceability">
+    Smart-contract **mirroring** of papered legal contracts between lenders, SPVs, dLend, and
+    origination/servicing partners.
+  </Step>
+</Steps>
+
+The legal contract layer is mirrored on-chain between:
+
+- Lenders, SPVs, and **dLend** — the Droplinked loan manager
+- dLend and borrowers
+- dLend and origination partners
+- dLend and servicing partners
+
+## First loan pool
+
+The first loan pool and subsequent pools may remain **private** to ensure safe and stable
+development of business and legal terms that are suitable for smart-contract mirroring. dLend's
+first priority is securing lenders, with second priority to Droplinked's mission.
+
+Initially, dLend and partners will target **established, growing businesses** seeking
+**inventory financing** and **MRR/ARR-based working capital loans** in jurisdictions that
+overlap with our origination and servicing partners to ensure high quality loan origination,
+contract enforceability, and incentive alignment.
+
+<Note>
+  Loan pools will be domiciled in the **Caymans** to facilitate global lender aggregation,
+  speed, cost efficiency, and a crypto-friendly environment, with potential feeder-fund launches
+  down the road for expanded jurisdictional efficiency.
+</Note>
+
+## Subsequent loan pools
+
+### Progressive digitalization
+
+Subsequent loan pools will be **gradually brought on-chain** with increasing digital
+functionality. This will allow Droplinked, dLend, and our lenders, originators, servicing, and
+origination partners to collaboratively develop an integrated digital infrastructure that solves
+meaningful operational pain points for each partner.
+
+By building and designing the digital infrastructure with our partners, we hope to create unique
+synergies and meaningful cost efficiencies while offering our partners upside in the protocol's
+success. Over time, we hope to leverage our experience, data collection, and AI to **fully
+automate capital and resource allocation** from capital raise to principal repayment.
+
+This approach also offers our traditional partners an opportunity to develop expertise in the
+growing and evolving blockchain space.
+
+### Progressive risk stratification
+
+Financing activity will grow and evolve over time to include more financing types, a broader
+borrower base, different maturity profiles, and different collateral types. As financing
+activity expands, this will require increasing stratification to vintages to isolate specific
+risk profiles for relevant investors seeking factor exposures.
+
+In the long run, we envision a **Market Pool** where each dollar is allocated pro-rata to the
+factor pools based on demand. We also envision **custom pools** where investors seeking a
+specific mix of exposures may select a custom allocation to factor pools.
+
+### Progressive decentralization
+
+Accountability is implicit in the legal agreements to which institutional lenders are
+accustomed. Ensuring accountability in today's world of centralized entities governing by law
+requires centralized actors that can exercise lawful authority to ensure successful outcomes for
+our lenders.
+
+As our servicing, underwriting, and managing partners increasingly realize the upside benefits
+of Droplinked network participation, we will progressively incentivize **on-chain transparency
+and decentralization** as our partners' capabilities develop.
+
+## Issuance through dLend Primary Portal
+
+By centralizing issuance via the **dLend Primary Portal**, Droplinked ensures a **bond-like**
+primary market environment, ideal for institutions that prefer a clear, regulated entry point
+into the protocol.
+
+### Institutional onboarding and compliance
+
+Lenders must pass dLend due diligence including **KYC and AML** and execute legal agreements
+standard for bankruptcy-remote SPVs. This process is part of the broader onboarding to the
+Droplinked platform, providing whitelisted lenders with priority access to lending pools and
+DYLD liquidity provisioning.
+
+### Subscription window
+
+Each pool will have a defined subscription window with **early DYLD incentives** to encourage
+capital formation. For every $1 contributed, **1 DLND token** will be issued to digital wallets
+initially abstracted to our lenders. This simplifies accounting and ensures clarity: **1 DLND =
+$1 principal claim**.
+
+### Smart-contract allocation
+
+Dollars paid-in — either through traditional bank wire or through our crypto rails — will be
+allocated DLND proportionally. Those dollars will be converted to USD stables and deposited into
+the relevant loan pool's vault. Minted DLND is then immediately **staked** in the pool,
+representing the lender's share in that vintage.
+
+## Redemption and early exits
+
+### Periodic amortization burns
+
+As businesses repay principal and interest on loans, the underlying principal at risk will
+return to the pool vault as USD stablecoin. On a pre-defined periodic basis (monthly for trade
+finance loans), excess DLND reflecting the portion of repaid principal for the pool vintage will
+be **auto-burned** — triggering the return of principal and interest to lenders in their
+preferred format.
+
+This process is akin to **structured-security repayment dynamics**, making it a familiar process
+for institutional investors.
+
+### Scheduled redemption
+
+Each pool vintage will have a scheduled **maturity date**. Upon maturity, any remaining repaid
+principal or interest will be distributed to DLND stakers.
+
+### Delinquent loans
+
+As loans become delinquent, loan servicers will work proactively with the borrowers, dLend, and
+our managing partners to rapidly mitigate excess losses. **Loan modification**, **collateral
+liquidation**, and **legal action** all offer means of recourse and loss mitigation for lenders.
+
+### DYLD credit enhancement
+
+<Note>
+  The protocol targets a **10% credit enhancement** from DYLD stakers against the original
+  amount of DLND issued. This credit enhancement is supported by USD stablecoins in the
+  Droplinked treasury vault.
+</Note>
+
+At maturity, outstanding DLND, **up to 10%**, representing unpaid principal on delinquent loans
+will be purchased by the Droplinked treasury from the proceeds generated by network fees and
+Droplinked investor capital.
+
+Any DLND outstanding **in excess of 10%** will be held as staked in the pool vault, representing
+each investor's claim to recovery proceeds on delinquent loans. The dLend team will continue to
+work with special servicers to maximize value for DYLD stakers and lenders.
+
+## Liquidity management and early redemptions
+
+DLND represents principal investment in real loans with real repayment timelines. Even so,
+institutional investors seek assurance that liquidity mechanisms and transferability of their
+loan interest exist.
+
+<CardGroup cols={2}>
+  <Card title="Secondary market & bi-lateral" icon="arrow-right-arrow-left">
+    Whitelisted investors can buy staked DLND from invested lenders, subject to legal
+    documentation of the transactions.
+  </Card>
+  <Card title="Exit queue" icon="list">
+    Investors can request early redemption, placed in a redemption queue, and processed based
+    on available liquidity.
+  </Card>
+  <Card title="Auction-based liquidity" icon="gavel">
+    For investors seeking early redemption, Droplinked may run periodic staked-DLND auctions to
+    aggregate supply and demand and clear at a fair price.
+  </Card>
+  <Card title="Fire-sale prevention" icon="shield">
+    Through the DIP, Droplinked reserves the right to limit monthly outflow for live loan
+    pools — protecting both Droplinked and at-risk lenders from impairments due to rapidly
+    falling trade prices.
+  </Card>
+  <Card title="Strategic liquidity reserve" icon="vault">
+    The Droplinked treasury maintains a strategic liquidity reserve for funding in
+    emergencies — in-force staked DLND may be purchased depending on circumstances.
+  </Card>
+</CardGroup>
+
+This multifaceted approach mirrors **open-ended private debt funds** or **interval funds**,
+which allow partial liquidity while safeguarding the overall loan pool integrity.
+
+## DLND investor benefit: DYLD primary exchange LPs
+
+Primary DYLD issuance occurs via buy-in from merchants and affiliates through their own election
+of discretionary allocations as a percentage of GMV sales. It is also issued to servicers and
+originators as an incentive for value maximization within loan pools.
+
+Lenders will receive some DYLD from the marketing budget as an incentive for participation
+initially. Over time, this marketing-budget incentive is replaced with a **right of first
+refusal** on all primary-market DYLD sales — giving lenders another structural advantage on top
+of senior-secured exposure.
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Yield DROPS (DYLD)" href="/guides/tokenomics/yield-drops" icon="chart-line">
+    The junior tranche backing DLND — risk-pooled credit enhancement, network fee streams, and
+    the macroprudential burn policy.
+  </Card>
+  <Card title="Tokenomics overview" href="/guides/tokenomics/overview" icon="coins">
+    The dual-token framework, Dynamic Incentive Policy, and emissions schedule.
+  </Card>
+  <Card title="Variata" href="/guides/tokenomics/variata" icon="sliders">
+    Initial vs. target levels for macroprudential and DIP policy parameters.
+  </Card>
+  <Card title="Tech framework" href="/guides/platform/tech-framework" icon="layer-group">
+    How the lending logic combines on-chain inventory records with attested payment history.
+  </Card>
+</CardGroup>
