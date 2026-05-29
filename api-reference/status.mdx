@@ -1,0 +1,70 @@
+---
+title: 'API Status'
+description: 'Real-time droplinked API health + incident history.'
+---
+
+<Note>
+  Live status badges below link directly to each service's `/health` endpoint.
+  For programmatic monitoring, hit those endpoints — they return JSON with
+  `status`, `timestamp`, and (for `apiv3`) `dbHost`.
+</Note>
+
+## Current status
+
+<Card title="apiv3.droplinked.com" icon="signal" href="https://apiv3.droplinked.com/health">
+  ### Operational
+
+  Public API serving `200 OK`. Mongo cluster: `droplinked-prod`. The
+  `/health` endpoint returns `{ status, timestamp, dbHost, dbName, dbMode }`.
+</Card>
+
+<Card title="service.droplinked.com" icon="server" href="https://service.droplinked.com/health">
+  ### Operational
+
+  3rdp integration services serving `200 OK`. PayPal partner-OAuth +
+  Stripe webhook signing both healthy. Returns the standard
+  `{ statusCode, status, data: { status, timestamp } }` envelope.
+</Card>
+
+<Card title="droplinked.io storefronts" icon="store" href="https://droplinked.io">
+  ### Operational
+
+  Customer-facing shops + checkout flow live. 4-PSP aggregation:
+  Stripe / PayPal / Bonum / Crypto.
+</Card>
+
+## Programmatic checks
+
+<CodeGroup>
+```bash curl
+curl -s https://apiv3.droplinked.com/health | jq
+```
+
+```bash agent
+# For LLM agents — add docs.droplinked.com as an MCP server in your IDE
+# (Cursor, VS Code, Claude Desktop, Windsurf). The contextual toolbar on
+# any page in this site exposes one-click integration.
+```
+</CodeGroup>
+
+The full machine-readable OpenAPI spec is published at
+`https://apiv3.droplinked.com/swagger/json`, and the Agentic Commerce
+Protocol feed at `https://apiv3.droplinked.com/feed/acp.json`.
+
+## Incident history
+
+<Note>
+  No active incidents. Subscribe to the status feed (coming soon) for
+  email notifications.
+</Note>
+
+| Date       | Service       | Impact                                                          | Resolution                                                                |
+| ---------- | ------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-05-29 | apiv3 prod    | KMS payout settlement degraded (≈12 errors/h on startup)        | Resolved — env-shadow + DER decode fixes (droplinked-backend #1403 / #1417 / #1421) |
+| 2026-05-28 | apiv3 prod    | Stripe checkout 401 on canonical Stripe account                 | Resolved — wired `STRIPE_RECONCILE_KEY` through (droplinked-backend #1369) |
+
+## SLA
+
+This is a beta API. No formal SLA — best-effort `99%` uptime is targeted.
+For production-critical integrations, embed health checks in your client
+and alert when `/health` returns 5xx for 3+ consecutive checks.

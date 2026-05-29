@@ -97,7 +97,8 @@
           {
             "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/introduction",
+              "api-reference/status"
             ]
           },
           {
@@ -144,13 +145,28 @@
       "anchors": [
         {
           "anchor": "API Status",
-          "href": "https://apiv3.droplinked.com/health",
+          "href": "/api-reference/status",
           "icon": "signal"
         },
         {
-          "anchor": "Storefront",
-          "href": "https://droplinked.io",
-          "icon": "store"
+          "anchor": "Try the Toolkit",
+          "href": "/guides/library/droplinked-tools",
+          "icon": "code"
+        },
+        {
+          "anchor": "MCP Server",
+          "href": "/agentic/mcp-server",
+          "icon": "robot"
+        },
+        {
+          "anchor": "OpenAPI Spec",
+          "href": "https://apiv3.droplinked.com/swagger/json",
+          "icon": "file-code"
+        },
+        {
+          "anchor": "ACP Feed",
+          "href": "https://apiv3.droplinked.com/feed/acp.json",
+          "icon": "rss"
         },
         {
           "anchor": "GitHub",
@@ -159,6 +175,9 @@
         }
       ]
     }
+  },
+  "contextual": {
+    "options": ["copy", "view", "claude", "chatgpt", "mcp", "cursor", "vscode"]
   },
   "logo": {
     "light": "/logo/light.svg",
