@@ -1,0 +1,226 @@
+---
+title: "Use cases"
+description: "Endpoint-by-endpoint walkthroughs for the most common Droplinked surfaces — user management, store management, product & collection management, and cart & checkout."
+---
+
+A curated tour of the Droplinked API surfaces you'll touch most often when building a custom
+storefront, dashboard, or integration. All routes are documented in full in the live
+[API Reference](/api-reference/introduction).
+
+<CardGroup cols={2}>
+  <Card title="User management" icon="user-gear" href="#user-management">
+    Register, log in, refresh tokens, recover passwords.
+  </Card>
+  <Card title="Store management" icon="store" href="#store-management">
+    Create stores, manage payment methods, expose public store data.
+  </Card>
+  <Card title="Product & collection" icon="box" href="#product-and-collection-management">
+    Publish products, manage SKUs, organize into collections.
+  </Card>
+  <Card title="Cart & checkout" icon="cart-shopping" href="#cart-and-checkout">
+    Build the cart, apply coupons, select shipping, place orders, take payment.
+  </Card>
+</CardGroup>
+
+---
+
+## User management
+
+Endpoints for user registration, login, password recovery, and token refresh. Use these routes
+when building applications that require **merchant** authentication.
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `POST` | `/merchant/register` | Registers a new merchant account on Droplinked |
+| `POST` | `/merchant/login` | Authenticates an existing merchant; returns access tokens |
+| `POST` | `/merchant/forgot-password` | Sends a password-reset link to the merchant's email |
+| `POST` | `/merchant/refresh` | Generates a new access token from a valid refresh token |
+
+---
+
+## Store management
+
+These endpoints allow merchants to create, configure, and manage their stores. They cover store
+setup, updating details, managing payment methods, and retrieving store data both privately
+and publicly.
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `GET` | `/shops/v2/check-url` | Check if a chosen store URL (subdomain or slug) is available |
+| `POST` | `/shops/v2/setup` | Initial store setup — initialize a new store with basic configuration and owner details |
+| `GET` | `/shops/v2` | Retrieve all details of the currently logged-in merchant's store |
+| `PATCH` | `/shops/v2` | Update store configuration — name, description, branding, general settings |
+| `PUT` | `/shops/v2/payment-methods` | Add or update available payment methods for the store |
+| `GET` | `/shops/v2/payment-methods` | List all payment methods currently configured for the store |
+| `GET` | `/shops/v2/public/{id}` | Fetch public store information by ID — no auth required |
+| `GET` | `/shops/v2/public/name/{name}` | Fetch store information by its unique name / handle |
+| `GET` | `/shops/v2/domain/{domain}` | Retrieve a store's public information by its custom domain |
+
+<Tip>
+The `public/*` endpoints don't require authentication and are intended for use on storefronts,
+landing pages, and any unauthenticated surface where a shop is being displayed.
+</Tip>
+
+---
+
+## Product and collection management
+
+A **collection** is a logical grouping of related products (e.g. "Summer Sale", "New Arrivals").
+Every product must belong to a collection — this is what powers storefront navigation and
+discoverability.
+
+### Required fields when publishing a product
+
+- `title`
+- `description`
+- `image`
+- `collection`
+- `status`
+- `skus`
+- `price` for each SKU
+- inventory for each SKU
+- `shippingMethodId` *(only for physical products)*
+
+<Note>
+If the product is **physical**, a **shipping method ID** must be provided. A **collection ID**
+is always required.
+</Note>
+
+### Product endpoints
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `GET` | `/product-v2` | List all products for the authenticated merchant |
+| `POST` | `/product-v2` | Create a new product under an existing collection |
+| `GET` | `/product-v2/public/shop/{shopName}` | List all public products of a shop — no auth |
+| `GET` | `/product-v2/public/by-slug/{slug}` | Fetch a public product by its SEO-friendly slug |
+| `GET` | `/product-v2/public/{id}` | Fetch a public product by ID |
+| `GET` | `/product-v2/{id}` | Fetch product details for the authenticated merchant |
+| `PATCH` | `/product-v2/{id}` | Update product fields (title, description, price, images) |
+| `DELETE` | `/product-v2/{id}` | Delete a product — requires auth, cannot be undone |
+
+---
+
+## Cart and checkout
+
+This section walks through creating and managing a shopping cart, adding products, attaching
+a customer, setting shipping, applying coupons, and finally creating and paying for an order.
+
+<Steps>
+  <Step title="Create a cart">
+    `POST /v2/carts` — creates a new cart within a specific store. Optionally, a customer ID
+    or email can be attached at creation time.
+  </Step>
+  <Step title="Add product to cart">
+    `POST /v2/carts/{cartId}/products` — add a product by SKU ID and quantity.
+  </Step>
+  <Step title="Inspect or mutate the cart">
+    `GET /v2/carts/{cartId}` for contents. `DELETE /v2/carts/{cartId}` to clear.
+    `DELETE /v2/carts/{cartId}/products/{skuId}` removes a single line.
+    `PATCH /v2/carts/{cartId}/products/{skuId}` updates quantity.
+  </Step>
+  <Step title="Attach customer (if not done at creation)">
+    `PATCH /v2/carts/{cartId}/customer` — associates a customer with the cart.
+  </Step>
+  <Step title="Add a shipping address (physical products only)">
+    First `POST /address-book` to create the address, then
+    `PATCH /v2/carts/{cartId}/details` to link it to the cart.
+  </Step>
+  <Step title="Select a shipping method">
+    `GET /v2/carts/{cartId}/shipping` returns available methods for the address.
+    `POST /v2/carts/{cartId}/shipping` selects one.
+  </Step>
+  <Step title="(Optional) Apply a coupon">
+    `POST /v2/carts/{cartId}/coupon` — apply a discount / promo code.
+  </Step>
+  <Step title="Get payment methods">
+    `GET /v2/carts/{cartId}/payment-methods` — returns all options available for the cart
+    (Stripe, crypto, regional PSPs, etc.).
+  </Step>
+  <Step title="Create the order">
+    `POST /v2/orders` — creates an order from the finalized cart. The returned order ID is used
+    in the payment step.
+  </Step>
+  <Step title="Handle payment">
+    Install `@droplinked/payment-intent` and mount `<DroplinkedPaymentIntent>` with the
+    `orderId` and `type` (e.g. `stripe`, `USDT-BINANCE`).
+  </Step>
+</Steps>
+
+### Endpoint reference
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `POST` | `/v2/carts` | Create a cart |
+| `POST` | `/v2/carts/{cartId}/products` | Add a product |
+| `GET` | `/v2/carts/{cartId}` | Retrieve cart contents |
+| `DELETE` | `/v2/carts/{cartId}` | Remove a cart |
+| `DELETE` | `/v2/carts/{cartId}/products/{skuId}` | Remove an item from cart |
+| `PATCH` | `/v2/carts/{cartId}/products/{skuId}` | Update item quantity |
+| `PATCH` | `/v2/carts/{cartId}/customer` | Attach customer to cart |
+| `POST` | `/address-book` | Create an address |
+| `PATCH` | `/v2/carts/{cartId}/details` | Attach an address to the cart |
+| `GET` | `/v2/carts/{cartId}/shipping` | List available shipping methods |
+| `POST` | `/v2/carts/{cartId}/shipping` | Select a shipping method |
+| `POST` | `/v2/carts/{cartId}/coupon` | Apply a coupon |
+| `GET` | `/v2/carts/{cartId}/payment-methods` | List payment methods |
+| `POST` | `/v2/orders` | Create the order |
+
+### Payment SDK
+
+Install the payment package:
+
+```bash
+npm install @droplinked/payment-intent
+```
+
+#### Stripe (card) example
+
+```jsx
+<DroplinkedPaymentIntent
+  orderId="123456"
+  type="stripe"
+  onSuccess={() => {
+    console.log('Payment successful');
+  }}
+  onCancel={() => {
+    console.log('Payment cancelled');
+  }}
+  onError={(error) => {
+    console.error('Error:', error);
+  }}
+/>
+```
+
+#### Crypto (USDT on Binance) example
+
+```jsx
+<DroplinkedPaymentIntent
+  orderId="123456"
+  type="USDT-BINANCE"
+  onSuccess={() => {
+    console.log('USDT payment successful');
+    window.location.href = '/success';
+  }}
+  onCancel={() => {
+    console.log('USDT payment cancelled');
+    window.location.href = '/cancel';
+  }}
+  onError={(error) => {
+    console.error('USDT payment error:', error);
+    alert('Payment failed. Please try again.');
+  }}
+  commonStyle={{
+    theme: 'dark',
+    fontFamily: 'system-ui, sans-serif',
+    colorPrimary: '#F0B90B'
+  }}
+/>
+```
+
+## Related
+
+- [API overview](/guides/library/api-overview) — auth, base URL, core concepts
+- [API cookbook](/guides/library/api-cookbook) — end-to-end recipe in JS + Python
+- [Web3 shop tutorial](/guides/library/web3-shop-tutorial) — full storefront walkthrough
+- Live [API Reference](/api-reference/introduction) — interactive endpoint browser

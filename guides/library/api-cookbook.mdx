@@ -1,0 +1,612 @@
+---
+title: "API cookbook"
+description: "Recipes for building with the Droplinked headless APIs — start with a complete custom-store reference build in JavaScript and Python."
+---
+
+A developer's guide to integrating the Droplinked APIs for seamless store and app creation.
+Each recipe is a complete, end-to-end walkthrough you can copy into your own project.
+
+<CardGroup cols={1}>
+  <Card title="Build a custom store with the headless APIs" href="#build-a-custom-store-with-droplinked-headless-apis" icon="store">
+    From auth and shop discovery through cart, shipping, payment, and order creation — with
+    full JavaScript and Python implementations.
+  </Card>
+</CardGroup>
+
+---
+
+## Build a custom store with Droplinked headless APIs
+
+Learn how to build a fully custom store directly on your platform or app using Droplinked's
+headless APIs for seamless inventory and checkout management.
+
+### Prerequisites
+
+Before you begin, you'll need:
+
+1. A **Droplinked account** — sign up at [droplinked.com](https://droplinked.com)
+2. An **API key** — your authentication credential for API requests
+3. A **shop name** — your unique shop identifier
+4. Basic development knowledge (or a developer to help implement)
+
+### Get your API key
+
+<Steps>
+  <Step title="Log into the merchant dashboard">
+    Go to [droplinked.com](https://droplinked.com) and sign in.
+  </Step>
+  <Step title="Open API Keys">
+    Navigate to **Settings → API Keys**.
+  </Step>
+  <Step title="Generate a key">
+    Click **Generate New API Key** and copy the value securely.
+  </Step>
+</Steps>
+
+<Warning>
+Never share your API key publicly or commit it to version control.
+</Warning>
+
+### Base configuration
+
+```bash
+# Base URL
+https://api.io.droplinked.com
+
+# Required headers for every request
+x-droplinked-api-key: YOUR_API_KEY
+Content-Type: application/json
+```
+
+#### Example — `curl`
+
+```bash
+curl -X GET "https://api.io.droplinked.com/shops/v2/public/name/lumen" \
+  -H "x-droplinked-api-key: YOUR_API_KEY" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+### Step 1 — Fetch shop information
+
+Get your shop details to display branding on the storefront.
+
+```bash
+GET https://api.io.droplinked.com/shops/v2/public/name/{shopName}
+```
+
+Sample response:
+
+```json
+{
+  "_id": "69103f6e530855f4b75c4da2",
+  "id": "69103f6e530855f4b75c4da2",
+  "name": "Lumen",
+  "url": "lumen",
+  "description": "We believe light is an art form. We curate sculptural lamps and architectural lighting designed to transform your space.",
+  "currency": {
+    "abbreviation": "USD",
+    "symbol": "$",
+    "conversionRateToUSD": 1
+  }
+}
+```
+
+Use this to render the shop name, description, and currency formatting on your homepage.
+
+---
+
+### Step 2 — List your products
+
+Fetch all products to populate the catalog.
+
+```bash
+GET https://api.io.droplinked.com/product-v2/public/shop/{shopName}
+```
+
+Sample response:
+
+```json
+{
+  "data": [
+    {
+      "id": "6911a2390b1483ce323968e0",
+      "title": "The Altar Table Lamp",
+      "slug": "the-altar-table-lamp-f11e0",
+      "type": "physical",
+      "status": "published",
+      "images": [
+        {
+          "original": "https://upload-file-droplinked.s3.amazonaws.com/28cefe88...png",
+          "thumbnail": "https://upload-file-droplinked.s3.amazonaws.com/28cefe88..._small.png",
+          "alt": "031_Output_Lamp.png"
+        }
+      ],
+      "thumbnail": "https://upload-file-droplinked.s3.amazonaws.com/28cefe88..._small.png",
+      "isPurchasable": true,
+      "lowestPrice": 899
+    }
+  ],
+  "currentPage": 1,
+  "totalPages": 1,
+  "totalDocuments": 10
+}
+```
+
+<Warning>
+The `lowestPrice` shown here is for display only. To add items to a cart you need the **SKU ID**
+from the product details endpoint (step 3).
+</Warning>
+
+---
+
+### Step 3 — Get product details (and the SKU)
+
+When a customer clicks a product, fetch the complete details including SKUs.
+
+```bash
+GET https://api.io.droplinked.com/product-v2/public/{productId}
+```
+
+Sample response:
+
+```json
+{
+  "id": "6911a2390b1483ce323968e0",
+  "title": "The Altar Table Lamp",
+  "description": "A stunning sculptural lamp...",
+  "images": [
+    {
+      "original": "https://upload-file-droplinked.s3.amazonaws.com/...",
+      "thumbnail": "https://upload-file-droplinked.s3.amazonaws.com/..._small.png"
+    }
+  ],
+  "skus": [
+    {
+      "id": "sku_lamp_abc123",
+      "price": 899,
+      "currency": "USD",
+      "inventory": {
+        "quantity": 10,
+        "available": true
+      }
+    }
+  ]
+}
+```
+
+<Note>
+**Product vs SKU**
+
+- A **product** is the general item (e.g. "Blue T-Shirt")
+- A **SKU** is a specific variant with its own price (e.g. "Blue T-Shirt — Size Large — $29.99")
+- A product can have many SKUs (sizes, colors, etc.)
+- You add the **SKU** to the cart, not the product
+</Note>
+
+---
+
+### Step 4 — Create a cart
+
+```bash
+POST https://api.io.droplinked.com/v2/carts
+```
+
+Body:
+
+```json
+{ "shopId": "69103f6e530855f4b75c4da2" }
+```
+
+Response (excerpt):
+
+```json
+{
+  "id": "6927faf705c8819a2dd672ae",
+  "shopId": "69103f6e530855f4b75c4da2",
+  "status": "ACTIVE",
+  "items": [],
+  "financialDetails": { "amounts": { "totalAmount": 0 } },
+  "expiredAt": "2025-11-28T07:17:11.570Z",
+  "createdAt": "2025-11-27T07:17:11.571Z"
+}
+```
+
+<Tip>
+Save the cart ID in `localStorage` (browser) or a session (server) so customers can continue
+shopping after a refresh.
+</Tip>
+
+---
+
+### Step 5 — Add product to cart
+
+Add items using the **SKU ID** (not the product ID).
+
+```bash
+POST https://api.io.droplinked.com/v2/carts/{cartId}/products
+```
+
+Body:
+
+```json
+{
+  "skuId": "sku_lamp_abc123",
+  "quantity": 1
+}
+```
+
+Optional `m2m_data` for made-to-measure / customized products:
+
+```json
+{
+  "skuId": "sku_custom_item",
+  "quantity": 1,
+  "m2m_data": {
+    "position": "front",
+    "artworkUrl": "https://example.com/custom-design.png"
+  }
+}
+```
+
+### Update or remove items
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `GET` | `/v2/carts/{cartId}` | View cart contents |
+| `PATCH` | `/v2/carts/{cartId}/products/{skuId}` | Update quantity (body: `{ "quantity": 3 }`) |
+| `DELETE` | `/v2/carts/{cartId}/products/{skuId}` | Remove an item |
+
+---
+
+### Step 6 — Checkout — shipping, payment, order
+
+#### Get shipping rates
+
+```bash
+GET https://api.io.droplinked.com/v2/carts/{cartId}/shipping
+```
+
+#### Select a rate
+
+```bash
+POST https://api.io.droplinked.com/v2/carts/{cartId}/shipping
+```
+
+Body:
+
+```json
+{
+  "selectedShippingRate": [
+    { "shipmentId": "shipment_001", "rateId": "rate_standard" }
+  ]
+}
+```
+
+#### List payment methods
+
+```bash
+GET https://api.io.droplinked.com/v2/carts/{cartId}/payment-methods
+```
+
+#### Create the order
+
+```bash
+POST https://api.io.droplinked.com/v2/orders
+```
+
+Body:
+
+```json
+{ "cartId": "6927faf705c8819a2dd672ae" }
+```
+
+Response (excerpt):
+
+```json
+{
+  "success": true,
+  "data": {
+    "orderId": "order_final_123",
+    "total": 904.99,
+    "status": "pending_payment",
+    "items": [ { "title": "The Altar Table Lamp", "quantity": 1, "price": 899 } ],
+    "shipping": 5.99
+  }
+}
+```
+
+---
+
+### Complete reference implementations
+
+<CodeGroup>
+```javascript JavaScript / TypeScript
+const API_KEY = "your-api-key-here";
+const SHOP_NAME = "lumen";
+const BASE_URL = "https://api.io.droplinked.com";
+
+async function callAPI(endpoint, method = "GET", body = null) {
+  const options = {
+    method,
+    headers: {
+      "x-droplinked-api-key": API_KEY,
+      "Content-Type": "application/json"
+    }
+  };
+  if (body) options.body = JSON.stringify(body);
+  const response = await fetch(`${BASE_URL}${endpoint}`, options);
+  return response.json();
+}
+
+async function getShop()       { return callAPI(`/shops/v2/public/name/${SHOP_NAME}`); }
+async function getProducts()   { return callAPI(`/product-v2/public/shop/${SHOP_NAME}`); }
+async function getProductDetails(id) { return callAPI(`/product-v2/public/${id}`); }
+async function createCart(shopId)    { return callAPI("/v2/carts", "POST", { shopId }); }
+async function addToCart(cartId, skuId, quantity = 1) {
+  return callAPI(`/v2/carts/${cartId}/products`, "POST", { skuId, quantity });
+}
+async function getCart(cartId) { return callAPI(`/v2/carts/${cartId}`); }
+async function updateQuantity(cartId, skuId, quantity) {
+  return callAPI(`/v2/carts/${cartId}/products/${skuId}`, "PATCH", { quantity });
+}
+async function removeFromCart(cartId, skuId) {
+  return callAPI(`/v2/carts/${cartId}/products/${skuId}`, "DELETE");
+}
+async function getShipping(cartId) { return callAPI(`/v2/carts/${cartId}/shipping`); }
+async function selectShipping(cartId, shipmentId, rateId) {
+  return callAPI(`/v2/carts/${cartId}/shipping`, "POST", {
+    selectedShippingRate: [{ shipmentId, rateId }]
+  });
+}
+async function getPaymentMethods(cartId) { return callAPI(`/v2/carts/${cartId}/payment-methods`); }
+async function createOrder(cartId)       { return callAPI("/v2/orders", "POST", { cartId }); }
+
+async function completeShoppingFlow() {
+  try {
+    const shop = await getShop();
+    const productsData = await getProducts();
+    const products = productsData.data;
+    const product = await getProductDetails(products[0].id);
+    const skuId = product.skus[0].id;
+
+    const cartData = await createCart(shop.id);
+    const cartId = cartData.id;
+    await addToCart(cartId, skuId, 1);
+
+    const shipping = await getShipping(cartId);
+    await selectShipping(cartId, shipping.data[0].shipmentId, shipping.data[0].rateId);
+
+    const order = await createOrder(cartId);
+    console.log("Order created:", order.data.orderId);
+  } catch (error) {
+    console.error("Error:", error);
+  }
+}
+
+completeShoppingFlow();
+```
+
+```python Python
+import requests
+
+API_KEY = "your-api-key-here"
+SHOP_NAME = "lumen"
+BASE_URL = "https://api.io.droplinked.com"
+
+
+class DroplinkedAPI:
+    def __init__(self, api_key, shop_name):
+        self.api_key = api_key
+        self.shop_name = shop_name
+        self.headers = {
+            "x-droplinked-api-key": api_key,
+            "Content-Type": "application/json"
+        }
+
+    def get_shop(self):
+        return requests.get(
+            f"{BASE_URL}/shops/v2/public/name/{self.shop_name}",
+            headers=self.headers
+        ).json()
+
+    def get_products(self):
+        return requests.get(
+            f"{BASE_URL}/product-v2/public/shop/{self.shop_name}",
+            headers=self.headers
+        ).json()
+
+    def get_product_details(self, product_id):
+        return requests.get(
+            f"{BASE_URL}/product-v2/public/{product_id}",
+            headers=self.headers
+        ).json()
+
+    def create_cart(self, shop_id):
+        return requests.post(
+            f"{BASE_URL}/v2/carts",
+            headers=self.headers,
+            json={"shopId": shop_id}
+        ).json()
+
+    def add_to_cart(self, cart_id, sku_id, quantity=1):
+        return requests.post(
+            f"{BASE_URL}/v2/carts/{cart_id}/products",
+            headers=self.headers,
+            json={"skuId": sku_id, "quantity": quantity}
+        ).json()
+
+    def get_cart(self, cart_id):
+        return requests.get(
+            f"{BASE_URL}/v2/carts/{cart_id}",
+            headers=self.headers
+        ).json()
+
+    def update_quantity(self, cart_id, sku_id, quantity):
+        return requests.patch(
+            f"{BASE_URL}/v2/carts/{cart_id}/products/{sku_id}",
+            headers=self.headers,
+            json={"quantity": quantity}
+        ).json()
+
+    def remove_from_cart(self, cart_id, sku_id):
+        return requests.delete(
+            f"{BASE_URL}/v2/carts/{cart_id}/products/{sku_id}",
+            headers=self.headers
+        ).json()
+
+    def get_shipping(self, cart_id):
+        return requests.get(
+            f"{BASE_URL}/v2/carts/{cart_id}/shipping",
+            headers=self.headers
+        ).json()
+
+    def select_shipping(self, cart_id, shipment_id, rate_id):
+        return requests.post(
+            f"{BASE_URL}/v2/carts/{cart_id}/shipping",
+            headers=self.headers,
+            json={"selectedShippingRate": [
+                {"shipmentId": shipment_id, "rateId": rate_id}
+            ]}
+        ).json()
+
+    def get_payment_methods(self, cart_id):
+        return requests.get(
+            f"{BASE_URL}/v2/carts/{cart_id}/payment-methods",
+            headers=self.headers
+        ).json()
+
+    def create_order(self, cart_id):
+        return requests.post(
+            f"{BASE_URL}/v2/orders",
+            headers=self.headers,
+            json={"cartId": cart_id}
+        ).json()
+
+
+def main():
+    api = DroplinkedAPI(API_KEY, SHOP_NAME)
+    shop = api.get_shop()
+    products = api.get_products()["data"]
+    product = api.get_product_details(products[0]["id"])
+    sku_id = product["skus"][0]["id"]
+
+    cart = api.create_cart(shop["id"])
+    cart_id = cart["id"]
+    api.add_to_cart(cart_id, sku_id, 1)
+
+    shipping = api.get_shipping(cart_id)
+    rate = shipping["data"][0]
+    api.select_shipping(cart_id, rate["shipmentId"], rate["rateId"])
+
+    order = api.create_order(cart_id)
+    print(f"Order created: {order['data']['orderId']}")
+
+
+if __name__ == "__main__":
+    main()
+```
+</CodeGroup>
+
+---
+
+### Best practices
+
+#### 1. Error handling
+
+Wrap every API call in `try / catch` (or its language equivalent) and surface user-friendly
+messages:
+
+```js
+try {
+  const shop = await getShop();
+} catch (error) {
+  console.error("Failed to fetch shop:", error);
+}
+```
+
+#### 2. Cart persistence
+
+Store the cart ID so customers can resume:
+
+```js
+// Save
+localStorage.setItem("cart_id", cartId);
+
+// Retrieve
+const cartId = localStorage.getItem("cart_id");
+if (cartId) {
+  const cart = await getCart(cartId);
+}
+```
+
+#### 3. Loading states
+
+Show loading indicators while fetching data — the public endpoints can take a few hundred
+milliseconds on first load.
+
+#### 4. Inventory checking
+
+Always confirm a SKU is available before adding to cart:
+
+```js
+const product = await getProductDetails(productId);
+const sku = product.skus[0];
+if (sku.inventory.available && sku.inventory.quantity > 0) {
+  await addToCart(cartId, sku.id, 1);
+} else {
+  alert("This item is out of stock");
+}
+```
+
+#### 5. Price formatting
+
+Use the platform's `Intl.NumberFormat` and the shop's currency:
+
+```js
+const formatPrice = (price, currency) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(price);
+
+formatPrice(899, 'USD'); // "$899.00"
+```
+
+---
+
+### Troubleshooting
+
+| Symptom | Likely cause |
+|---------|--------------|
+| `API key not configured` | Wrong header name (must be exactly `x-droplinked-api-key`) or revoked key |
+| `Cart ID not found` | Cart expired — check `expiredAt`; create a new cart |
+| `Product not found` | Product ID wrong, not published, or doesn't belong to your shop |
+| No products returned | Shop name wrong, products unpublished, or API key lacks access |
+| Can't add to cart | Using the **product** ID instead of the **SKU** ID; SKU out of stock; cart expired |
+
+---
+
+### Endpoint quick reference
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/shops/v2/public/name/:name` | GET | Get shop info |
+| `/product-v2/public/shop/:shopName` | GET | List products |
+| `/product-v2/public/:id` | GET | Product details + SKU |
+| `/v2/carts` | POST | Create cart |
+| `/v2/carts/:cartId` | GET | Cart contents |
+| `/v2/carts/:cartId/products` | POST | Add to cart |
+| `/v2/carts/:cartId/products/:skuId` | PATCH | Update quantity |
+| `/v2/carts/:cartId/products/:skuId` | DELETE | Remove from cart |
+| `/v2/carts/:cartId/shipping` | GET | Get shipping rates |
+| `/v2/carts/:cartId/shipping` | POST | Select shipping |
+| `/v2/carts/:cartId/payment-methods` | GET | Get payment methods |
+| `/v2/orders` | POST | Create order |
+
+## Related
+
+- [API overview](/guides/library/api-overview) — request shape, auth, base URL
+- [Use cases](/guides/library/use-cases) — endpoint reference by surface
+- [Web3 shop tutorial](/guides/library/web3-shop-tutorial) — alternative tutorial-style walkthrough
+- Live [API Reference](/api-reference/introduction) — interactive OpenAPI browser
+
+For one-on-one help, email [support@droplinked.com](mailto:support@droplinked.com).

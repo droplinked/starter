@@ -1,0 +1,144 @@
+---
+title: "Droplinked tools"
+description: "A repository of the different tools and libraries available across the Droplinked protocol — toolkits, embeddable units, OAuth, and the API access key."
+---
+
+Learn how to use Droplinked's tools and endpoints to unlock the power of Web3 commerce. Here
+you'll find documentation for the tools necessary to interact with the Droplinked protocol —
+geared towards users, system administrators, and technical partners wanting to understand and
+integrate with the protocol.
+
+## Developer toolkit
+
+The Web3 libraries and tools below provide the base infrastructure required for Droplinked to
+operate on any given chain.
+
+<CardGroup cols={2}>
+  <Card title="NFT Fractionalizer" icon="layer-group" href="https://fractionalizer.droplinked.com/">
+    Fractionalize product NFTs so each fraction represents one purchasable unit.
+  </Card>
+  <Card title="NextJS Sample Project" icon="react" href="https://github.com/droplinked/Next-ShopFront">
+    Customizable storefronts built on Next.js — a reference implementation against the
+    Droplinked APIs.
+  </Card>
+  <Card title="Product Tiles" icon="grid-2">
+    Embeddable units that place purchasable inventory anywhere online (sites, apps,
+    marketplaces).
+  </Card>
+  <Card title="DIMST" icon="database" href="https://dev.droplinked.com/roi">
+    Decentralized Inventory Management and Sales Tracking — indexer by chain of choice.
+  </Card>
+  <Card title="Tokenpay" icon="coins" href="https://github.com/droplinked/tokenpay">
+    Native payment with any ERC-20, SPL (Solana), or BRC-20 token.
+  </Card>
+  <Card title="Bug Tracking Console" icon="bug" href="https://github.com/droplinked/issues/issues">
+    Report issues or recommend new protocol features and functions.
+  </Card>
+</CardGroup>
+
+## Interacting with the protocol
+
+### OAuth
+
+Use crypto-wallet credentials to authenticate and interact with the Droplinked protocol.
+Wallet-based OAuth removes friction for both merchants and customers — and keeps the
+authorization surface entirely Web3-native.
+
+### NextJS sample project — customizable shopfronts
+
+To improve the customer experience and enable developers to create new commerce concepts and
+Web3 innovation across Droplinked, the shopfront APIs are exposed for third-party rendering.
+These can be integrated with any current CMS and tooling to support new shopfront concepts that
+can be built with different technologies (virtual showrooms, gaming/metaverse shopfronts, etc.).
+
+Next.js is a robust framework that offers numerous advantages for e-commerce development,
+particularly when used in conjunction with the Droplinked APIs. Its performance optimization,
+SEO benefits, scalability, security features, and developer-friendly environment make it an
+attractive choice for businesses looking to build or enhance their online storefronts.
+
+You can access the reference repo here:
+[github.com/droplinked/Next-ShopFront](https://github.com/droplinked/Next-ShopFront).
+
+### API access key
+
+In the merchant dashboard, click the **settings** icon (gear) on the left navigation bar and
+scroll to the **API Key** section, where you can generate your own unique key to authenticate
+calls to the public APIs.
+
+<Steps>
+  <Step title="Open dashboard settings">
+    Navigate to **Settings → API Keys** in your Droplinked merchant dashboard.
+  </Step>
+  <Step title="Generate a new key">
+    Click **Generate New API Key**. Copy the value immediately — it won't be shown again.
+  </Step>
+  <Step title="Send the key as a header">
+    Pass the value as `x-droplinked-api-key` on every authenticated request. See
+    [API overview](/guides/library/api-overview) for the request shape.
+  </Step>
+</Steps>
+
+You can review the live OpenAPI surface from the [API Reference](/api-reference/introduction)
+tab in this docs site, or the legacy Swagger:
+[apiv3.droplinked.com/v1/public-apis/document](https://apiv3.droplinked.com/v1/public-apis/document).
+
+### DIMST Console
+
+A CLI and UI for simple execution of product registration, inventory management, sales
+tracking, and batch function/registration operations.
+
+### Product Tiles — embeddables
+
+Headless embeddable units for inventory display, allowing both producers and publishers to
+quickly and easily embed Droplinked-registered inventory across their properties — websites,
+apps, or marketplaces.
+
+### Tokenpay
+
+Tokenpay by Droplinked empowers token issuers and holders to use minted digital assets as a
+seamless token payment gateway. The functionality enables buyers to use these tokens to
+purchase both physical and digital goods. It helps foster community support with a reward
+system while boosting token adoption and engagement —
+[learn more](https://github.com/droplinked/tokenpay).
+
+### Issues and support
+
+To report any issues you discover across the Droplinked ecosystem, file them in the
+[issues repo](https://github.com/droplinked/issues/issues).
+
+For one-on-one support or recommendations, contact
+[support@droplinked.com](mailto:support@droplinked.com).
+
+## Network support
+
+The tools above are available on:
+
+- Ethereum
+- Solana
+- NEAR
+- Polygon
+- Base
+- Hedera
+- XRPL (EVM Sidechain)
+- Casper
+- SKALE
+- BNB
+- Stacks
+
+More networks come online based on extended support for volume-based registration of primary
+goods alongside RWA secondaries. Deployment on each of these networks allows for commerce
+settlement in the native token for each respective network, and serves as the foundation for
+cross-chain interoperability bridging into Droplinked's protocol.
+
+<Note>
+Droplinked 1.0 testnet development is underway. Droplinked 1.0 ties together the base
+infrastructure for a holistic cross-chain protocol — complete with token contracts, the
+Droplinked treasury, and staking functionality.
+</Note>
+
+## Related
+
+- [How Droplinked works](/guides/library/overview)
+- [Droplinked API overview](/guides/library/api-overview)
+- [API cookbook — Build a custom store](/guides/library/api-cookbook)
+- [Web3 shop tutorial](/guides/library/web3-shop-tutorial)
