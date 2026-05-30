@@ -9,6 +9,7 @@
     "dark": "#01b48a"
   },
   "favicon": "/favicon.svg",
+  "_hidden_groups_until_200m_gmv": ["Tokenomics"],
   "navigation": {
     "tabs": [
       {
@@ -78,15 +79,6 @@
               "guides/platform/overview",
               "guides/platform/toolbox",
               "guides/platform/tech-framework"
-            ]
-          },
-          {
-            "group": "Tokenomics",
-            "pages": [
-              "guides/tokenomics/overview",
-              "guides/tokenomics/lend-drops",
-              "guides/tokenomics/yield-drops",
-              "guides/tokenomics/variata"
             ]
           }
         ]
