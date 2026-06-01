@@ -251,6 +251,50 @@
             ]
           }
         ]
+      },
+      {
+        "tab": "Developers",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "developers/getting-started"
+            ]
+          },
+          {
+            "group": "InventoryOS API",
+            "pages": [
+              "developers/inventory-os-api/overview",
+              {
+                "group": "Streams",
+                "pages": [
+                  "developers/inventory-os-api/streams/catalog",
+                  "developers/inventory-os-api/streams/inventory-level",
+                  "developers/inventory-os-api/streams/sell-through",
+                  "developers/inventory-os-api/streams/return-rate",
+                  "developers/inventory-os-api/streams/pricing",
+                  "developers/inventory-os-api/streams/attribution",
+                  "developers/inventory-os-api/streams/settlement",
+                  "developers/inventory-os-api/streams/provenance"
+                ]
+              },
+              "developers/inventory-os-api/subscriptions"
+            ]
+          },
+          {
+            "group": "Lending Application API",
+            "pages": [
+              "developers/lending-application-api/overview",
+              "developers/lending-application-api/endpoints"
+            ]
+          },
+          {
+            "group": "KYB & Cohorts",
+            "pages": [
+              "developers/kyb-cohorts"
+            ]
+          }
+        ]
       }
     ],
     "global": {

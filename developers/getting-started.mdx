@@ -1,0 +1,121 @@
+---
+title: Getting started
+description: "Partner-facing API surfaces — InventoryOS, the Lending Application API, and KYB cohort routing. Auth, scopes, and your first call."
+---
+
+<Note>**BETA — APIs in this section may change.** They power partner integrations (lenders, 3PLs, agentic buyers, KYB providers) and are in active iteration. Pin versions in production code and watch the changelog.</Note>
+
+The **Developers** section documents the partner-facing surfaces of the Droplinked platform — the read-and-write API contracts that lenders, 3PLs, agentic buyers, KYB providers, and large merchants integrate against. These complement the public commerce API in the [API Reference](/api-reference/introduction); pick this section if you're building an integration that consumes inventory data, submits a lending application, or routes around the merchant onboarding cohorts.
+
+## What you can do here
+
+<CardGroup cols={3}>
+  <Card title="InventoryOS API" icon="layer-group" href="/developers/inventory-os-api/overview">
+    Eight inventory data streams (catalog, inventory level, sell-through, return rate, pricing,
+    attribution, settlement, provenance) read via REST + delivered via webhook subscriptions.
+  </Card>
+  <Card title="Lending Application API" icon="hand-holding-dollar" href="/developers/lending-application-api/overview">
+    Submit, update, and review merchant lending applications. State machine + per-cohort doc
+    checklist + CredibleX referral model.
+  </Card>
+  <Card title="KYB Cohorts" icon="sitemap" href="/developers/kyb-cohorts">
+    The eleven-cohort taxonomy that routes a merchant's KYB sources, MoR entity, and lending tier.
+  </Card>
+</CardGroup>
+
+## Authentication
+
+Partner endpoints use a **partner API key** with explicit scopes — not a merchant JWT. Keys are
+prefixed `ds_test_…` (development sandbox) or `ds_live_…` (production). Send them as a Bearer
+header.
+
+```bash
+curl https://apiv3.droplinked.com/developers/inventory/v1/streams/catalog \
+  -H "Authorization: Bearer ds_test_REPLACE_ME"
+```
+
+```ts
+import { DroplinkedClient } from "@droplinked/sdk";
+
+const droplinked = new DroplinkedClient({
+  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
+  baseUrl: "https://apiv3.droplinked.com",
+});
+
+const page = await droplinked.inventory.catalog.list({ limit: 50 });
+```
+
+### Scopes
+
+| Scope | Grants |
+|---|---|
+| `inventory:read` | Read any InventoryOS stream (catalog, inventory level, sell-through, return rate, pricing, attribution, settlement, provenance) |
+| `inventory:webhooks` | Register and consume webhook subscriptions for inventory streams |
+| `lending:submit` | Submit and update a lending application as a referrer/partner |
+| `lending:read` | Read a lending application's status, doc checklist, and decisions |
+| `lending:decide` | Post an underwriter decision (CredibleX-tier or Tier-3 vault partners only) |
+| `kyb:read` | Read a merchant's KYB cohort, MoR entity, and inheritance chain |
+
+Scopes are additive. Issue separate keys for separate integration responsibilities — don't mint
+one omni-scope key.
+
+## Rate limits
+
+| Endpoint class | Default | Burst |
+|---|---|---|
+| Read (any `GET /developers/*`) | 600 req/min/key | 1200 req over 5s |
+| Write (`POST` / `PATCH` lending) | 60 req/min/key | 120 req over 5s |
+| Webhook subscription management | 30 req/min/key | 60 req over 5s |
+
+Limits are returned per response:
+
+```
+X-RateLimit-Limit: 600
+X-RateLimit-Remaining: 587
+X-RateLimit-Reset: 1717200000
+```
+
+A `429 Too Many Requests` returns `Retry-After` in seconds. Back off and resume.
+
+## Pagination
+
+All list endpoints use **opaque cursor pagination**. Pass `?limit=` (max 200) and follow
+`next_cursor` until it's absent.
+
+```bash
+curl "https://apiv3.droplinked.com/developers/inventory/v1/streams/catalog?limit=50&cursor=eyJpZCI6IjY1ZGY4LiJ9" \
+  -H "Authorization: Bearer ds_test_REPLACE_ME"
+```
+
+Response envelope:
+
+```json
+{
+  "data": [ /* page of items */ ],
+  "next_cursor": "eyJpZCI6IjY1ZGY5LiJ9",
+  "generated_at": "2026-06-01T12:00:00.000Z"
+}
+```
+
+Cursors are tied to a key and a stream — don't reuse cursors across keys.
+
+## Environments
+
+| Environment | Base URL | API keys |
+|---|---|---|
+| Production | `https://apiv3.droplinked.com` | `ds_live_…` |
+| Development | `https://apiv3dev.droplinked.com` | `ds_test_…` |
+
+Data is isolated per environment. Build and test against development; promote to production with
+new live keys.
+
+## Issuing keys
+
+API keys are minted from the merchant or partner dashboard at
+`https://droplinked.com/dashboard/developers` (BETA, behind feature flag). For Tier-1
+CredibleX referral keys and Tier-3 vault decisioning keys, contact
+[partners@droplinked.com](mailto:partners@droplinked.com).
+
+<Card title="Next: InventoryOS overview" icon="layer-group" href="/developers/inventory-os-api/overview">
+The eight streams, the consumer surfaces, and the data-layer thesis.
+</Card>

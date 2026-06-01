@@ -1,0 +1,163 @@
+---
+title: "KYB cohorts"
+description: "The eleven-cohort taxonomy that drives KYB sources, MoR entity, settlement routing, and lending-tier eligibility."
+---
+
+<Note>**BETA.** Cohort taxonomy is settled at the schema level but per-cohort PSP routing is rolling out incrementally — three cohorts ship today (`A_CONNECT_STRIPE`, `A_MOR_TELR_DIRECT`, `A_MOR_SHOPSADIQ_VIA_TELR`); the rest land as their corresponding PSP onboarding flows go live. Pin `X-InventoryOS-Version: 2026-06-01`.</Note>
+
+A merchant's **KYB cohort** answers four questions at once:
+
+1. **Who is the Merchant of Record (MoR)?** — the merchant themselves, the PSP, or Shopsadiq Ltd
+2. **What KYB sources feed the merchant's compliance record?** — PSP OAuth, MoR master KYB, merchant-direct OAuth, or Sumsub fallback
+3. **Where does settlement land?** — merchant's bank, PSP master, or Shopsadiq master
+4. **Which lending tier can underwrite this merchant?** — CredibleX (Tier 1, UAE), US LFI corridor (Tier 2), Tier-3 vault (Q3-Q4 2026)
+
+Routing decisions in the platform (PSP onboarding offer set, doc checklist, lending tier
+selection, 1099-NEC export inclusion, FX reconciler attribution) all switch on the cohort.
+
+## The eleven cohorts
+
+| Cohort | MoR | KYB sources | Tier | Status |
+|---|---|---|---|---|
+| `A_CONNECT_STRIPE` | merchant | `MERCHANT_DIRECT_OAUTH` (Stripe) + Sumsub fallback | Tier 1-3 | live |
+| `A_CONNECT_PAYPAL` | merchant | `MERCHANT_DIRECT_OAUTH` (PayPal Partner) + Sumsub fallback | Tier 1-3 | live |
+| `A_CONNECT_TELR` | merchant | `MERCHANT_DIRECT_OAUTH` (Telr) + Sumsub fallback | Tier 1 (UAE), Tier 3 | live |
+| `A_CONNECT_PAYMOB` | merchant | `MERCHANT_DIRECT_OAUTH` (Paymob) + Sumsub fallback | Tier 1 (EG), Tier 3 | live |
+| `A_CONNECT_BONUM` | merchant | merchant-prefix + Sumsub fallback | Tier 3 (MN) | live |
+| `A_MOR_TELR_DIRECT` | Telr | `PSP_MOR` (Telr master KYB) | Tier 1 (UAE) | live |
+| `A_MOR_PAYPAL_DIRECT` | PayPal | `PSP_MOR` (PayPal Commerce Platform master) | Tier 1-3 | planned |
+| `A_MOR_PAYMOB_DIRECT` | Paymob | `PSP_MOR` (Paymob aggregator master) | Tier 1 (EG) | planned |
+| `A_MOR_SHOPSADIQ_VIA_TELR` | Shopsadiq | `PSP_MOR` (Shopsadiq master KYB) + `PSP_OAUTH` (Telr) | Tier 1 (UAE), Tier 3 | live |
+| `A_MOR_SHOPSADIQ_VIA_BONUM` | Shopsadiq | `PSP_MOR` (Shopsadiq master KYB) + merchant-prefix | Tier 3 (MN) | planned |
+| `A_MOR_SHOPSADIQ_VIA_STRIPE` | Shopsadiq | `PSP_MOR` (Shopsadiq master KYB) + Stripe Connect Platform | Tier 1-3 | planned |
+
+## What the cohort decides
+
+### MoR entity
+
+| Value | Meaning |
+|---|---|
+| `merchant` | Merchant is the regulated entity; PSP is gateway-only |
+| `telr` / `paypal` / `paymob` / `bonum` | PSP carries MoR via its own aggregator product |
+| `shopsadiq` | Shopsadiq Ltd is the MoR under its 2026-05-13 Telr partnership (and analogous future PSP partnerships) |
+
+The MoR entity is who bears chargeback risk, who carries the consumer disclosure obligation,
+and whose bank account settlement lands in. It also determines who is named in FTC + 1099-NEC
+filings.
+
+### KYB sources
+
+A merchant's `KybRecord.sources[]` is a chain of KYB attestations the platform has inherited
+or verified. The cohort decides which sources are required:
+
+| Source | When |
+|---|---|
+| `MERCHANT_DIRECT_OAUTH` | Merchant connects their own PSP account via OAuth (Connect cohorts) |
+| `PSP_OAUTH` | PSP OAuth from a master account (MoR-via-Shopsadiq cohorts use the Shopsadiq-side Telr OAuth) |
+| `PSP_MOR` | Master KYB inherited from a MoR aggregator (Telr-Direct, PayPal-CP, Shopsadiq-master, etc.) |
+| `SUMSUB` | Fallback when no PSP OAuth path is available — the merchant runs Sumsub directly |
+
+### Lending-tier eligibility
+
+The cohort gates which lending tiers can underwrite a merchant:
+
+| Tier | Lender | Eligible cohorts |
+|---|---|---|
+| **Tier 1** | CredibleX (UAE), planned US LFI corridor | UAE-jurisdictioned cohorts (Telr-Connect, Telr-Direct, Shopsadiq-via-Telr, Paymob-Connect EG, Paymob-Direct) |
+| **Tier 2** | US LFI corridor lenders (pilots Q3 2026) | US-jurisdictioned cohorts (Stripe-Connect, PayPal-Connect, future US Shopsadiq partnerships) |
+| **Tier 3** | Droplinked-direct $100M FSRA vault (first loans Q4 2026) | All cohorts; tier gating happens at vault policy level instead of cohort level |
+
+### Doc checklist depth
+
+| Cohort family | Doc count | Rationale |
+|---|---|---|
+| `A_MOR_SHOPSADIQ_VIA_*` | Light (3) | Sub-merchant inherits Shopsadiq master KYB; only identity + PSP linkage + recent settlement needed |
+| `A_MOR_*_DIRECT` | Medium (4) | Sub-merchant inherits PSP master KYB; add MoR consent letter |
+| `A_CONNECT_*` | Heavy (5) | Merchant is the regulated entity; full bank statement + tax/identity pack |
+
+See the [Lending Application overview](/developers/lending-application-api/overview) for the
+exact doc list per cohort.
+
+## Reading a merchant's cohort
+
+```
+GET /developers/kyb/v1/merchants/{merchant_id}
+```
+
+### curl
+
+```bash
+curl https://apiv3.droplinked.com/developers/kyb/v1/merchants/merch_2j8... \
+  -H "Authorization: Bearer ds_test_REPLACE_ME" \
+  -H "X-InventoryOS-Version: 2026-06-01"
+```
+
+### TypeScript
+
+```ts
+import { DroplinkedClient } from "@droplinked/sdk";
+
+const droplinked = new DroplinkedClient({
+  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
+});
+
+const merchant = await droplinked.kyb.merchants.get("merch_2j8...");
+console.log(merchant.cohort, merchant.mor_entity, merchant.kyb_sources);
+```
+
+### Response
+
+```json
+{
+  "merchant_id": "merch_2j8…",
+  "cohort": "A_MOR_SHOPSADIQ_VIA_TELR",
+  "mor_entity": "shopsadiq",
+  "master_account_ref": "shopsadiq-telr-master",
+  "kyb_sources": [
+    {
+      "source": "PSP_MOR",
+      "vendor": "shopsadiq",
+      "confidence_score": 0.95,
+      "verified_at": "2026-05-15T09:00:00.000Z"
+    },
+    {
+      "source": "PSP_OAUTH",
+      "vendor": "telr",
+      "confidence_score": 0.90,
+      "verified_at": "2026-05-22T11:30:00.000Z"
+    }
+  ],
+  "lending_tier_eligibility": ["Tier1_CredibleX", "Tier3_Vault"],
+  "jurisdiction": "ARE"
+}
+```
+
+## How cohort is assigned
+
+Cohort is assigned at PSP-onboarding time:
+
+1. Merchant signs up and picks a jurisdiction.
+2. PSP options are filtered to the merchant's jurisdiction (e.g. GCC merchants see Telr in
+   three modes: Connect / MoR-Direct / MoR-via-Shopsadiq).
+3. Merchant picks the mode; the KYB orchestrator writes `cohort` to the `KybRecord` and
+   inherits the appropriate KYB sources.
+4. Subsequent lending applications, PSP wiring, and settlement routing all read this cohort.
+
+A merchant can re-onboard into a different cohort (e.g. switch from `A_CONNECT_TELR` to
+`A_MOR_SHOPSADIQ_VIA_TELR`) — this generates a new `KybRecord` revision; the old one is
+preserved for audit.
+
+## Why eleven cohorts (not three)
+
+Telr has three distinct MoR cohort patterns per operator clarification — Connect (merchant
+MoR), MoR-Direct (Telr is MoR via its aggregator), and MoR-via-Shopsadiq (Shopsadiq is MoR per
+the 2026-05-13 partnership agreement). Bonum is analogous. Stripe, PayPal, and Paymob each
+support Connect + MoR-Direct + (planned) MoR-via-Shopsadiq. The total cohort count expands as
+PSP partnerships mature; the platform routes from `cohort` consistently so adding a new cohort
+is additive to the matrix, not a refactor.
+
+## Related
+
+- [Lending Application overview](/developers/lending-application-api/overview) — per-cohort doc checklist
+- [Settlement stream](/developers/inventory-os-api/streams/settlement) — `cohort` + `mor_entity` per `UnifiedTransaction`
+- [Getting started](/developers/getting-started) — partner API auth + `kyb:read` scope

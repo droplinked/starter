@@ -1,0 +1,111 @@
+---
+title: "Stream 4 — Return rate"
+description: "Return rate, reasons, and fraud signals per SKU — daily rollup, lender LGD input, G7 commission review signal."
+---
+
+<Note>**BETA.** Return-rate fraud signals are a private signal for the risk model — not consumer-facing. Don't surface raw `fraud_score` in merchant-facing UI without context.</Note>
+
+The **return-rate stream** is the post-purchase quality signal: rate + reason + per-SKU fraud
+score. Producers include the order pipeline and 3PL `inventory.returned` webhooks. The lending
+underwriter consumes this as LGD input; G7 affiliate-commission review queue uses fraud signals
+to flag clawback candidates.
+
+## Shape
+
+```json
+{
+  "sku": "shop-handle__product-handle__variant-1",
+  "shop_id": "65df8abc123…",
+  "period": "2026-06-01",
+  "period_type": "day",
+  "return_rate_30d": 0.038,
+  "return_reasons": [
+    { "code": "size_too_small", "count": 4, "share": 0.40 },
+    { "code": "defective", "count": 2, "share": 0.20 },
+    { "code": "not_as_described", "count": 1, "share": 0.10 }
+  ],
+  "fraud_score": 0.12,
+  "computed_at": "2026-06-02T00:05:00.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `return_rate_30d` | Rolling 30-day return rate (0-1) |
+| `return_reasons[]` | Per-reason breakdown; codes follow the EU-DPP harmonized return-reason vocabulary |
+| `fraud_score` | 0-1 score derived from velocity-vs-return-rate divergence + customer cohort overlap. > 0.6 = flag for review. |
+
+## Endpoint
+
+```
+GET /developers/inventory/v1/streams/return-rate
+```
+
+**Query parameters:**
+
+| Param | Type | Notes |
+|---|---|---|
+| `shop_id` | string | Optional |
+| `sku` | string | Optional |
+| `period_start` | ISO date | Optional |
+| `period_end` | ISO date | Optional |
+| `min_fraud_score` | float | Optional; filter `>= min_fraud_score` |
+| `limit` | int | Max 200, default 50 |
+| `cursor` | string | Opaque pagination token |
+
+## curl
+
+```bash
+curl "https://apiv3.droplinked.com/developers/inventory/v1/streams/return-rate?shop_id=65df8abc123&min_fraud_score=0.5" \
+  -H "Authorization: Bearer ds_test_REPLACE_ME" \
+  -H "X-InventoryOS-Version: 2026-06-01"
+```
+
+## TypeScript SDK
+
+```ts
+import { DroplinkedClient } from "@droplinked/sdk";
+
+const droplinked = new DroplinkedClient({
+  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
+});
+
+const flagged = await droplinked.inventory.returnRate.list({
+  shopId: "65df8abc123…",
+  minFraudScore: 0.6,
+  limit: 100,
+});
+
+for (const row of flagged.data) {
+  console.warn(`Flagged ${row.sku}: fraud=${row.fraud_score}, return_30d=${row.return_rate_30d}`);
+}
+```
+
+## Cursor pagination
+
+```ts
+let cursor: string | undefined;
+do {
+  const page = await droplinked.inventory.returnRate.list({ cursor, limit: 200 });
+  await persistReturnRollups(page.data);
+  cursor = page.next_cursor ?? undefined;
+} while (cursor);
+```
+
+## Lender-facing usage
+
+LGD (Loss Given Default) modeling: return rate × refund rate × inventory write-down rate. A
+merchant with consistently low return-rate + high fraud-score-clean = lower LGD = lower
+required yield. Combined with Streams 2 + 7 + 8, this is the data fusion that gets working-
+capital lines into investment-grade territory.
+
+## Rate limits
+
+Read class — 600 req/min/key. Daily-rollup volume is bounded; subscribe to webhooks for
+real-time fraud flags.
+
+## Related
+
+- [Sell-through stream](/developers/inventory-os-api/streams/sell-through) — pair with return rate for net velocity
+- [Attribution stream](/developers/inventory-os-api/streams/attribution) — affiliate fraud cross-reference
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `return-rate.flagged` events

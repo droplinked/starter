@@ -1,0 +1,111 @@
+---
+title: "Stream 2 — Inventory level"
+description: "Real-time stock per SKU and location — webhook on every observation, daily reconciliation snapshot."
+---
+
+<Note>**BETA.** Inventory-level events emit on every observation (merchant write, 3PL webhook, cycle count). Treat events as observations, not commands.</Note>
+
+The **inventory-level stream** is the real-time stock record: per-SKU, per-location, with the
+distinction between available, on-hold (cart-reserved), and total. Producers include the
+merchant inventory ledger (`inventory/`) and 3PL webhooks (Stord `inventory.received` /
+`shipped` / `returned` / `adjusted` per the Stord pilot pattern).
+
+## Shape
+
+```json
+{
+  "sku": "shop-handle__product-handle__variant-1",
+  "shop_id": "65df8abc123…",
+  "location_id": "stord-warehouse-atl-1",
+  "available": 142,
+  "on_hold": 8,
+  "total": 150,
+  "source": "stord",
+  "observed_at": "2026-06-01T12:00:00.000Z",
+  "delta": { "available": -2, "reason": "shipped" }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `location_id` | Logical location — 3PL warehouse, merchant-owned location, or virtual |
+| `available` | Sellable stock |
+| `on_hold` | Cart-reserved (decrement before commit) |
+| `total` | `available + on_hold + non_sellable` |
+| `source` | `merchant`, `stord`, `flowspace`, `shiphero`, `cycle_count`, `reconciliation` |
+| `delta` | Optional — present on observations that produced a change |
+
+## Endpoint
+
+```
+GET /developers/inventory/v1/streams/inventory-level
+```
+
+**Query parameters:**
+
+| Param | Type | Notes |
+|---|---|---|
+| `shop_id` | string | Optional |
+| `sku` | string | Optional; scope to a single SKU |
+| `location_id` | string | Optional; scope to a single location |
+| `observed_since` | ISO-8601 | Optional; events after this timestamp |
+| `limit` | int | Max 200, default 50 |
+| `cursor` | string | Opaque pagination token |
+
+## curl
+
+```bash
+curl "https://apiv3.droplinked.com/developers/inventory/v1/streams/inventory-level?sku=shop-handle__product-handle__variant-1" \
+  -H "Authorization: Bearer ds_test_REPLACE_ME" \
+  -H "X-InventoryOS-Version: 2026-06-01"
+```
+
+## TypeScript SDK
+
+```ts
+import { DroplinkedClient } from "@droplinked/sdk";
+
+const droplinked = new DroplinkedClient({
+  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
+});
+
+const page = await droplinked.inventory.inventoryLevel.list({
+  sku: "shop-handle__product-handle__variant-1",
+  observedSince: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  limit: 100,
+});
+
+const currentlyAvailable = page.data
+  .filter((event) => event.source !== "reconciliation")
+  .reduce((acc, event) => Math.max(acc, event.available), 0);
+```
+
+## Cursor pagination
+
+```ts
+let cursor: string | undefined;
+do {
+  const page = await droplinked.inventory.inventoryLevel.list({ cursor, limit: 200 });
+  await indexObservations(page.data);
+  cursor = page.next_cursor ?? undefined;
+} while (cursor);
+```
+
+## Lender-facing usage
+
+The lending underwriter uses this stream as a collateral-valuation input. Combined with the
+provenance stream (8) and PSP-confirmed settlement stream (7), 3PL-attested custody gets the
+underwriter ~50-100 bps off the lending rate. Subscribing to webhooks (vs polling) is the
+recommended pattern for lender integrations.
+
+## Rate limits
+
+Read class — 600 req/min/key. Inventory observations are usually high-volume; **subscribe via
+webhook** instead of polling for active integrations.
+
+## Related
+
+- [Catalog stream](/developers/inventory-os-api/streams/catalog) — SKU definitions referenced here
+- [Sell-through stream](/developers/inventory-os-api/streams/sell-through) — velocity per SKU
+- [Provenance stream](/developers/inventory-os-api/streams/provenance) — EAS attestation on inventory deltas
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `inventory.observed` events

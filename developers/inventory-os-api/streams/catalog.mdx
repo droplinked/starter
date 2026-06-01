@@ -1,0 +1,120 @@
+---
+title: "Stream 1 — Catalog"
+description: "Canonical product records — SKUs, variants, titles, descriptions, media, attributes."
+---
+
+<Note>**BETA.** The catalog stream is the foundational stream — every other stream references SKUs from here. Pin `X-InventoryOS-Version: 2026-06-01`.</Note>
+
+The **catalog stream** emits the canonical product record per SKU: titles, descriptions,
+variants, attributes, and media references. Write-on-mutation in producers
+(`product-v2`, the crawler intake, the migration toolkit); snapshot to consumer feeds
+(ACP feed, LLMS.txt, marketplace) debounced 60s.
+
+## Shape
+
+```json
+{
+  "sku": "shop-handle__product-handle__variant-1",
+  "item_group_id": "shop-handle__product-handle",
+  "shop_id": "65df8abc123…",
+  "title": "Limited Edition Drop Tee",
+  "description": "100% organic cotton, screen-printed in Brooklyn.",
+  "variants": [
+    { "id": "variant-1", "name": "M / Black", "attributes": { "size": "M", "color": "Black" } }
+  ],
+  "attributes": { "category": "apparel", "brand": "Droplinked Originals" },
+  "media": [
+    { "type": "image", "url": "https://cdn.droplinked.com/…/front.jpg", "primary": true },
+    { "type": "image", "url": "https://cdn.droplinked.com/…/back.jpg" }
+  ],
+  "currency": "USD",
+  "updated_at": "2026-06-01T12:00:00.000Z",
+  "product_hash": "0x4f8a…",
+  "attestation_uid": "0xabc123…"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `sku` | Canonical per-variant identifier (`{shop}__{product}__{variant}`) |
+| `item_group_id` | Parent grouping for variant rollup |
+| `variants[]` | Per-variant `id` + `name` + `attributes` |
+| `media[]` | Image/video URLs, `primary` flag for hero image |
+| `product_hash` | SHA-256 of canonical product JSON (deterministic; used by attestation) |
+| `attestation_uid` | EAS attestation UID if Stream 8 has fired (optional) |
+
+## Endpoint
+
+```
+GET /developers/inventory/v1/streams/catalog
+```
+
+**Query parameters:**
+
+| Param | Type | Notes |
+|---|---|---|
+| `shop_id` | string | Optional; scope to a single shop |
+| `updated_since` | ISO-8601 | Optional; only items mutated after this timestamp |
+| `limit` | int | Max 200, default 50 |
+| `cursor` | string | Opaque pagination token from previous response |
+
+## curl
+
+```bash
+curl "https://apiv3.droplinked.com/developers/inventory/v1/streams/catalog?limit=50" \
+  -H "Authorization: Bearer ds_test_REPLACE_ME" \
+  -H "X-InventoryOS-Version: 2026-06-01"
+```
+
+## TypeScript SDK
+
+```ts
+import { DroplinkedClient } from "@droplinked/sdk";
+
+const droplinked = new DroplinkedClient({
+  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
+});
+
+const firstPage = await droplinked.inventory.catalog.list({
+  shopId: "65df8abc123…",
+  limit: 50,
+});
+
+for (const item of firstPage.data) {
+  console.log(item.sku, item.title);
+}
+
+if (firstPage.next_cursor) {
+  const nextPage = await droplinked.inventory.catalog.list({
+    cursor: firstPage.next_cursor,
+    limit: 50,
+  });
+}
+```
+
+## Cursor pagination
+
+Pages return `next_cursor` until the stream is exhausted (`null` / absent). Cursors are
+opaque — don't parse them. Use the `updated_since` parameter for incremental syncs instead of
+walking the full feed.
+
+```ts
+let cursor: string | undefined;
+do {
+  const page = await droplinked.inventory.catalog.list({ cursor, limit: 200 });
+  await persistBatch(page.data);
+  cursor = page.next_cursor ?? undefined;
+} while (cursor);
+```
+
+## Rate limits
+
+Catalog reads count against the **read class** budget — 600 req/min/key. Use `updated_since` +
+larger `limit` to stay under it; full-catalog crawls should be hourly or less frequent.
+
+## Related
+
+- [Inventory level stream](/developers/inventory-os-api/streams/inventory-level) — stock per SKU
+- [Pricing stream](/developers/inventory-os-api/streams/pricing) — `current_price` + history
+- [Provenance stream](/developers/inventory-os-api/streams/provenance) — EAS attestation by `product_hash`
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — receive `catalog.updated` events
