@@ -11,6 +11,23 @@
   "favicon": "/favicon.svg",
   "_hidden_groups_until_200m_gmv": ["Tokenomics"],
   "_hidden_content_paths": ["guides/_hidden/tokenomics/"],
+  "redirects": [
+    {
+      "source": "/platform/overview",
+      "destination": "/guides/platform/overview",
+      "permanent": true
+    },
+    {
+      "source": "/platform/toolbox",
+      "destination": "/guides/platform/toolbox",
+      "permanent": true
+    },
+    {
+      "source": "/platform/tech-framework",
+      "destination": "/guides/platform/tech-framework",
+      "permanent": true
+    }
+  ],
   "navigation": {
     "tabs": [
       {
