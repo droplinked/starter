@@ -1,0 +1,325 @@
+---
+title: "Network Health KPIs"
+description: "SuperAdmin dashboard endpoints — registered users, verified shops, confirmed orders, GMV, refund rate, top merchants/products, operations summary."
+---
+
+The Network Health KPI endpoints power the SuperAdmin dashboard. Every endpoint returns
+aggregated, network-wide metrics — no per-tenant scoping. All require operator-level access.
+
+<Note>
+All admin endpoints below require:
+
+- **JWT** with `role = SUPER_ADMIN`
+- **`IpAllowlistGuard`** — caller IP must be in the operator allowlist
+- **`GeoBlockGuard`** — caller geo must be permitted
+
+Calls that miss any of the three return `403`.
+</Note>
+
+## Common query parameters (KPI endpoints)
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `startDate` | ISO-8601 date (`YYYY-MM-DD`) | Yes | Inclusive lower bound |
+| `endDate` | ISO-8601 date (`YYYY-MM-DD`) | Yes | Inclusive upper bound |
+
+Date range is capped to 365 days. Requests outside the cap return `400`.
+
+## GET /admin/dashboard/registered-users
+
+Total new platform-user signups (merchant + customer) within the window.
+
+### Response — 200 OK
+
+```json
+{
+  "startDate": "2026-05-01",
+  "endDate": "2026-05-31",
+  "totalRegistered": 1247,
+  "breakdown": {
+    "merchant": 89,
+    "customer": 1158
+  },
+  "previousPeriodTotal": 982,
+  "percentChange": 26.99
+}
+```
+
+### Example
+
+```bash
+curl "https://apiv3.droplinked.com/admin/dashboard/registered-users?startDate=2026-05-01&endDate=2026-05-31" \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>"
+```
+
+## GET /admin/dashboard/verified-shops
+
+Shops that completed KYB **within the window** (i.e., became `KYB_VERIFIED`).
+
+### Response — 200 OK
+
+```json
+{
+  "startDate": "2026-05-01",
+  "endDate": "2026-05-31",
+  "verifiedShops": 42,
+  "breakdown": {
+    "tier1Lending": 12,
+    "tier2Standard": 30
+  },
+  "previousPeriodTotal": 31,
+  "percentChange": 35.48
+}
+```
+
+## GET /admin/dashboard/confirmed-orders
+
+Orders that transitioned to `CONFIRMED` (payment captured + saga complete) within the window.
+
+### Response — 200 OK
+
+```json
+{
+  "startDate": "2026-05-01",
+  "endDate": "2026-05-31",
+  "confirmedOrders": 8842,
+  "breakdown": {
+    "stripe": 4221,
+    "paypal": 2410,
+    "bonum": 612,
+    "telr": 989,
+    "paymob": 401,
+    "coinbase": 209
+  },
+  "previousPeriodTotal": 7123,
+  "percentChange": 24.13
+}
+```
+
+## GET /admin/dashboard/created-products
+
+Products created (any merchant) within the window.
+
+### Response — 200 OK
+
+```json
+{
+  "startDate": "2026-05-01",
+  "endDate": "2026-05-31",
+  "createdProducts": 3210,
+  "previousPeriodTotal": 2890,
+  "percentChange": 11.07
+}
+```
+
+## GET /admin/dashboard/gmv
+
+Network GMV (gross merchandise value) for confirmed orders, expressed in **USD-equivalent**
+using the same FX snapshot table that the unified-transaction projection uses.
+
+### Response — 200 OK
+
+```json
+{
+  "startDate": "2026-05-01",
+  "endDate": "2026-05-31",
+  "gmvUsd": 1842310.55,
+  "currency": "USD",
+  "breakdown": {
+    "stripe": 921105.10,
+    "paypal": 412882.40,
+    "bonum": 152098.02,
+    "telr": 244112.99,
+    "paymob": 81221.77,
+    "coinbase": 30890.27
+  },
+  "previousPeriodGmvUsd": 1493022.19,
+  "percentChange": 23.40
+}
+```
+
+## GET /admin/dashboard/refund-rate
+
+Refund rate = `refundedAmount / confirmedAmount` for the window, computed PSP-by-PSP and
+network-wide.
+
+### Response — 200 OK
+
+```json
+{
+  "startDate": "2026-05-01",
+  "endDate": "2026-05-31",
+  "networkRefundRate": 0.0231,
+  "breakdown": {
+    "stripe": 0.0188,
+    "paypal": 0.0312,
+    "bonum": 0.0049,
+    "telr": 0.0181,
+    "paymob": 0.0240,
+    "coinbase": 0.0102
+  },
+  "previousPeriodRefundRate": 0.0289,
+  "deltaBps": -58
+}
+```
+
+## GET /admin/affiliate/top-merchants
+
+Top merchants by affiliate-driven GMV, limited to `limit` (default 10, max 100).
+
+### Query parameters
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `limit` | integer (1-100) | No | Max rows; defaults to 10 |
+
+### Response — 200 OK
+
+```json
+{
+  "limit": 10,
+  "results": [
+    {
+      "merchantId": "65f8a1b2c3d4e5f6a7b8c9aa",
+      "shopName": "Unstoppable",
+      "affiliateGmvUsd": 41209.55,
+      "affiliateOrderCount": 312
+    }
+  ]
+}
+```
+
+### Example
+
+```bash
+curl "https://apiv3.droplinked.com/admin/affiliate/top-merchants?limit=25" \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>"
+```
+
+## GET /admin/affiliate/top-products
+
+Top products by affiliate-driven units sold.
+
+### Query parameters
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `limit` | integer (1-100) | No | Max rows; defaults to 10 |
+
+### Response — 200 OK
+
+```json
+{
+  "limit": 10,
+  "results": [
+    {
+      "productId": "65f8a1b2c3d4e5f6a7b8c9bb",
+      "title": "Limited-edition hoodie",
+      "merchantId": "65f8a1b2c3d4e5f6a7b8c9aa",
+      "shopName": "Unstoppable",
+      "affiliateUnitsSold": 412,
+      "affiliateGmvUsd": 12399.40
+    }
+  ]
+}
+```
+
+## GET /admin/operations/services
+
+Live operational status of the ECS services that make up the platform — fetched from the
+ECS describe-services API and cached for 60s.
+
+### Response — 200 OK
+
+```json
+{
+  "fetchedAt": "2026-06-04T12:00:00.000Z",
+  "services": [
+    {
+      "name": "apiv3",
+      "cluster": "droplinked-prod",
+      "desiredCount": 4,
+      "runningCount": 4,
+      "rolloutState": "COMPLETED",
+      "taskDefinition": "apiv3:609",
+      "lastDeploymentAt": "2026-06-04T08:14:22.000Z"
+    },
+    {
+      "name": "3rdp",
+      "cluster": "droplinked-prod",
+      "desiredCount": 2,
+      "runningCount": 2,
+      "rolloutState": "COMPLETED",
+      "taskDefinition": "3rdp:351",
+      "lastDeploymentAt": "2026-06-04T09:02:11.000Z"
+    }
+  ]
+}
+```
+
+### When to use
+
+The first thing to hit when an operator says "is the platform up?" — confirms desired vs
+running task count and current task-definition revision per service.
+
+## GET /admin/operations/sentry-summary
+
+Rolling 24-hour Sentry summary, scoped to the org's main projects (apiv3, 3rdp, checkout,
+shop-builder).
+
+### Response — 200 OK
+
+```json
+{
+  "windowHours": 24,
+  "fetchedAt": "2026-06-04T12:00:00.000Z",
+  "projects": [
+    {
+      "slug": "apiv3",
+      "newIssues": 2,
+      "totalEvents": 41,
+      "trend": "down",
+      "topIssue": {
+        "shortId": "APIV3-9C3",
+        "title": "TypeError: Cannot read property 'unifiedRef' of undefined",
+        "count": 12,
+        "lastSeen": "2026-06-04T11:54:00.000Z"
+      }
+    }
+  ]
+}
+```
+
+## GET /admin/operations/deploys/latest
+
+The most recent successful deploy per service, joined with the GitHub PR / commit that
+shipped it. Useful when triaging a regression — "what changed in the last 6 hours?"
+
+### Response — 200 OK
+
+```json
+{
+  "fetchedAt": "2026-06-04T12:00:00.000Z",
+  "deploys": [
+    {
+      "service": "apiv3",
+      "taskDefinition": "apiv3:609",
+      "deployedAt": "2026-06-04T08:14:22.000Z",
+      "commit": "abc1234",
+      "branch": "main",
+      "actor": "github-actions[bot]",
+      "pr": {
+        "number": 1576,
+        "title": "feat(checkout): public payment-intent resolver"
+      }
+    }
+  ]
+}
+```
+
+## Related
+
+- [PSP health](/api-reference/admin/psp-health) — per-PSP breaker + probe state.
+- [Aggregate merchant provisioner](/api-reference/admin/aggregate-provisioner) — bulk merchant onboarding.
+- [Bonum admin](/api-reference/admin/bonum) — Bonum-specific reconcile + config.
+- [Telr admin](/api-reference/admin/telr) — Telr-specific reconcile.

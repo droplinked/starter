@@ -1,0 +1,121 @@
+---
+title: "Telr Admin"
+description: "Operator endpoint for Telr PSP — manual reconciliation for stuck PENDING orders."
+---
+
+The Telr admin surface currently exposes a single operator endpoint: **manual reconciliation**.
+Telr's hosted-checkout sandbox occasionally drops the `txnref` webhook, leaving an order
+in `PENDING` even after the customer completes payment. Reconcile pulls the canonical
+state from Telr and writes through.
+
+<Note>
+All admin endpoints below require:
+
+- **JWT** with `role = SUPER_ADMIN`
+- **`IpAllowlistGuard`** — caller IP must be in the operator allowlist
+- **`GeoBlockGuard`** — caller geo must be permitted
+
+Calls that miss any of the three return `403`.
+</Note>
+
+## When to use
+
+| Situation | Action |
+|-----------|--------|
+| Order is `PENDING` and Telr Dashboard shows the txn as `Authorised` or `Paid` | `POST /admin/telr/reconcile/:transactionId` |
+| Customer reports a successful payment that doesn't show in their order history | First check Telr Dashboard, then reconcile |
+| Bulk catch-up after a webhook outage | Loop the endpoint per stuck order; there is no batch variant — use the unified-transactions reconciliation cron instead |
+
+## POST /admin/telr/reconcile/:transactionId
+
+Manually reconciles a single Telr transaction. Bypasses any env-level reconciliation
+gating (the endpoint is the recovery path of last resort).
+
+Accepts **either**:
+
+- The Telr `cartid` / `txnref` (issued at intent creation)
+- Our internal order `ObjectId` (24-char hex)
+
+The handler resolves the supplied ID to the `TelrTransaction`, calls Telr's
+`/gateway/order.json` to refetch settlement state, then writes through to the order and
+unified-transaction projection.
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, `role = SUPER_ADMIN` |
+| IP allowlist | Caller IP in `ADMIN_IP_ALLOWLIST` |
+| Geo | Country in `ADMIN_GEO_ALLOWLIST` |
+
+### Path parameters
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `transactionId` | string | Yes | Telr `cartid` / `txnref` **or** our order `ObjectId` |
+
+### Request body
+
+Empty — `POST` with no body.
+
+### Response — 200 OK
+
+```json
+{
+  "transactionId": "65f8a1b2c3d4e5f6a7b8c9d0",
+  "telrRef": "TELR-9921-CARTID-44A1B",
+  "merchantId": "65f8a1b2c3d4e5f6a7b8c9aa",
+  "previousStatus": "PENDING",
+  "currentStatus": "PAID",
+  "settledAt": "2026-06-04T12:34:56.789Z",
+  "amount": 12500,
+  "currency": "AED",
+  "reconciledVia": "manual-admin",
+  "orderUpdated": true,
+  "unifiedTransactionUpdated": true
+}
+```
+
+### Error responses
+
+| Status | When |
+|--------|------|
+| `400` | `transactionId` is neither a Telr ref nor a valid order `ObjectId` |
+| `403` | JWT missing / wrong role / IP or geo guard failed |
+| `404` | No `TelrTransaction` matches the supplied ID |
+| `502` | Telr `/gateway/order.json` returned a non-2xx |
+| `503` | Telr API breaker is open |
+
+### Example
+
+```bash
+curl -X POST \
+  https://apiv3.droplinked.com/admin/telr/reconcile/65f8a1b2c3d4e5f6a7b8c9d0 \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>"
+```
+
+<Warning>
+Telr's sandbox at `secure.telr.com/gateway/order.json` (with `ivp_test=1`) **does not
+guarantee webhook delivery**. The reconcile endpoint is the canonical recovery path for
+both sandbox testing and prod webhook outages.
+</Warning>
+
+## Operational context
+
+The reconcile endpoint exists because:
+
+1. Telr's hosted checkout posts back to `txnref` callback URL **after** redirect — if the
+   customer closes the tab before redirect completes, the webhook is the only signal.
+2. Telr's webhook retry policy is short (3 attempts within 1 hour). After that, the order
+   stays `PENDING` indefinitely unless an operator reconciles.
+3. Sandbox runs (`ivp_test=1`) frequently skip webhook delivery; reconcile is the only
+   reliable way to confirm a test settled.
+
+For systemic gaps (e.g., a sustained webhook outage), prefer the unified-transactions
+reconciliation cron over looping this endpoint by hand.
+
+## Related
+
+- [Telr integration guide](/guides/integrations/telr) — payment flow, cohort matrix, sandbox setup.
+- [Bonum admin endpoints](/api-reference/admin/bonum) — same reconcile pattern + per-merchant config CRUD.
+- [PSP health](/api-reference/admin/psp-health) — confirm the Telr breaker is closed before reconciling at scale.

@@ -1,0 +1,173 @@
+---
+title: "PSP Health"
+description: "Per-PSP probe + circuit-breaker status across Stripe, PayPal, Bonum, Telr, Paymob, and Coinbase."
+---
+
+`GET /admin/psp/health` returns the active probe state, circuit-breaker status, and
+probe-enabled flag for every PSP the platform currently supports.
+
+Probes are **OFF by default per PSP** (each has its own env flag, e.g.
+`STRIPE_PROBE_ENABLED`, `BONUM_PROBE_ENABLED`). When a probe is OFF, the response still
+returns the breaker state (which is always tracked) and `probeEnabled: false` so the caller
+knows the probe metrics are stale.
+
+<Note>
+This endpoint requires:
+
+- **JWT** with `role = SUPER_ADMIN`
+- **`IpAllowlistGuard`** — caller IP must be in the operator allowlist
+- **`GeoBlockGuard`** — caller geo must be permitted
+
+Calls that miss any of the three return `403`.
+</Note>
+
+## GET /admin/psp/health
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, `role = SUPER_ADMIN` |
+| IP allowlist | Caller IP in `ADMIN_IP_ALLOWLIST` |
+| Geo | Country in `ADMIN_GEO_ALLOWLIST` |
+
+### Query parameters
+
+None.
+
+### Response — 200 OK
+
+```json
+{
+  "fetchedAt": "2026-06-04T12:00:00.000Z",
+  "psps": {
+    "stripe": {
+      "probeEnabled": true,
+      "probes": {
+        "lastRunAt": "2026-06-04T11:59:30.000Z",
+        "lastLatencyMs": 142,
+        "lastStatus": "ok",
+        "consecutiveFailures": 0,
+        "successRate24h": 0.999
+      },
+      "breaker": {
+        "state": "closed",
+        "tripsInWindow": 0,
+        "lastTripAt": null,
+        "lastResetAt": "2026-06-01T03:00:00.000Z"
+      }
+    },
+    "paypal": {
+      "probeEnabled": false,
+      "probes": null,
+      "breaker": {
+        "state": "closed",
+        "tripsInWindow": 0,
+        "lastTripAt": null,
+        "lastResetAt": null
+      }
+    },
+    "bonum": {
+      "probeEnabled": true,
+      "probes": {
+        "lastRunAt": "2026-06-04T11:59:30.000Z",
+        "lastLatencyMs": 318,
+        "lastStatus": "ok",
+        "consecutiveFailures": 0,
+        "successRate24h": 0.997
+      },
+      "breaker": {
+        "state": "closed",
+        "tripsInWindow": 0,
+        "lastTripAt": null,
+        "lastResetAt": null
+      }
+    },
+    "telr": {
+      "probeEnabled": true,
+      "probes": {
+        "lastRunAt": "2026-06-04T11:59:30.000Z",
+        "lastLatencyMs": 221,
+        "lastStatus": "ok",
+        "consecutiveFailures": 0,
+        "successRate24h": 0.998
+      },
+      "breaker": {
+        "state": "closed",
+        "tripsInWindow": 0,
+        "lastTripAt": null,
+        "lastResetAt": null
+      }
+    },
+    "paymob": {
+      "probeEnabled": false,
+      "probes": null,
+      "breaker": {
+        "state": "closed",
+        "tripsInWindow": 0,
+        "lastTripAt": null,
+        "lastResetAt": null
+      }
+    },
+    "coinbase": {
+      "probeEnabled": false,
+      "probes": null,
+      "breaker": {
+        "state": "closed",
+        "tripsInWindow": 0,
+        "lastTripAt": null,
+        "lastResetAt": null
+      }
+    }
+  }
+}
+```
+
+### Field reference
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `psps.<name>.probeEnabled` | boolean | Whether the periodic synthetic probe is running for this PSP |
+| `psps.<name>.probes.lastRunAt` | ISO-8601 | Last probe execution (null when disabled) |
+| `psps.<name>.probes.lastLatencyMs` | integer | Round-trip latency of the most recent probe |
+| `psps.<name>.probes.lastStatus` | enum (`ok` \| `degraded` \| `failing`) | Probe verdict |
+| `psps.<name>.probes.consecutiveFailures` | integer | Failed probes in a row (resets on success) |
+| `psps.<name>.probes.successRate24h` | float (0-1) | Rolling 24h success rate |
+| `psps.<name>.breaker.state` | enum (`closed` \| `half-open` \| `open`) | Circuit-breaker state |
+| `psps.<name>.breaker.tripsInWindow` | integer | Breaker trips in the current 1h sliding window |
+| `psps.<name>.breaker.lastTripAt` | ISO-8601 \| null | Most recent trip timestamp |
+| `psps.<name>.breaker.lastResetAt` | ISO-8601 \| null | Most recent manual or auto reset |
+
+### Error responses
+
+| Status | When |
+|--------|------|
+| `403` | JWT / IP / geo guard failed |
+
+### Example
+
+```bash
+curl https://apiv3.droplinked.com/admin/psp/health \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>"
+```
+
+### When to use
+
+| Situation | Why this endpoint |
+|-----------|-------------------|
+| Operator pings "is Bonum down?" | Read `psps.bonum.breaker.state` + `psps.bonum.probes.lastStatus` |
+| Before bulk-reconciling Telr | Confirm `psps.telr.breaker.state === "closed"` to avoid wasted calls |
+| Debugging high refund rate | Cross-reference with `GET /admin/dashboard/refund-rate` |
+| Status-page automation | Poll every 60s; raise an incident when any breaker is `open` |
+
+<Note>
+Probes are off by default for low-traffic PSPs (Paymob, Coinbase, PayPal) because the
+synthetic call incurs vendor-side cost or burns sandbox quota. Enable only when the PSP
+is in active use for the operating region.
+</Note>
+
+## Related
+
+- [Network Health KPIs](/api-reference/admin/kpi-dashboard) — orders / GMV / refund rate per PSP.
+- [Bonum admin](/api-reference/admin/bonum) — reconcile + per-merchant config.
+- [Telr admin](/api-reference/admin/telr) — reconcile.

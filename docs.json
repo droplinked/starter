@@ -113,6 +113,22 @@
             ]
           },
           {
+            "group": "Admin API",
+            "pages": [
+              "api-reference/admin/aggregate-provisioner",
+              "api-reference/admin/bonum",
+              "api-reference/admin/kpi-dashboard",
+              "api-reference/admin/psp-health",
+              "api-reference/admin/telr"
+            ]
+          },
+          {
+            "group": "Public API",
+            "pages": [
+              "api-reference/public/checkout-intent-resolver"
+            ]
+          },
+          {
             "group": "AI Endpoints",
             "pages": [
               "api-reference/ai/overview",
