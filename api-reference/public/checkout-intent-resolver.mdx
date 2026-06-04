@@ -1,0 +1,243 @@
+---
+title: "Checkout Payment-Intent Resolver"
+description: "Public endpoint the checkout SPA calls to discover which PSPs to render for a shop — no JWT required."
+---
+
+`GET /checkout/:shopUrl/payment-intent-resolver` is the **public** endpoint the
+`checkout-spa` calls on page load to determine which payment methods to render. It does
+**not** require a JWT — `shopUrl` is the only input, and the response is safe to expose
+publicly because it contains only payment-method *capabilities*, never customer state or
+secrets.
+
+<Note>
+This endpoint is public — **no JWT, no IpAllowlistGuard, no GeoBlockGuard**. It is rate-limited
+per IP via the standard public-endpoint policy (60 req/min/IP). Cached at the CDN for 60s
+keyed on `shopUrl`.
+</Note>
+
+## When to use
+
+Call this once at checkout page load to know which payment renderer to mount. The response
+tells the FE:
+
+- Which **card** processor to use (Stripe / Telr / Paymob / Bonum / null) + the right
+  `publishableKey`
+- Whether to show **PayPal**
+- Whether to show **crypto** (Coinbase Commerce)
+- Whether to show **wallet** (Apple Pay / Google Pay tokens — routed through Bonum or Stripe
+  depending on the merchant config)
+- The merchant's checkout `currency`
+- Resolver `meta` — the source-of-truth chain the resolver walked (useful for debugging
+  "why am I seeing Stripe instead of Telr?")
+
+## Source-of-truth resolution chain
+
+The resolver walks the following sources in order, returning the first non-null match per
+payment method:
+
+<Steps>
+  <Step title="shopPaymentMethodsV2">
+    The merchant's explicit per-shop payment-method config. If a method is **explicitly
+    disabled** here, it short-circuits — later sources cannot re-enable it.
+  </Step>
+  <Step title="Partnership preset (when #1575 lands per-merchant config)">
+    If the merchant belongs to a partnership (e.g. `shopsadiq-telr-gcc`), the preset's
+    default card processor is applied. Currently in active rollout — once #1575 fully lands
+    per-merchant config, this step becomes the canonical source for partnership merchants.
+  </Step>
+  <Step title="KYB cohort">
+    The merchant's `kybCohort` (one of 8 enum values) drives the regional default — e.g.
+    GCC cohorts default to Telr, Mongolia cohorts default to Bonum, US cohorts default to
+    Stripe.
+  </Step>
+  <Step title="PSP breaker">
+    If the candidate PSP's circuit breaker is `open`, the resolver falls through to the
+    next viable option. The skipped PSP is recorded in `meta.skippedByBreaker[]`.
+  </Step>
+  <Step title="publishableKey lookup">
+    Final step — fetches the right publishable key from the per-PSP config (per-merchant
+    override if present, else env default).
+  </Step>
+</Steps>
+
+The full walk is summarized in the `meta` field of the response, so a FE engineer can
+inspect a single response and understand exactly why a given renderer was chosen.
+
+## GET /checkout/:shopUrl/payment-intent-resolver
+
+### Authentication
+
+None — public endpoint. Rate-limited per IP (60 req/min).
+
+### Path parameters
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `shopUrl` | string | Yes | The shop's subdomain (e.g. `unstoppable` for `unstoppable.droplinked.io`) |
+
+### Response — 200 OK
+
+```json
+{
+  "card": {
+    "provider": "telr",
+    "label": "Card",
+    "accountId": "telr-shopsadiq-master",
+    "renderer": "telr-hosted",
+    "publishableKey": null
+  },
+  "paypal": {
+    "enabled": true,
+    "clientId": "AYxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "currency": "AED",
+    "intent": "capture"
+  },
+  "crypto": {
+    "enabled": false,
+    "provider": null
+  },
+  "wallet": {
+    "applePay": true,
+    "googlePay": true,
+    "tokenProvider": "telr"
+  },
+  "currency": "AED",
+  "meta": {
+    "shopId": "65f8a1b2c3d4e5f6a7b8c9bb",
+    "merchantId": "65f8a1b2c3d4e5f6a7b8c9aa",
+    "kybCohort": "A-MoR-Shopsadiq-via-Telr",
+    "partnership": "shopsadiq-telr-gcc",
+    "resolvedAt": "2026-06-04T12:00:00.000Z",
+    "chain": [
+      { "step": "shopPaymentMethodsV2", "result": "no-explicit-override" },
+      { "step": "partnership-preset",   "result": "telr-via-shopsadiq" },
+      { "step": "kyb-cohort",           "result": "skipped (resolved earlier)" },
+      { "step": "psp-breaker",          "result": "telr-closed" },
+      { "step": "publishable-key",      "result": "telr-hosted-no-publishable-key" }
+    ],
+    "skippedByBreaker": []
+  }
+}
+```
+
+### Field reference
+
+#### `card` — primary card renderer (or `null` if no card processor is wired)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | enum (`stripe` \| `telr` \| `paymob` \| `bonum`) | Which PSP processes the card payment |
+| `label` | string | Human-readable label for the renderer ("Card", "Credit/Debit Card") |
+| `accountId` | string | The PSP-side account / terminal / merchant ID — informational only |
+| `renderer` | enum (`stripe-elements` \| `telr-hosted` \| `paymob-iframe` \| `bonum-hosted`) | Which renderer component the FE should mount |
+| `publishableKey` | string \| null | The PSP's client-side publishable key. `null` when the renderer is hosted-only (Telr, Bonum) |
+
+#### `paypal`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | boolean | Whether to show the PayPal button |
+| `clientId` | string \| null | PayPal client ID for the JS SDK |
+| `currency` | string | Three-letter ISO currency for the PayPal order |
+| `intent` | enum (`capture` \| `authorize`) | PayPal intent mode |
+
+#### `crypto`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | boolean | Whether to show the crypto-pay option |
+| `provider` | enum (`coinbase`) \| null | Crypto processor; only `coinbase` is currently wired |
+
+#### `wallet`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `applePay` | boolean | Whether to render Apple Pay |
+| `googlePay` | boolean | Whether to render Google Pay |
+| `tokenProvider` | enum (`stripe` \| `telr` \| `bonum`) | Which PSP consumes the wallet token |
+
+#### `currency`
+
+The merchant's checkout currency. Format three-letter ISO 4217 (`USD`, `AED`, `MNT`, `EUR`).
+
+#### `meta`
+
+Informational only — not consumed by the renderer. Captures `kybCohort`, `partnership`,
+the full resolution `chain`, and any PSPs skipped because their breaker was open.
+
+### Response — 200 OK with no card processor
+
+```json
+{
+  "card": null,
+  "paypal": { "enabled": true, "clientId": "...", "currency": "USD", "intent": "capture" },
+  "crypto": { "enabled": false, "provider": null },
+  "wallet": { "applePay": false, "googlePay": false, "tokenProvider": null },
+  "currency": "USD",
+  "meta": { "...": "..." }
+}
+```
+
+Returned when the merchant has no card processor wired (e.g. PayPal-only merchant, or
+every candidate PSP has an open breaker).
+
+### Error responses
+
+| Status | When |
+|--------|------|
+| `404` | `shopUrl` does not resolve to an active shop |
+| `410` | Shop exists but is suspended / archived |
+| `429` | Rate limit exceeded for caller IP |
+
+### Example
+
+```bash
+curl https://apiv3.droplinked.com/checkout/unstoppable/payment-intent-resolver
+```
+
+### JavaScript example
+
+```javascript
+const res = await fetch(
+  `https://apiv3.droplinked.com/checkout/${shopUrl}/payment-intent-resolver`
+);
+const intent = await res.json();
+
+if (intent.card) {
+  mountCardRenderer({
+    renderer: intent.card.renderer,
+    publishableKey: intent.card.publishableKey,
+  });
+}
+
+if (intent.paypal.enabled) {
+  mountPayPalButton({
+    clientId: intent.paypal.clientId,
+    currency: intent.paypal.currency,
+    intent: intent.paypal.intent,
+  });
+}
+
+if (intent.wallet.applePay || intent.wallet.googlePay) {
+  mountWallet({ tokenProvider: intent.wallet.tokenProvider });
+}
+```
+
+## Debugging
+
+When the FE renders the wrong processor (e.g. Stripe when you expected Telr), inspect the
+`meta.chain` field — it explains exactly which step resolved the card processor. The most
+common reasons for an unexpected provider are:
+
+| Symptom | Likely cause |
+|---------|--------------|
+| Stripe rendered for a GCC merchant | `shopPaymentMethodsV2` has an explicit Stripe override; remove it |
+| `card: null` for a merchant that has Telr wired | Telr breaker is `open` — check [PSP health](/api-reference/admin/psp-health) |
+| `card.publishableKey: null` but renderer is `stripe-elements` | The per-merchant Stripe config is missing the publishable key — re-write via aggregate provisioner |
+
+## Related
+
+- [Bonum admin](/api-reference/admin/bonum) — per-merchant Bonum config (affects `wallet.tokenProvider`).
+- [Telr admin](/api-reference/admin/telr) — Telr reconcile (does not affect resolver output directly, but breaker state does).
+- [PSP health](/api-reference/admin/psp-health) — breaker state for every PSP the resolver consults.
+- [Aggregate merchant provisioner](/api-reference/admin/aggregate-provisioner) — partnership-preset writes that drive resolver defaults.

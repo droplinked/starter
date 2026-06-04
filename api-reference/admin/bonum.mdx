@@ -1,0 +1,297 @@
+---
+title: "Bonum Admin"
+description: "Operator endpoints for Bonum PSP — manual webhook reconcile + per-merchant configuration CRUD."
+---
+
+The Bonum admin surface gives Droplinked operators two capabilities:
+
+1. **Manual reconciliation** — one-shot recovery for orders stuck in `PENDING` because the
+   sandbox (or, occasionally, prod) failed to fire a settlement webhook.
+2. **Per-merchant configuration** — onboard a Bonum-MoR or Bonum-Direct merchant by writing
+   their terminal credentials directly, without an env-flag round-trip.
+
+<Note>
+All admin endpoints below require:
+
+- **JWT** with `role = SUPER_ADMIN`
+- **`IpAllowlistGuard`** — caller IP must be in the operator allowlist
+- **`GeoBlockGuard`** — caller geo must be permitted (GCC/US/EU by default)
+
+Calls that miss any of the three return `403`.
+</Note>
+
+## When to use
+
+| Situation | Endpoint |
+|-----------|----------|
+| Order is `PENDING` in dev because Bonum sandbox did not POST `/bonum/webhook` | `POST /admin/bonum/reconcile/:transactionId` |
+| Tugsjargal (or operator partner) sent new prod creds for a merchant | `PUT /admin/bonum/config/:merchantId` |
+| Need to confirm the active config for a merchant before debugging a failed charge | `GET /admin/bonum/config/:merchantId` |
+| Move a merchant back to env-default fallback | `DELETE /admin/bonum/config/:merchantId` |
+
+## POST /admin/bonum/reconcile/:transactionId
+
+Manually reconciles a single Bonum transaction. Bypasses the
+`BONUM_RECONCILIATION_ENABLED` env flag — this endpoint is intended for stuck-order recovery,
+so the flag check is intentionally skipped.
+
+Accepts **either**:
+
+- The Bonum invoice ID (24-char alphanumeric returned by `POST /orders/v2/create-payment-intent`)
+- Our internal order `ObjectId` (24-char hex)
+
+The handler resolves the supplied ID to the canonical `BonumTransaction`, calls Bonum's
+`/api/payment-log/read` to refetch settlement state, then writes through to the order and
+unified-transaction projection.
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, `role = SUPER_ADMIN` |
+| IP allowlist | Caller IP in `ADMIN_IP_ALLOWLIST` |
+| Geo | Country in `ADMIN_GEO_ALLOWLIST` |
+
+### Path parameters
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `transactionId` | string | Yes | Bonum `invoiceId` **or** our order `ObjectId` |
+
+### Request body
+
+Empty — `POST` with no body.
+
+### Response — 200 OK
+
+```json
+{
+  "transactionId": "65f8a1b2c3d4e5f6a7b8c9d0",
+  "invoiceId": "ABC123DEF456GHI789JKL012",
+  "merchantId": "65f8a1b2c3d4e5f6a7b8c9aa",
+  "previousStatus": "PENDING",
+  "currentStatus": "SETTLED",
+  "settledAt": "2026-06-04T12:34:56.789Z",
+  "amount": 100000,
+  "currency": "MNT",
+  "reconciledVia": "manual-admin",
+  "orderUpdated": true,
+  "unifiedTransactionUpdated": true
+}
+```
+
+### Error responses
+
+| Status | When |
+|--------|------|
+| `400` | `transactionId` is neither a Bonum invoice ID nor a valid order `ObjectId` |
+| `403` | JWT missing / wrong role / IP or geo guard failed |
+| `404` | No `BonumTransaction` matches the supplied ID |
+| `502` | Bonum `/api/payment-log/read` returned a non-2xx |
+| `503` | Bonum API breaker is open |
+
+### Example
+
+```bash
+curl -X POST \
+  https://apiv3.droplinked.com/admin/bonum/reconcile/65f8a1b2c3d4e5f6a7b8c9d0 \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>"
+```
+
+<Warning>
+The Bonum sandbox at `testpsp.bonum.mn` does **not** fire webhooks reliably. The reconcile
+endpoint is the canonical recovery path for sandbox testing — keep its URL bookmarked next
+to your Bonum sandbox test script.
+</Warning>
+
+## PUT /admin/bonum/config/:merchantId
+
+Upserts the per-merchant Bonum configuration. When a `BonumConfig` row exists for a
+merchant, the `BonumPaymentStrategy` uses it instead of the global env defaults.
+
+`checksumKey` is **encrypted at rest** with the platform KMS key. The plaintext value is
+required on write — it cannot be recovered after storage. `mode` and `apiBaseUrl` are
+validated **together**: `mode = production` requires a production-origin `apiBaseUrl`
+(no `testpsp.*` host); `mode = sandbox` rejects production hosts.
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, `role = SUPER_ADMIN` |
+| IP allowlist | Caller IP in `ADMIN_IP_ALLOWLIST` |
+| Geo | Country in `ADMIN_GEO_ALLOWLIST` |
+
+### Path parameters
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `merchantId` | string (`ObjectId`) | Yes | Droplinked merchant ID |
+
+### Request body
+
+```json
+{
+  "terminalId": "TERM-MN-0042",
+  "checksumKey": "raw-checksum-key-from-bonum",
+  "apiBaseUrl": "https://psp.bonum.mn",
+  "mode": "production"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `terminalId` | string | Yes | Bonum terminal identifier issued by Bonum / MCredit |
+| `checksumKey` | string | Yes | Plaintext checksum key — encrypted server-side before persist |
+| `apiBaseUrl` | string (URL) | Yes | `https://testpsp.bonum.mn` for sandbox, `https://psp.bonum.mn` for prod |
+| `mode` | enum (`sandbox` \| `production`) | Yes | Must match the host class of `apiBaseUrl` |
+
+### Response — 200 OK
+
+```json
+{
+  "merchantId": "65f8a1b2c3d4e5f6a7b8c9aa",
+  "terminalId": "TERM-MN-0042",
+  "checksumKey": "***",
+  "apiBaseUrl": "https://psp.bonum.mn",
+  "mode": "production",
+  "createdAt": "2026-06-04T10:00:00.000Z",
+  "updatedAt": "2026-06-04T10:00:00.000Z"
+}
+```
+
+### Error responses
+
+| Status | When |
+|--------|------|
+| `400` | Missing field; `mode`/`apiBaseUrl` mismatch (e.g. `mode=production` + `testpsp.bonum.mn`) |
+| `403` | JWT / IP / geo guard failed |
+| `404` | Merchant does not exist |
+
+### Operator playbook — "Tugsjargal sent prod creds, how do I onboard them?"
+
+<Steps>
+  <Step title="Confirm the receipt">
+    Verify the merchantId and terminalId in 1Password / Slack DM with Tugsjargal. Do **not**
+    accept creds via email plaintext.
+  </Step>
+  <Step title="Write the config">
+    ```bash
+    curl -X PUT \
+      https://apiv3.droplinked.com/admin/bonum/config/<merchantId> \
+      -H "Authorization: Bearer <SUPER_ADMIN_JWT>" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "terminalId": "<terminalId>",
+        "checksumKey": "<plaintext-checksumKey>",
+        "apiBaseUrl": "https://psp.bonum.mn",
+        "mode": "production"
+      }'
+    ```
+  </Step>
+  <Step title="Verify storage">
+    `GET /admin/bonum/config/<merchantId>` — confirm `mode=production`, `apiBaseUrl=https://psp.bonum.mn`,
+    and `checksumKey=***`. No operator action elsewhere is required; the next intent created
+    for this merchant will route through the prod Bonum endpoint with the new terminal.
+  </Step>
+  <Step title="Smoke test">
+    Create a 100 MNT test intent for the merchant, complete the payment via Bonum, confirm
+    via `GET /admin/bonum/config/<merchantId>` does not change, and check the order moves
+    to `SETTLED` within one webhook cycle.
+  </Step>
+</Steps>
+
+## GET /admin/bonum/config/:merchantId
+
+Reads the per-merchant Bonum configuration. `checksumKey` is **always** masked to the
+literal string `"***"` in the response — it is never returned in plaintext.
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, `role = SUPER_ADMIN` |
+| IP allowlist | Caller IP in `ADMIN_IP_ALLOWLIST` |
+| Geo | Country in `ADMIN_GEO_ALLOWLIST` |
+
+### Path parameters
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `merchantId` | string (`ObjectId`) | Yes | Droplinked merchant ID |
+
+### Response — 200 OK
+
+```json
+{
+  "merchantId": "65f8a1b2c3d4e5f6a7b8c9aa",
+  "terminalId": "TERM-MN-0042",
+  "checksumKey": "***",
+  "apiBaseUrl": "https://psp.bonum.mn",
+  "mode": "production",
+  "createdAt": "2026-06-04T10:00:00.000Z",
+  "updatedAt": "2026-06-04T10:00:00.000Z"
+}
+```
+
+### Response — 404 Not Found
+
+Returned when no `BonumConfig` row exists for the merchant. Means the merchant is on
+**env defaults** (`BONUM_API_BASE_URL`, `BONUM_MERCHANT_KEY`, etc.).
+
+### Example
+
+```bash
+curl https://apiv3.droplinked.com/admin/bonum/config/65f8a1b2c3d4e5f6a7b8c9aa \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>"
+```
+
+## DELETE /admin/bonum/config/:merchantId
+
+Removes the per-merchant Bonum configuration. From the next intent onward, the merchant
+falls back to env defaults.
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, `role = SUPER_ADMIN` |
+| IP allowlist | Caller IP in `ADMIN_IP_ALLOWLIST` |
+| Geo | Country in `ADMIN_GEO_ALLOWLIST` |
+
+### Path parameters
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `merchantId` | string (`ObjectId`) | Yes | Droplinked merchant ID |
+
+### Response — 200 OK
+
+```json
+{
+  "merchantId": "65f8a1b2c3d4e5f6a7b8c9aa",
+  "deleted": true,
+  "fallback": "env"
+}
+```
+
+### Error responses
+
+| Status | When |
+|--------|------|
+| `403` | JWT / IP / geo guard failed |
+| `404` | No `BonumConfig` row to delete (idempotent caller should treat as success) |
+
+### Example
+
+```bash
+curl -X DELETE \
+  https://apiv3.droplinked.com/admin/bonum/config/65f8a1b2c3d4e5f6a7b8c9aa \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>"
+```
+
+## Related
+
+- [Bonum integration guide](/guides/integrations/bonum) — payment flow, prefix registry, sandbox test plan.
+- [Telr admin endpoints](/api-reference/admin/telr) — same reconcile pattern for the GCC PSP.
+- [Aggregate merchant provisioner](/api-reference/admin/aggregate-provisioner) — bulk provisioning that may include Bonum config.
