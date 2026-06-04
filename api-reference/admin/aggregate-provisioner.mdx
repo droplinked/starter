@@ -1,0 +1,244 @@
+---
+title: "Aggregate Merchant Provisioner"
+description: "Single + bulk merchant provisioning with partnership-PSP preset routing — and a dry-run preview."
+---
+
+The aggregate merchant provisioner accepts merchant payloads, applies the
+**partnership-PSP preset** for the merchant's region / cohort, and persists the merchant
+with PSP configuration already wired. This eliminates the historical 3-step dance
+(create merchant → write PSP config → flip KYB flag) that operators used to walk by hand.
+
+<Note>
+All admin endpoints below require:
+
+- **JWT** with `role = SUPER_ADMIN`
+- **`IpAllowlistGuard`** — caller IP must be in the operator allowlist
+- **`GeoBlockGuard`** — caller geo must be permitted
+
+Calls that miss any of the three return `403`.
+</Note>
+
+## Partnership-PSP preset
+
+Each merchant payload includes a `partnership` field. The provisioner reads the partnership
+registry and applies the matching preset:
+
+| Partnership | PSPs wired | Default MoR |
+|-------------|------------|-------------|
+| `shopsadiq-telr-gcc` | Telr | Shopsadiq |
+| `mcredit-bonum-mn` | Bonum | MCredit |
+| `stripe-direct-us` | Stripe | Merchant |
+| `paypal-direct-eu` | PayPal | Merchant |
+| `aggregator-shopsadiq` | Stripe + PayPal + Telr | Shopsadiq |
+| `aggregator-droplinked` | Stripe + PayPal | Droplinked |
+
+If `partnership` is omitted, the provisioner falls back to the region default
+(documented in the PSP × MoR cohort taxonomy).
+
+## POST /admin/aggregate-merchant-provisioner/single
+
+Provisions one merchant.
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, `role = SUPER_ADMIN` |
+| IP allowlist | Caller IP in `ADMIN_IP_ALLOWLIST` |
+| Geo | Country in `ADMIN_GEO_ALLOWLIST` |
+
+### Request body
+
+```json
+{
+  "email": "founder@unstoppable.example",
+  "shopName": "Unstoppable",
+  "region": "GCC",
+  "partnership": "shopsadiq-telr-gcc",
+  "kybCohort": "A-MoR-Shopsadiq-via-Telr",
+  "contact": {
+    "fullName": "Test Operator",
+    "phone": "+9715XXXXXXXX"
+  },
+  "options": {
+    "skipKybVerification": false,
+    "seedDemoProducts": true
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | Merchant primary email; becomes the JWT `sub` for the owner |
+| `shopName` | string | Yes | Storefront name; subdomain auto-generated from this |
+| `region` | enum (`US` \| `EU` \| `GCC` \| `MN` \| `OTHER`) | Yes | Drives PSP defaults and FX rounding |
+| `partnership` | string | No | Partnership preset key; falls back to region default |
+| `kybCohort` | string | No | One of the 8 cohort enums; defaults to `A-Connect` |
+| `contact.fullName` | string | Yes | Real name of the merchant contact |
+| `contact.phone` | string | No | E.164 phone |
+| `options.skipKybVerification` | boolean | No | Defaults `false`; only set `true` for internal test merchants |
+| `options.seedDemoProducts` | boolean | No | Defaults `false`; seeds 3 demo SKUs for walkthrough demos |
+
+### Response — 201 Created
+
+```json
+{
+  "merchantId": "65f8a1b2c3d4e5f6a7b8c9aa",
+  "shopId": "65f8a1b2c3d4e5f6a7b8c9bb",
+  "subdomain": "unstoppable",
+  "ownerUserId": "65f8a1b2c3d4e5f6a7b8c9cc",
+  "partnership": "shopsadiq-telr-gcc",
+  "kybCohort": "A-MoR-Shopsadiq-via-Telr",
+  "pspsProvisioned": ["telr"],
+  "kybStatus": "PENDING",
+  "seededProducts": 3,
+  "invitationEmailSent": true
+}
+```
+
+### Error responses
+
+| Status | When |
+|--------|------|
+| `400` | Missing/invalid field; unknown `partnership` key; unknown `kybCohort` |
+| `403` | JWT / IP / geo guard failed |
+| `409` | A merchant already exists at this email or subdomain |
+
+### Example
+
+```bash
+curl -X POST \
+  https://apiv3.droplinked.com/admin/aggregate-merchant-provisioner/single \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "founder@unstoppable.example",
+    "shopName": "Unstoppable",
+    "region": "GCC",
+    "partnership": "shopsadiq-telr-gcc",
+    "kybCohort": "A-MoR-Shopsadiq-via-Telr",
+    "contact": { "fullName": "Test Operator" }
+  }'
+```
+
+## POST /admin/aggregate-merchant-provisioner/bulk
+
+Provisions an array of merchants. Each entry is attempted independently — a failure on one
+does **not** abort the batch. The response partitions results into `successful` and
+`failed`.
+
+### Request body
+
+```json
+{
+  "merchants": [
+    { "email": "a@example.com", "shopName": "A", "region": "GCC", "partnership": "shopsadiq-telr-gcc", "contact": { "fullName": "A" } },
+    { "email": "b@example.com", "shopName": "B", "region": "MN", "partnership": "mcredit-bonum-mn",   "contact": { "fullName": "B" } }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `merchants` | array (1-100) | Yes | Array of single-provisioner payloads |
+
+### Response — 207 Multi-Status
+
+```json
+{
+  "submitted": 2,
+  "successful": [
+    {
+      "index": 0,
+      "email": "a@example.com",
+      "merchantId": "65f8a1b2c3d4e5f6a7b8c9aa",
+      "subdomain": "a"
+    }
+  ],
+  "failed": [
+    {
+      "index": 1,
+      "email": "b@example.com",
+      "error": "Subdomain 'b' already taken",
+      "code": "SUBDOMAIN_CONFLICT"
+    }
+  ]
+}
+```
+
+### Error responses
+
+| Status | When |
+|--------|------|
+| `400` | Array empty, > 100 entries, or every entry is structurally invalid |
+| `403` | JWT / IP / geo guard failed |
+
+The batch HTTP status is `207 Multi-Status` whenever at least one entry succeeds and at
+least one fails; `201` when all succeed; `400` when all fail validation.
+
+## GET /admin/aggregate-merchant-provisioner/preview
+
+Dry-run: validates payloads and resolves partnership presets, but **does not write**.
+Useful for "what would happen if I bulk-provisioned this CSV?" before committing.
+
+Accepts the same body shape as the bulk endpoint, sent via `GET` with the payload in the
+request body (Mintlify renders this — the backend reads JSON from the request body on this
+route specifically).
+
+### Response — 200 OK
+
+```json
+{
+  "submitted": 2,
+  "wouldSucceed": [
+    {
+      "index": 0,
+      "email": "a@example.com",
+      "subdomain": "a",
+      "pspsThatWouldProvision": ["telr"],
+      "kybCohortResolved": "A-MoR-Shopsadiq-via-Telr"
+    }
+  ],
+  "wouldFail": [
+    {
+      "index": 1,
+      "email": "b@example.com",
+      "error": "Subdomain 'b' already taken",
+      "code": "SUBDOMAIN_CONFLICT"
+    }
+  ],
+  "warnings": [
+    "Merchant 'a@example.com' has no `kybCohort` — would default to `A-Connect` based on region GCC"
+  ]
+}
+```
+
+### Example
+
+```bash
+curl -X GET \
+  https://apiv3.droplinked.com/admin/aggregate-merchant-provisioner/preview \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "merchants": [
+      { "email": "a@example.com", "shopName": "A", "region": "GCC", "contact": { "fullName": "A" } }
+    ]
+  }'
+```
+
+## Operational notes
+
+- **Idempotency:** the provisioner is **not** idempotent. Re-submitting the same email
+  returns `409`. Use the preview endpoint to scrub a CSV before running bulk.
+- **Email invitations:** the owner-user invitation email is sent **synchronously** on
+  successful provision. If your operator workflow sends a custom welcome email, set
+  `options.skipInvitationEmail` (boolean, default `false`).
+- **Cohort routing:** the `kybCohort` field flows downstream into the lending eligibility,
+  cost-comparator, and affiliate-commission projections. Choose intentionally.
+
+## Related
+
+- [Bonum admin](/api-reference/admin/bonum) — per-merchant Bonum config (set after provisioning when partnership = `mcredit-bonum-mn`).
+- [Telr admin](/api-reference/admin/telr) — Telr reconcile for partnerships that wire Telr.
+- [Network Health KPIs](/api-reference/admin/kpi-dashboard) — track verified-shops + GMV growth after bulk provisioning.
