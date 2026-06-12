@@ -1,0 +1,133 @@
+---
+title: "Methodology Registry Lookup"
+description: "Resolve the `methodologyHash` pinned to a Schema B credit-risk attestation to its source document — third-party verifier flow."
+---
+
+`GET /v2/methodologies/:lenderId/active` and `GET /v2/methodologies/:lenderId/:methodologyHash` resolve the per-lender underwriting methodology document linked from a Schema B attestation. Used by regulators and third-party verifiers to independently audit a lender's underwriting basis.
+
+<Note>
+These endpoints are **public** — no JWT, no IP-allowlist. They return the `documentUrl` so a verifier can download the source PDF/markdown and re-hash it locally; any divergence flags a compromised methodology.
+</Note>
+
+## Why this exists
+
+A Schema B credit-risk attestation pins `methodologyHash` so a verifier can cryptographically prove which underwriting scorecard a lender used at attestation time. The hash alone is opaque — these endpoints resolve it back to the source document + version + lifecycle status, completing the verifier flow.
+
+Combined with the [audit-trail trinity](/concepts/trust-fabric), this means:
+
+1. **Schema B attestation** carries `methodologyHash` (on-chain, immutable)
+2. **`GET /v2/methodologies/:lenderId/:hash`** resolves it to `documentUrl` + `version` + lifecycle status
+3. **`SUPERSEDED` / `REVOKED`** status indicates the methodology is no longer in force — verifier-side policy decides whether to honor historical attestations
+4. **Operator-side audit log** (SUPER_ADMIN) preserves the full lifecycle for regulator review
+
+## Endpoint 1 — current ACTIVE methodology
+
+```
+GET /v2/methodologies/:lenderId/active
+```
+
+Returns the methodology document currently in force for new Schema B mints by this lender. Returns `{ found: false }` when the lender has never registered a methodology (callers should fall back to the v0 well-known constant).
+
+### Request
+
+| Param | Type | Notes |
+|---|---|---|
+| `lenderId` | string | Kebab-case, matches `^[a-z0-9_-]{3,64}$` |
+
+### Response (200, found)
+
+```json
+{
+  "found": true,
+  "lenderId": "crediblex-uae",
+  "version": "2.1.0",
+  "methodologyHash": "1f8b3c…",
+  "documentUrl": "https://crediblex.example.com/methodology/v2.1.0.pdf",
+  "displayName": "CredibleX UAE — SME Working-Capital Methodology v2.1",
+  "status": "ACTIVE",
+  "effectiveAt": "2026-05-01T00:00:00Z"
+}
+```
+
+### Response (200, not registered)
+
+```json
+{ "found": false, "lenderId": "some-lender" }
+```
+
+## Endpoint 2 — lookup by hash (verifier flow)
+
+```
+GET /v2/methodologies/:lenderId/:methodologyHash
+```
+
+The canonical verifier path. Given a `lenderId` + `methodologyHash` parsed from an on-chain Schema B attestation, resolve it back to the source document.
+
+### Request
+
+| Param | Type | Notes |
+|---|---|---|
+| `lenderId` | string | Kebab-case |
+| `methodologyHash` | string | 64-char lowercase hex (SHA-256 of the source document) |
+
+### Response (200, found)
+
+```json
+{
+  "found": true,
+  "lenderId": "crediblex-uae",
+  "version": "1.0.0",
+  "methodologyHash": "a91d…",
+  "documentUrl": "https://crediblex.example.com/methodology/v1.0.0.pdf",
+  "displayName": "CredibleX UAE — SME Working-Capital Methodology v1.0",
+  "status": "SUPERSEDED",
+  "effectiveAt": "2026-02-01T00:00:00Z",
+  "supersededAt": "2026-05-01T00:00:00Z"
+}
+```
+
+`status` values: `ACTIVE` | `SUPERSEDED` | `REVOKED`. A verifier seeing `SUPERSEDED` on an attestation issued **before** `supersededAt` should still honor it (the methodology was in force at mint time); seeing `REVOKED` is a red flag and verifier-side policy decides whether to honor.
+
+### Response (200, not found)
+
+```json
+{
+  "found": false,
+  "lenderId": "crediblex-uae",
+  "methodologyHash": "00…"
+}
+```
+
+## Verifier integrity check
+
+A complete verifier flow:
+
+```bash
+# 1. Read the on-chain attestation
+LENDER=$(curl -s https://apiv3.droplinked.com/v2/attestations/credit-risk/$MERCHANT \
+  | jq -r '.attestation.lenderId')
+HASH=$(curl -s https://apiv3.droplinked.com/v2/attestations/credit-risk/$MERCHANT \
+  | jq -r '.attestation.methodologyHash')
+
+# 2. Resolve methodology + download source
+DOC_URL=$(curl -s https://apiv3.droplinked.com/v2/methodologies/$LENDER/$HASH \
+  | jq -r '.documentUrl')
+curl -sLo /tmp/methodology.pdf "$DOC_URL"
+
+# 3. Re-hash locally and compare
+LOCAL=$(shasum -a 256 /tmp/methodology.pdf | awk '{print $1}')
+[ "$LOCAL" = "$HASH" ] && echo "verified" || echo "TAMPERED"
+```
+
+If the local hash diverges from the on-chain hash, the methodology document at `documentUrl` was modified after the attestation was issued — flag and refuse.
+
+## Cross-reference
+
+- [Trust Fabric overview](/concepts/trust-fabric) — where MethodologyRegistry fits in the 4-axis trust fabric
+- [Forensic chain workflow](/concepts/forensic-chain) — end-to-end verifier walkthrough
+- [Lender Registry Lookup](/api-reference/public/lender-registry) — resolve the `lenderId` to its public profile
+- [MCP `verify_methodology` tool](/agentic/lender-trinity-mcp-tools) — agent-runtime wrapper
+
+## Discovery
+
+The MCP server advertises this endpoint via the discovery doc at [`mcp.droplinked.com/.well-known/mcp.json`](https://mcp.droplinked.com/.well-known/mcp.json) under the `verify_methodology` tool, so consumer agents (ChatGPT, Claude, OpenAI Agents SDK) reach it without any prior knowledge of the path scheme.

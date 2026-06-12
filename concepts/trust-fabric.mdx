@@ -22,7 +22,7 @@ Each axis is anchored by an operator-curated registry. A schema's on-chain attes
 |---|---|---|
 | **`LenderRegistry`** | Schema B + Schema C issuers | `GET /v2/lenders/:lenderId` |
 | **`ServiceProviderRegistry`** | Schema D issuers (WMS/3PL partners) | `GET /admin/service-providers/:id` (admin) |
-| **`MethodologyRegistry`** | Per-lender underwriting methodology hash linked from Schema B | — (linked at mint time, surfaced in attestation envelopes) |
+| **`MethodologyRegistry`** | Per-lender underwriting methodology hash linked from Schema B | `GET /v2/methodologies/:lenderId/active` and `GET /v2/methodologies/:lenderId/:hash` |
 
 ## Issuer-state mirroring
 
@@ -72,6 +72,7 @@ Consumer agents (ChatGPT, Claude, OpenAI Agents SDK) consume the trust fabric vi
 | `verify_cross_attestation` | Schema D read |
 | `get_trust_dossier` | Multi-axis composite |
 | `verify_lender` | Lender registry lookup |
+| `verify_methodology` | Methodology registry lookup by `(lenderId, hash)` |
 | `recommend_lender` | Lender routing |
 | `recommend_service_provider` | Service-provider routing |
 
