@@ -1,0 +1,96 @@
+---
+title: "Lender Trinity MCP Tools"
+description: "3 new MCP tools wrapping the LenderRegistry trinity public surface: verify_lender, recommend_lender, recommend_service_provider."
+---
+
+Three agent-callable MCP tools wrap the [LenderRegistry trinity](/concepts/trust-fabric) public surface, letting consumer agents resolve credit-risk attestations to their issuer + recommend lenders/service providers for a given merchant — without operator handholding.
+
+## `verify_lender`
+
+Resolves a `lenderId` (referenced in a Schema B attestation) to the lender's public profile + signing wallet.
+
+```typescript
+// Agent call
+const profile = await mcp.callTool('verify_lender', { lenderId: 'crediblex-uae' });
+```
+
+```json
+{
+  "found": true,
+  "lenderId": "crediblex-uae",
+  "displayName": "CredibleX (UAE)",
+  "archetype": "fsra-licensed",
+  "jurisdiction": "AE",
+  "status": "ACTIVE",
+  "signingWallet": "0x...",
+  "regulatorReference": "FSRA-12345",
+  "issuedAttestationCount": 42,
+  "lastAttestationAt": "2026-06-11T22:00:00Z"
+}
+```
+
+**Use case**: A consumer agent has parsed a Schema B attestation and needs to display the issuing lender's human-readable name + regulator reference. Forensic cross-check between `signingWallet` and the on-chain `issuerWallet` detects schema impersonation.
+
+Wraps: [`GET /v2/lenders/:lenderId`](/api-reference/public/lender-registry).
+
+## `recommend_lender`
+
+"Which lenders should this merchant approach?" — given a jurisdiction (+ optional archetype filter), returns the ordered list of ACTIVE lenders by exact-match-first, GLOBAL-fallback-second, track-record sort within group.
+
+```typescript
+const recs = await mcp.callTool('recommend_lender', {
+  jurisdiction: 'AE',
+  archetype: 'fsra-licensed',
+  limit: 5,
+});
+```
+
+```json
+{
+  "jurisdiction": "AE",
+  "count": 2,
+  "recommendations": [
+    { "lenderId": "crediblex-uae", "matchKind": "exact-jurisdiction", "rank": 1 },
+    { "lenderId": "valinor-vault", "matchKind": "global-fallback", "rank": 2 }
+  ]
+}
+```
+
+**Use case**: Merchant onboarding flow asking "which lenders should I apply to?" — agent surfaces exact-jurisdiction matches first (e.g. CredibleX for UAE merchants) with `GLOBAL` DeFi-vault fallback (e.g. Valinor) ranked second.
+
+Wraps: [`GET /v2/lender-routing/recommend`](/api-reference/public/lender-routing).
+
+## `recommend_service_provider`
+
+"Which WMS partner should this merchant route to?" — same pattern as `recommend_lender` but for InventoryOS partners (WMS/3PL).
+
+```typescript
+const recs = await mcp.callTool('recommend_service_provider', {
+  archetype: 'stord',
+  limit: 5,
+});
+```
+
+```json
+{
+  "archetype": "stord",
+  "count": 1,
+  "recommendations": [
+    {
+      "providerId": "stord-us-east-1",
+      "displayName": "Stor'd US-East",
+      "successfulIngestionCount": 47,
+      "rank": 1
+    }
+  ]
+}
+```
+
+**Use case**: Merchant fulfillment onboarding asking "which 3PL should I integrate with" — agent ranks by track record (successful ingestion count + recency).
+
+Wraps: [`GET /v2/service-provider-routing/recommend`](/api-reference/public/service-provider-routing).
+
+## Related
+
+- [Trust Fabric overview](/concepts/trust-fabric) — full architecture
+- [MCP Server](/agentic/mcp-server) — connection + auth

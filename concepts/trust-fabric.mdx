@@ -1,0 +1,80 @@
+---
+title: "Trust Fabric (EAS Schema v2)"
+description: "Droplinked's 4-axis on-chain trust fabric — Schemas A/B/C/D + the LenderRegistry/ServiceProviderRegistry/MethodologyRegistry trinity that anchors them."
+---
+
+Droplinked publishes a **4-axis trust fabric** on the [Ethereum Attestation Service](https://attest.org) (currently on Base Sepolia testnet; mainnet pending). Every claim the platform makes about a merchant — verified brand, credit-risk underwriting, repayment performance, peer trust — is anchored to an on-chain attestation that any verifier can independently audit on [easscan.org](https://easscan.org).
+
+## The 4 axes
+
+| Axis | Schema | What it proves | Verifier endpoint |
+|---|---|---|---|
+| **A — Brand** | `BrandAttestation` | This brand slug controls these on-chain credentials. KYB-tier signal. | `GET /v2/attestations/brand/:slug` |
+| **B — Credit-risk** | `CreditRiskAttestation` | A licensed lender has underwritten this merchant for a credit-line up to N. | `GET /v2/attestations/credit-risk/:merchantId` |
+| **C — Repayment-history** | `RepaymentHistoryAttestation` | Append-only settlement record per lender. Drives tier upgrades. | `GET /v2/attestations/repayment-history/:merchantId` |
+| **D — Cross** | `CrossAttestation` | Peer trust — any entity attests any other with a 0-100 score + basis. | `GET /v2/attestations/cross/{subject\|issuer}/:rootUid` |
+
+## The registry trinity
+
+Each axis is anchored by an operator-curated registry. A schema's on-chain attestation is only authoritative if its issuer is registered + currently `ACTIVE`.
+
+| Registry | Anchors | Public lookup |
+|---|---|---|
+| **`LenderRegistry`** | Schema B + Schema C issuers | `GET /v2/lenders/:lenderId` |
+| **`ServiceProviderRegistry`** | Schema D issuers (WMS/3PL partners) | `GET /admin/service-providers/:id` (admin) |
+| **`MethodologyRegistry`** | Per-lender underwriting methodology hash linked from Schema B | — (linked at mint time, surfaced in attestation envelopes) |
+
+## Issuer-state mirroring
+
+The reconciler cron sweeps every 6 hours and **mirrors the registry status** onto every ACTIVE attestation:
+
+- **Schema B** attestations carry `lenderCurrentStatus` + `lenderCurrentStatusAt`
+- **Schema D** attestations carry `attestorCurrentStatus` + `attestorCurrentStatusAt`
+
+The reconciler **never auto-revokes** an attestation. It only mirrors registry state. A verifier sees:
+
+```json
+{
+  "status": "ACTIVE",                    // on-chain status (lifecycle)
+  "lenderCurrentStatus": "SUSPENDED",    // registry status as of last sweep
+  "lenderCurrentStatusAt": "2026-06-12T01:00:00Z"
+}
+```
+
+…and decides whether to honor the attestation per its own policy. **Verifier-side policy is load-bearing**: a Schema B attestation that's still on-chain ACTIVE but from a SUSPENDED lender may or may not be honored depending on context.
+
+## Routing surfaces
+
+For each registry, there's a **read-only recommendation endpoint** that returns the ordered list of ACTIVE issuers most-likely to serve a given merchant:
+
+- `GET /v2/lender-routing/recommend?jurisdiction=AE` — exact-jurisdiction first, `GLOBAL` fallback
+- `GET /v2/service-provider-routing/recommend?archetype=stord` — track-record sort
+
+These endpoints **route nothing themselves** — the live application/mint paths stay gated on `isActive` at write time. Routing is a recommendation surface for portals + agents.
+
+## Composite reads
+
+For high-leverage agent flows (the most common being "should I underwrite this merchant"), a **composite endpoint** bundles multiple axes into one envelope:
+
+- [`GET /v2/underwriting-signals/:merchantId`](/api-reference/public/underwriting-signals) — Schema B latest-per-lender + Schema C merchant-wide rollup + CreditTier upgrade preview + `summary.anchorTier` + `summary.reliabilityScore`
+
+Cuts 3-4 round trips to 1 for the load-bearing lender-agent decision.
+
+## MCP tool surface
+
+Consumer agents (ChatGPT, Claude, OpenAI Agents SDK) consume the trust fabric via the [droplinked-mcp server](/agentic/mcp-server):
+
+| Tool | Wraps |
+|---|---|
+| `verify_brand_attestation` | Schema A read |
+| `verify_credit_risk` | Schema B read |
+| `verify_repayment_history` | Schema C read |
+| `verify_cross_attestation` | Schema D read |
+| `get_trust_dossier` | Multi-axis composite |
+| `verify_lender` | Lender registry lookup |
+| `recommend_lender` | Lender routing |
+| `recommend_service_provider` | Service-provider routing |
+
+## Mainnet
+
+Currently on Base Sepolia testnet. Mainnet flip gated on the KMS-backed signer migration (operator-side runbook). All `/v2/attestations/*` endpoints return the active chain in their response so consumers can verify the on-chain receipt on the right [easscan domain](https://easscan.org).

@@ -45,7 +45,8 @@
           {
             "group": "Core Concepts",
             "pages": [
-              "concepts/platform-model"
+              "concepts/platform-model",
+              "concepts/trust-fabric"
             ]
           },
           {
@@ -129,6 +130,16 @@
             ]
           },
           {
+            "group": "Trust Fabric API",
+            "pages": [
+              "api-reference/public/lender-registry",
+              "api-reference/public/lender-routing",
+              "api-reference/public/service-provider-routing",
+              "api-reference/public/upgrade-preview",
+              "api-reference/public/underwriting-signals"
+            ]
+          },
+          {
             "group": "AI Endpoints",
             "pages": [
               "api-reference/ai/overview",
@@ -161,6 +172,7 @@
             "pages": [
               "agentic/overview",
               "agentic/mcp-server",
+              "agentic/lender-trinity-mcp-tools",
               "agentic/acp-feed",
               "agentic/connect-your-store"
             ]

@@ -1,0 +1,50 @@
+---
+title: "Service-Provider Routing Recommendation"
+description: "WMS/3PL partner recommendation — returns the ordered list of ACTIVE service providers by archetype, sorted by track-record (successfulIngestionCount desc, ties broken by most-recent success)."
+---
+
+`GET /v2/service-provider-routing/recommend` is the InventoryOS counterpart to lender routing — it returns the ordered list of ACTIVE WMS/3PL providers a merchant should route an inventory ingestion / fulfillment task to.
+
+<Note>
+This endpoint is **public** and **read-only**. Routes nothing — the actual ingestion path stays gated on `ServiceProviderRegistry.isActive` + the HMAC webhook guard.
+</Note>
+
+## Query parameters
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `archetype` | enum | (all) | `stord` \| `flexport` \| `shipbob` \| `generic` |
+| `limit` | int | `10` | Clamped to `[1, 50]` |
+
+## Ranking
+
+1. **`successfulIngestionCount` desc** — proven track record first
+2. **Ties broken by most-recent successful ingestion** (`lastSuccessfulIngestionAt`)
+
+## Example
+
+```bash
+curl 'https://apiv3.droplinked.com/v2/service-provider-routing/recommend?archetype=stord&limit=5'
+```
+
+```json
+{
+  "archetype": "stord",
+  "count": 1,
+  "recommendations": [
+    {
+      "providerId": "stord-us-east-1",
+      "displayName": "Stor'd US-East",
+      "archetype": "stord",
+      "successfulIngestionCount": 47,
+      "lastSuccessfulIngestionAt": "2026-06-11T14:30:00Z",
+      "rank": 1
+    }
+  ]
+}
+```
+
+## Related
+
+- [Lender Routing Recommendation](/api-reference/public/lender-routing) — same pattern for lenders
+- MCP tool: `recommend_service_provider` (wraps this endpoint)

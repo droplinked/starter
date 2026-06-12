@@ -1,0 +1,73 @@
+---
+title: "Lender Routing Recommendation"
+description: "Given a merchant's jurisdiction, returns the ordered list of ACTIVE lenders most-likely to underwrite. Exact-jurisdiction first, GLOBAL fallback second, track-record sort within group."
+---
+
+`GET /v2/lender-routing/recommend` returns the ordered list of ACTIVE lenders most-likely to underwrite a merchant in the given jurisdiction. Used by partner portals, merchant onboarding flows, and MCP agent flows resolving "which lender should this merchant approach."
+
+<Note>
+This endpoint is **public** and **read-only**. It only returns ACTIVE lenders. Calling this does not initiate or imply any financing application — the actual application flow stays gated on `LenderRegistry.isActive` at mint time.
+</Note>
+
+## Query parameters
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `jurisdiction` | string | `GLOBAL` | ISO 3166-1 alpha-2 (e.g. `AE`, `US`) or `GLOBAL` |
+| `archetype` | enum | (all) | `fsra-licensed` \| `defi-vault` \| `generic` — filter to one archetype |
+| `limit` | int | `10` | Clamped to `[1, 50]` |
+
+## Ranking
+
+1. **Exact-jurisdiction matches** ranked first
+2. **`GLOBAL` fallback lenders** ranked after exact matches
+3. Within each group, sorted by `issuedAttestationCount` desc (proven track record first)
+
+## Example
+
+```bash
+curl 'https://apiv3.droplinked.com/v2/lender-routing/recommend?jurisdiction=AE&archetype=fsra-licensed&limit=5'
+```
+
+```json
+{
+  "jurisdiction": "AE",
+  "archetype": "fsra-licensed",
+  "count": 2,
+  "recommendations": [
+    {
+      "lenderId": "crediblex-uae",
+      "displayName": "CredibleX (UAE)",
+      "archetype": "fsra-licensed",
+      "jurisdiction": "AE",
+      "matchKind": "exact-jurisdiction",
+      "rank": 1
+    },
+    {
+      "lenderId": "valinor-vault",
+      "displayName": "Valinor Vault",
+      "archetype": "defi-vault",
+      "jurisdiction": "GLOBAL",
+      "matchKind": "global-fallback",
+      "rank": 2
+    }
+  ]
+}
+```
+
+## When `matchKind` matters
+
+A verifier or merchant portal may surface lenders differently based on `matchKind`:
+
+| matchKind | Suggested UI framing |
+|---|---|
+| `exact-jurisdiction` | "Recommended for your region" |
+| `global-fallback` | "Available globally" |
+
+The ranking guarantees that an exact match is always offered before a fallback — but the verifier decides what to render.
+
+## Related
+
+- [Lender Registry Lookup](/api-reference/public/lender-registry) — resolve a `lenderId` to a full profile
+- [Service-Provider Routing](/api-reference/public/service-provider-routing) — same pattern for WMS/3PL partners
+- MCP tool: `recommend_lender` (wraps this endpoint)

@@ -1,0 +1,71 @@
+---
+title: "Lender Registry Lookup"
+description: "Resolve a `lenderId` referenced in a Schema B credit-risk attestation to the lender's public profile + signing wallet (forensic cross-check vs the on-chain `issuerWallet`)."
+---
+
+`GET /v2/lenders/:lenderId` returns the public profile of a registered lender — used by verifiers (consumer agents, MCP `verify_credit_risk` callers, partner portals) to resolve the `lenderId` embedded in a Schema B credit-risk attestation to a human-readable lender + their on-chain signing wallet for forensic cross-check.
+
+<Note>
+This endpoint is **public** — no JWT, no IP-allowlist. Only ACTIVE / PENDING_KYB / SUSPENDED / ARCHIVED lifecycle states are exposed (no operator-only fields).
+</Note>
+
+## When to use
+
+- A consumer agent has parsed a Schema B attestation and needs to display **who** underwrote the merchant (human-readable name + jurisdiction + regulatory reference)
+- A verifier needs to **cross-check** the on-chain `issuerWallet` against the registered `signingWallet` to detect schema impersonation
+- A partner portal needs to show track-record (`issuedAttestationCount`, `lastAttestationAt`) before routing a merchant to this lender
+
+## Request
+
+```
+GET /v2/lenders/:lenderId
+```
+
+| Param | Type | Notes |
+|---|---|---|
+| `lenderId` | string | Kebab-case, 3-64 chars, matches `^[a-z0-9_-]{3,64}$` |
+
+## Response (200, found)
+
+```json
+{
+  "found": true,
+  "lenderId": "crediblex-uae",
+  "displayName": "CredibleX (UAE)",
+  "archetype": "fsra-licensed",
+  "jurisdiction": "AE",
+  "status": "ACTIVE",
+  "signingWallet": "0xD5F6FB7b6E71DD7F609b8442951444E5a5C76cce",
+  "regulatorReference": "FSRA-12345",
+  "issuedAttestationCount": 42,
+  "lastAttestationAt": "2026-06-11T22:00:00Z"
+}
+```
+
+## Response (200, not found)
+
+```json
+{
+  "found": false,
+  "lenderId": "unknown-lender"
+}
+```
+
+The `found` discriminator lets MCP / agent consumers branch without 404-handling.
+
+## Field reference
+
+| Field | Type | Notes |
+|---|---|---|
+| `displayName` | string | Human-readable lender name (operator-set) |
+| `archetype` | enum | `fsra-licensed` \| `defi-vault` \| `generic` |
+| `jurisdiction` | string | ISO 3166-1 alpha-2 country code, or `GLOBAL` for unrestricted (DeFi vaults) |
+| `status` | enum | `PENDING_KYB` \| `ACTIVE` \| `SUSPENDED` \| `ARCHIVED` — only ACTIVE lenders can mint Schema B attestations |
+| `signingWallet` | hex | 0x-prefixed 20-byte EVM address used to sign attestations on-chain |
+| `regulatorReference` | string \| null | FSRA / SCA / etc. license number when applicable |
+| `issuedAttestationCount` | int | Lifetime count of Schema B attestations this lender has issued |
+
+## Related
+
+- [Lender Routing Recommendation](/api-reference/public/lender-routing) — "which lender should this merchant approach"
+- [Schema B Credit-Risk Read](/api-reference/public/attestation-credit-risk) — verify an attestation issued by this lender

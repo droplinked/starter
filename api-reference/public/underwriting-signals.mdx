@@ -1,0 +1,98 @@
+---
+title: "Underwriting Signals Composite"
+description: "One read that bundles Schema B latest-per-lender + Schema C merchant-wide rollup + CreditTier upgrade preview in a single envelope. Cuts 3-4 lender-agent round trips to 1."
+---
+
+`GET /v2/underwriting-signals/:merchantId` is the composite read for lender-agent / MCP `get_trust_dossier` / underwriting-portal flows resolving "should I underwrite this merchant + at what tier" in **one** round trip.
+
+<Note>
+This endpoint is **public** and **read-only**. Aggregates data already available via the per-axis verifier endpoints (Schema B + Schema C + upgrade preview); the only new value is fewer round trips.
+</Note>
+
+## Request
+
+```
+GET /v2/underwriting-signals/:merchantId
+```
+
+## Response (200)
+
+```json
+{
+  "merchantId": "6a207db0d29923bffaa983ca",
+  "creditRisk": {
+    "hasAny": true,
+    "activeCount": 2,
+    "maxObservedTier": "T3",
+    "latestPerLender": [
+      {
+        "lenderId": "crediblex-uae",
+        "attestationUid": "0x...",
+        "creditTier": "T2",
+        "maxCreditLineUsdCents": 5000000,
+        "issuedAt": "2026-06-01T12:00:00Z",
+        "expiresAt": "2026-09-01T12:00:00Z",
+        "status": "ACTIVE",
+        "lenderCurrentStatus": "ACTIVE"
+      },
+      {
+        "lenderId": "valinor-vault",
+        "attestationUid": "0x...",
+        "creditTier": "T3",
+        "maxCreditLineUsdCents": 10000000,
+        "status": "ACTIVE",
+        "lenderCurrentStatus": "SUSPENDED"
+      }
+    ]
+  },
+  "repaymentHistory": {
+    "hasAny": true,
+    "perLenderCount": 2,
+    "merchantWide": {
+      "totalSettlements": 17,
+      "totalOnTime": 13,
+      "totalLate": 3,
+      "totalDefaults": 1,
+      "trailingTwelveMonthDefaults": 1,
+      "mostRecentSettlementAt": "2026-06-05T12:00:00Z"
+    }
+  },
+  "upgradeEligibility": {
+    "observedTier": "T2",
+    "nextTierTarget": "T3",
+    "onTimeSettlementsNeeded": 8,
+    "blockingDefaultCount": 1
+  },
+  "summary": {
+    "anchorTier": "T3",
+    "totalActiveCreditLineUsdCents": 15000000,
+    "reliabilityScore": 76
+  }
+}
+```
+
+## The `summary` envelope
+
+`summary` is the **load-bearing decision input** for lender agents:
+
+| Field | Meaning |
+|---|---|
+| `anchorTier` | `max(observed-from-repayment, already-issued)` — lenders never under-price a merchant who has already proven a higher tier |
+| `totalActiveCreditLineUsdCents` | Sum of `maxCreditLineUsdCents` across all ACTIVE Schema B attestations |
+| `reliabilityScore` | `onTimeSettlements / totalSettlements * 100` (0-100); `null` when no settlement history yet (clean-slate semantics) |
+
+## Watch `lenderCurrentStatus`
+
+For each entry in `creditRisk.latestPerLender`, the `lenderCurrentStatus` field is the **last-observed registry status** of the issuing lender (refreshed every 6h by the reconciler). When `status: "ACTIVE"` but `lenderCurrentStatus` is `SUSPENDED` / `ARCHIVED` / `UNKNOWN`, the attestation is still on-chain ACTIVE but the issuer has been de-listed — verifiers decide whether to honor it.
+
+## Discipline
+
+- **Read-only**. No mints. No PII beyond per-axis verifiers.
+- **`@Public()`** route — same trust-handshake stance as the per-axis verifier reads.
+- **3 underlying queries parallelised** via `Promise.all` — single endpoint adds no latency over the slowest individual read.
+
+## Related
+
+- [Schema B Credit-Risk Read](/api-reference/public/attestation-credit-risk) — single-axis verifier
+- [Schema C Repayment-History Read](/api-reference/public/attestation-repayment-history) — single-axis verifier
+- [Upgrade Preview](/api-reference/public/upgrade-preview) — just the roadmap part
