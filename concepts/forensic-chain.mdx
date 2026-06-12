@@ -166,6 +166,84 @@ https://base-sepolia.easscan.org/attestation/view/0xattest...
 | Repayment-history rollup consistent with attestation tier | Proceed | Verifier policy decides (could be a stale attestation) |
 | On-chain UID resolves on easscan.org | Proceed | **Refuse — UID fabricated** |
 
+## End-to-end verifier walkthrough
+
+The MCP tool chain above is the agent-runtime shortcut. A third-party verifier — a
+regulator, a counter-party PSP, an external auditor — can walk the exact same proof using
+the **public HTTP read endpoints** with no MCP client at all. Five steps, all public, no
+JWT, no IP-allowlist.
+
+### 1. Read the Schema B attestation
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/attestations/credit-risk/$MERCHANT_ID
+```
+
+Returns `attestationUid`, `lenderId`, `methodologyHash`, `issuerWallet`, `occurredAt`,
+`creditTier`, `status`, and the registry-mirror fields (`lenderCurrentStatus` etc.). The
+verifier pins `occurredAt` — every downstream check is evaluated **as-of that timestamp**,
+not as-of now.
+
+### 2. Resolve the issuing lender
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/lenders/$LENDER_ID
+```
+
+See [Lender Registry Lookup](/api-reference/public/lender-registry) for the full response
+shape. The verifier cross-checks `lender.signingWallet === attestation.issuerWallet`; a
+mismatch is schema impersonation and the attestation must be refused.
+
+### 3. Resolve the methodology
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/methodologies/$LENDER_ID/$METHODOLOGY_HASH
+```
+
+See [Methodology Registry Lookup](/api-reference/public/methodology-registry) for the
+response shape. Returns the `documentUrl` + `status` + lifecycle timestamps
+(`effectiveAt`, `supersededAt`).
+
+### 4. Download + re-hash the methodology document
+
+The verifier downloads `documentUrl`, computes SHA-256 of the bytes, and compares against
+the on-chain `methodologyHash`. The exact recipe (with a working `curl` + `shasum`
+example) lives on the [Methodology Registry Lookup](/api-reference/public/methodology-registry#verifier-integrity-check)
+page — don't re-implement it, link to it.
+
+A divergence here is methodology tampering and the attestation must be refused regardless
+of every other check passing.
+
+### 5. Inspect the public lifecycle timeline
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/methodologies/$LENDER_ID/$METHODOLOGY_HASH/timeline
+```
+
+The methodology lifecycle timeline endpoint surfaces the full
+`DRAFT → ACTIVE → SUPERSEDED → REVOKED` transition history for a methodology, with
+timestamps + the operator/event that drove each transition. A verifier composes the
+transition history against the attestation's `occurredAt` to make a **time-honest** policy
+call:
+
+- A methodology that's currently `SUPERSEDED` but was `ACTIVE` at attestation `occurredAt`
+  is **still legitimate** — the lender used the methodology that was in force at the time,
+  and the attestation should be honored.
+- A methodology that's `REVOKED` is a **red flag** regardless of when the attestation was
+  issued. The operator has retroactively pulled this methodology; verifier-side policy
+  decides whether to honor (most verifiers refuse).
+
+<Note>
+The timeline endpoint replaces ad-hoc "look at the audit log" requests with a public,
+verifier-callable surface. No SUPER_ADMIN access required.
+</Note>
+
+### Cross-links
+
+- [Trust Fabric overview](/concepts/trust-fabric) — where each registry sits in the 4-axis fabric
+- [Methodology Registry Lookup](/api-reference/public/methodology-registry) — request/response shape + integrity-check recipe
+- [Lender Registry Lookup](/api-reference/public/lender-registry) — `signingWallet` cross-check field reference
+
 ## Related
 
 - [Trust Fabric overview](/concepts/trust-fabric)
