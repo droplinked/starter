@@ -1,0 +1,65 @@
+---
+title: "Merchant Credit-Tier Upgrade Preview"
+description: "Aspirational roadmap — given a merchantId, returns the tier the merchant qualifies for from their repayment history alone (observedTier) + the gap to the next ceiling + the gap to T3 (top ceiling)."
+---
+
+`GET /v2/merchant/credit-tier/upgrade-preview/:merchantId` returns the merchant's **aspirational roadmap** to higher credit-tier ceilings. Used by merchant portals to surface "settle X more on-time and the next lender that underwrites you will start from a T2 ceiling."
+
+<Note>
+**Aspirational, not a promise.** The actual issued tier on a Schema B attestation depends on the lender's base tier mapping (revenue + inventory + sales-efficiency signals from `CreditTierMappingService`). This endpoint shows the **floor** the merchant can earn through repayment performance; the **base** is set by lender underwriting.
+</Note>
+
+## Request
+
+```
+GET /v2/merchant/credit-tier/upgrade-preview/:merchantId
+```
+
+## Response (200)
+
+```json
+{
+  "merchantId": "6a207db0d29923bffaa983ca",
+  "signals": {
+    "totalSettledOnTime": 2,
+    "totalLate": 0,
+    "totalDefaults": 0,
+    "trailingTwelveMonthDefaults": 0,
+    "lenderCount": 1,
+    "mostRecentSettlementAt": "2026-06-08T12:00:00Z"
+  },
+  "observedTier": "T1",
+  "nextTierGap": {
+    "targetTier": "T2",
+    "onTimeSettlementsNeeded": 1,
+    "blockingDefaultCount": 0,
+    "guidance": "Settle 1 more on-time to reach T2 ceiling."
+  },
+  "topTierGap": {
+    "targetTier": "T3",
+    "onTimeSettlementsNeeded": 8,
+    "blockingDefaultCount": 0,
+    "guidance": "Settle 8 more on-time to reach T3 (top ceiling)."
+  }
+}
+```
+
+## Tier ladder
+
+| Tier | Threshold from repayment history | Blocks |
+|---|---|---|
+| `T1` | Default — every new merchant starts here | — |
+| `T2` | 3+ on-time settlements | Lifetime defaults > 0 → blocked |
+| `T3` | 10+ on-time settlements | Trailing-12-month defaults > 0 → blocked |
+
+When the merchant reaches T3, both `nextTierGap` and `topTierGap` are `null`.
+
+## Discipline
+
+- **Read-only**. No mints. No reads of the lender base tier — pure "what's possible with repayment history alone" surface.
+- **`@Public()`** — no PII beyond the merchant's own settlement counts.
+
+## Related
+
+- [Underwriting Signals](/api-reference/public/underwriting-signals) — composite read that bundles this preview with Schema B + C in one envelope
+- [Schema C Repayment-History](/api-reference/public/attestation-repayment-history) — the on-chain record the preview is computed from
