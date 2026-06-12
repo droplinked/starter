@@ -1,0 +1,161 @@
+---
+title: "Underwriting MCP Tools"
+description: "Composite read tools for lender-agent / merchant-portal flows: get_underwriting_signals, get_upgrade_preview, verify_methodology."
+---
+
+Three MCP tools wrapping the underwriting layer of the [trust fabric](/concepts/trust-fabric). Together they cover the "should I underwrite + at what tier" decision in one round trip, the merchant-facing aspirational roadmap, and the forensic-chain step that audits the underwriting methodology cited on a Schema B attestation.
+
+## `get_underwriting_signals`
+
+Composite envelope that bundles into ONE call what previously took 3-4 separate per-axis verifier calls: Schema B latest-per-lender + Schema C merchant-wide rollup + CreditTier upgrade preview + a `summary` block.
+
+```typescript
+const signals = await mcp.callTool('get_underwriting_signals', {
+  merchantId: '6a207db0d29923bffaa983ca',
+});
+```
+
+```json
+{
+  "merchantId": "6a207db0d29923bffaa983ca",
+  "creditRisk": {
+    "hasAny": true,
+    "activeCount": 2,
+    "maxObservedTier": "T3",
+    "latestPerLender": [
+      { "lenderId": "crediblex-uae", "creditTier": "T2",
+        "maxCreditLineUsdCents": 5000000,
+        "lenderCurrentStatus": "ACTIVE", "status": "ACTIVE", ... },
+      { "lenderId": "valinor-vault", "creditTier": "T3",
+        "maxCreditLineUsdCents": 10000000,
+        "lenderCurrentStatus": "SUSPENDED", "status": "ACTIVE", ... }
+    ]
+  },
+  "repaymentHistory": {
+    "hasAny": true,
+    "perLenderCount": 2,
+    "merchantWide": {
+      "totalSettlements": 17, "totalOnTime": 13,
+      "totalLate": 3, "totalDefaults": 1,
+      "trailingTwelveMonthDefaults": 1,
+      "mostRecentSettlementAt": "2026-06-05T..."
+    }
+  },
+  "upgradeEligibility": {
+    "observedTier": "T2",
+    "nextTierTarget": "T3",
+    "onTimeSettlementsNeeded": 8,
+    "blockingDefaultCount": 1
+  },
+  "summary": {
+    "anchorTier": "T3",
+    "totalActiveCreditLineUsdCents": 15000000,
+    "reliabilityScore": 76
+  }
+}
+```
+
+### Watch the `summary` block — it's load-bearing
+
+| Field | Why it matters |
+|---|---|
+| `anchorTier` | `max(observed-from-repayment, already-issued)` — a lender never under-prices a merchant who has already proven a higher tier on a different lender's book |
+| `totalActiveCreditLineUsdCents` | Sum of `maxCreditLineUsdCents` across all ACTIVE Schema B attestations |
+| `reliabilityScore` | `onTimeSettlements / totalSettlements * 100` (0-100); `null` when no settlement history yet |
+
+### Watch `latestPerLender[].lenderCurrentStatus`
+
+When the attestation `status: ACTIVE` but `lenderCurrentStatus: SUSPENDED` / `ARCHIVED` / `UNKNOWN`, the on-chain attestation is still valid but the issuer has been de-listed in the LenderRegistry. **Verifier-side policy decides** whether to honor.
+
+Wraps: [`GET /v2/underwriting-signals/:merchantId`](/api-reference/public/underwriting-signals).
+
+## `get_upgrade_preview`
+
+Aspirational roadmap to higher credit-tier ceilings. Use this on merchant-portal flows asking "what does it take to climb?"
+
+```typescript
+const preview = await mcp.callTool('get_upgrade_preview', {
+  merchantId: '6a207db0d29923bffaa983ca',
+});
+```
+
+```json
+{
+  "observedTier": "T1",
+  "nextTierGap": {
+    "targetTier": "T2",
+    "onTimeSettlementsNeeded": 1,
+    "blockingDefaultCount": 0,
+    "guidance": "Settle 1 more on-time to reach T2 ceiling."
+  },
+  "topTierGap": {
+    "targetTier": "T3",
+    "onTimeSettlementsNeeded": 8,
+    "blockingDefaultCount": 0,
+    "guidance": "Settle 8 more on-time to reach T3 (top ceiling)."
+  }
+}
+```
+
+**Aspirational, not a promise.** The actual issued tier depends on the lender's base tier mapping (revenue + inventory + sales-efficiency signals). This tool shows the *floor* a merchant can earn through repayment performance.
+
+Tier ladder:
+
+| Tier | Required | Blocks |
+|---|---|---|
+| `T1` | Default — every new merchant | — |
+| `T2` | 3+ on-time settlements | Lifetime defaults > 0 |
+| `T3` | 10+ on-time settlements | Trailing-12mo defaults > 0 |
+
+When the merchant reaches T3 both `nextTierGap` and `topTierGap` are `null`.
+
+Wraps: [`GET /v2/merchant/credit-tier/upgrade-preview/:merchantId`](/api-reference/public/upgrade-preview).
+
+## `verify_methodology`
+
+Look up a lender's underwriting methodology. Two modes:
+
+```typescript
+// Active mode — no methodologyHash
+const active = await mcp.callTool('verify_methodology', {
+  lenderId: 'crediblex-uae',
+});
+
+// Hash-lookup mode — supplied methodologyHash
+const cited = await mcp.callTool('verify_methodology', {
+  lenderId: 'crediblex-uae',
+  methodologyHash: '0xabc...',
+});
+```
+
+```json
+{
+  "found": true,
+  "lenderId": "crediblex-uae",
+  "version": "2026.06.1",
+  "methodologyHash": "0xabc...",
+  "documentUrl": "https://crediblex.example.com/methodology-2026-06-1.pdf",
+  "displayName": "CredibleX Inventory-Financing v2",
+  "status": "ACTIVE",
+  "effectiveAt": "2026-06-01T00:00:00Z",
+  "supersededAt": null
+}
+```
+
+**Use case**: a verifier consuming a Schema B credit-risk attestation reads the cited `methodologyHash` from the on-chain payload, calls this tool with that hash, downloads `documentUrl`, hashes it themselves, and compares. Any divergence flags methodology tampering.
+
+Status enum:
+
+| Status | Meaning |
+|---|---|
+| `ACTIVE` | The currently-effective methodology — what new Schema B mints reference |
+| `SUPERSEDED` | An older version cited on legacy attestations; the lender has since updated |
+| `REVOKED` | Operator pulled this methodology; existing attestations are flagged for re-issuance |
+
+Wraps: `GET /v2/methodologies/:lenderId/active` and `GET /v2/methodologies/:lenderId/:methodologyHash`.
+
+## Related
+
+- [Trust Fabric overview](/concepts/trust-fabric) — full architecture
+- [Lender Trinity MCP Tools](/agentic/lender-trinity-mcp-tools) — `verify_lender`, `recommend_lender`, `recommend_service_provider`
+- [Forensic Chain Workflow](/concepts/forensic-chain) — how the tools compose for end-to-end attestation audit

@@ -1,0 +1,173 @@
+---
+title: "Forensic Chain Workflow"
+description: "End-to-end walkthrough — how a verifier audits a Schema B credit-risk attestation from the on-chain UID back to the lender, the methodology, and the merchant's repayment history."
+---
+
+A consumer agent or external verifier presented with a Schema B credit-risk attestation can independently audit every claim it makes by composing the [trust fabric MCP tools](/concepts/trust-fabric). This page walks through the canonical forensic chain.
+
+## Scenario
+
+A consumer agent is about to extend BNPL terms based on a merchant's credit-risk attestation. The agent wants to verify, end-to-end:
+
+1. The attestation exists on-chain at the cited UID
+2. The lender that issued it is real, ACTIVE, and licensed
+3. The methodology the lender cited is the one they actually published
+4. The merchant's repayment history matches the tier on the attestation
+
+## Step 1: read the attestation
+
+```typescript
+const attestation = await mcp.callTool('verify_credit_risk', {
+  merchantId: '6a207db0d29923bffaa983ca',
+  lenderId: 'crediblex-uae',
+});
+```
+
+```json
+{
+  "found": true,
+  "attestationUid": "0xattest...",
+  "lenderId": "crediblex-uae",
+  "creditTier": "T2",
+  "maxCreditLineUsdCents": 5000000,
+  "issuedAt": "2026-06-01T12:00:00Z",
+  "expiresAt": "2026-09-01T12:00:00Z",
+  "status": "ACTIVE",
+  "lenderCurrentStatus": "ACTIVE",
+  "issuerWallet": "0xD5F6...",
+  "methodologyHash": "0xmeth..."
+}
+```
+
+The agent reads:
+- `attestationUid` — the on-chain UID
+- `lenderId` — who issued it
+- `issuerWallet` — the wallet that signed
+- `methodologyHash` — the underwriting basis cited
+- `lenderCurrentStatus` — the **registry-state mirror** (updated every 6h by the reconciler)
+
+<Note>
+**Watch the mirror**: `status: ACTIVE` means the attestation is on-chain valid. `lenderCurrentStatus: SUSPENDED` would mean the lender has been de-listed in the registry since mint. Verifier-side policy decides whether to honor an attestation from a since-de-listed lender.
+</Note>
+
+## Step 2: verify the lender
+
+```typescript
+const lender = await mcp.callTool('verify_lender', {
+  lenderId: attestation.lenderId,
+});
+```
+
+```json
+{
+  "found": true,
+  "lenderId": "crediblex-uae",
+  "displayName": "CredibleX (UAE)",
+  "archetype": "fsra-licensed",
+  "jurisdiction": "AE",
+  "status": "ACTIVE",
+  "signingWallet": "0xD5F6...",
+  "regulatorReference": "FSRA-12345",
+  "issuedAttestationCount": 42,
+  "lastAttestationAt": "2026-06-11T22:00:00Z"
+}
+```
+
+**Cross-check**: `lender.signingWallet` must equal `attestation.issuerWallet`. A mismatch indicates schema impersonation — someone signed an attestation pretending to be CredibleX. The agent **must refuse** in that case.
+
+## Step 3: verify the methodology
+
+```typescript
+const methodology = await mcp.callTool('verify_methodology', {
+  lenderId: attestation.lenderId,
+  methodologyHash: attestation.methodologyHash,
+});
+```
+
+```json
+{
+  "found": true,
+  "lenderId": "crediblex-uae",
+  "version": "2026.06.1",
+  "methodologyHash": "0xmeth...",
+  "documentUrl": "https://crediblex.example.com/methodology-2026-06-1.pdf",
+  "displayName": "CredibleX Inventory-Financing v2",
+  "status": "ACTIVE",
+  "effectiveAt": "2026-06-01T00:00:00Z",
+  "supersededAt": null
+}
+```
+
+**Off-tool cross-check**:
+
+1. Download `methodology.documentUrl`
+2. Compute SHA-256 of the document bytes
+3. Compare against `methodology.methodologyHash`
+
+Any divergence flags methodology tampering. The verifier **must refuse** if the hashes don't match.
+
+If `methodology.status` is `SUPERSEDED`, the attestation cites a methodology version the lender has since updated. That's acceptable — old attestations stay tied to their original methodology — but the verifier should note it.
+
+If `methodology.status` is `REVOKED`, the operator has pulled this methodology. The attestation should be considered invalid pending re-issuance.
+
+## Step 4: verify the repayment-history rollup
+
+```typescript
+const signals = await mcp.callTool('get_underwriting_signals', {
+  merchantId: attestation.merchantId,
+});
+```
+
+```json
+{
+  "creditRisk": {
+    "maxObservedTier": "T3",
+    "latestPerLender": [
+      { "lenderId": "crediblex-uae", "creditTier": "T2",
+        "lenderCurrentStatus": "ACTIVE", "status": "ACTIVE" }
+    ]
+  },
+  "repaymentHistory": {
+    "merchantWide": {
+      "totalSettlements": 17, "totalOnTime": 13,
+      "totalLate": 3, "totalDefaults": 1
+    }
+  },
+  "summary": {
+    "anchorTier": "T3",
+    "reliabilityScore": 76
+  }
+}
+```
+
+**Cross-check**:
+- `signals.summary.anchorTier` = `max(observed-from-repayment, already-issued)` — load-bearing risk signal
+- `signals.summary.reliabilityScore` — overall on-time fraction
+- If the verifier needs to know whether the attestation's `creditTier` is *currently* justified by the repayment history, compare with `signals.upgradeEligibility.observedTier`
+
+## Step 5: independent on-chain verification
+
+The agent can quote `attestationUid` + `chain` back to the end-user with a link to:
+
+```
+https://base-sepolia.easscan.org/attestation/view/0xattest...
+```
+
+…where the user can see the on-chain receipt without trusting droplinked's API.
+
+## Decision tree
+
+| Check | If pass | If fail |
+|---|---|---|
+| Attestation found + `status: ACTIVE` | Proceed | Refuse |
+| `lenderCurrentStatus: ACTIVE` | Proceed | Verifier policy decides |
+| Lender found + `signingWallet` matches `issuerWallet` | Proceed | **Refuse — schema impersonation** |
+| Methodology found + hash matches downloaded doc | Proceed | **Refuse — methodology tampering** |
+| Repayment-history rollup consistent with attestation tier | Proceed | Verifier policy decides (could be a stale attestation) |
+| On-chain UID resolves on easscan.org | Proceed | **Refuse — UID fabricated** |
+
+## Related
+
+- [Trust Fabric overview](/concepts/trust-fabric)
+- [Underwriting MCP Tools](/agentic/underwriting-mcp-tools)
+- [Lender Trinity MCP Tools](/agentic/lender-trinity-mcp-tools)
