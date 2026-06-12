@@ -23,6 +23,45 @@ your catalog becomes discoverable and purchasable by AI agents automatically. No
   </Card>
 </CardGroup>
 
+## Per-merchant MCP surface
+
+Beyond the platform-wide [MCP server](/agentic/mcp-server), every Droplinked shop is
+projected as its own **path-prefixed MCP surface** at
+`mcp.droplinked.com/{shopSlug}/...`. An agent that lands on a single storefront can pin to
+just that shop's tools — no shop-slug filter argument needed on every call, no risk of
+fanning out across the catalog.
+
+### Endpoints (per merchant)
+
+| Endpoint | Purpose |
+|---|---|
+| `GET mcp.droplinked.com/{shopSlug}/manifest` | Discoverable per-shop manifest (shop metadata + tool URLs) |
+| `GET mcp.droplinked.com/{shopSlug}/mcp/tools` | Scoped tool list — same shape as the platform list, pre-bound to this shop |
+| `POST mcp.droplinked.com/{shopSlug}/mcp/tools/{name}` | Invoke a scoped tool (e.g. `search_products`, `start_checkout`) on this shop |
+
+### How agents discover it
+
+Two paths, agent's choice:
+
+- **Storefront-advertised** — your storefront page advertises its MCP URL via a meta tag the
+  agent reads at page-load time:
+  ```html
+  <meta name="mcp-url" content="https://mcp.droplinked.com/{shopSlug}" />
+  ```
+- **Canonical platform discovery** — the platform-wide well-known doc carries a
+  `merchantDiscovery.pathTemplate` an agent can substitute any shop slug into:
+  ```bash
+  # Agent discovers the platform-wide origin
+  curl -s https://mcp.droplinked.com/.well-known/mcp.json | jq .merchantDiscovery
+
+  # Pivot to a specific merchant
+  curl -s https://mcp.droplinked.com/your-shop-slug/manifest
+  ```
+
+Either way the result is the same: the agent ends up with a shop-scoped tool surface it can
+call directly. See [MCP server](/agentic/mcp-server) for the platform-wide tool inventory
+the per-merchant surface inherits.
+
 ## Steps
 
 <Steps>
