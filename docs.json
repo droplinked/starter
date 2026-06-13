@@ -178,7 +178,8 @@
               "agentic/lender-trinity-mcp-tools",
               "agentic/underwriting-mcp-tools",
               "agentic/acp-feed",
-              "agentic/connect-your-store"
+              "agentic/connect-your-store",
+              "agentic/storefront-mcp-discovery"
             ]
           }
         ]
