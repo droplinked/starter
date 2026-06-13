@@ -185,6 +185,61 @@ const versions = await mcp.callTool('get_methodology_versions', { lenderId: 'cre
 
 Wraps: [`GET /v2/methodologies/:lenderId/versions`](/api-reference/public/methodology-registry).
 
+## `request_brand_attestation`
+
+Queue a Schema A brand-attestation request on behalf of a merchant. The request walks `PENDING → APPROVED → MINTED` (or `→ REJECTED`); the on-chain mint is gated behind operator review — calling this tool does **not** directly mint.
+
+```typescript
+const result = await mcp.callTool('request_brand_attestation', {
+  shopSlug: 'unstoppable',
+  notes: "Filed on behalf of merchant during agentic onboarding",
+});
+```
+
+```json
+{
+  "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+  "status": "PENDING",
+  "message": "Your request is in the operator review queue"
+}
+```
+
+**Idempotent** on `(shopSlug, status: PENDING)` — re-calling while a `PENDING` row exists returns the same `requestId` instead of creating a duplicate. The agent never has to handle a "duplicate" 4xx.
+
+**Use case**: an agent orchestrating a merchant's full onboarding flow — application form, lender match, brand-attestation request — needs to queue the brand-attestation request without the merchant clicking the shop-builder CTA. Pair with `get_brand_attestation_status` (next) to detect terminal state before handing back to the merchant.
+
+Wraps: [`POST /v2/attestations/brand/:shopSlug/request`](/api-reference/public/brand-attestation-request). Full walkthrough at [Brand attestation: request → mint → verify](/guides/trust-fabric/brand-attestation-lifecycle).
+
+## `get_brand_attestation_status`
+
+Poll the brand-attestation request lifecycle. The status discriminator is one of `NONE` (no request exists), `PENDING`, `APPROVED`, `MINTED`, or `REJECTED`. The endpoint **always** returns 200; missing rows are reported as the synthetic `NONE` state so the agent never has to handle a 404.
+
+```typescript
+const status = await mcp.callTool('get_brand_attestation_status', {
+  shopSlug: 'unstoppable',
+});
+```
+
+```json
+{
+  "status": "MINTED",
+  "request": {
+    "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+    "shopSlug": "unstoppable",
+    "status": "MINTED",
+    "attestationUid": "0x9c4f7a3e8b1d2c6f5a0b8e9d1c2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f",
+    "mintedAt": "2026-06-13T07:42:11Z",
+    "createdAt": "2026-06-12T18:00:00Z"
+  }
+}
+```
+
+**Privacy**: operator-private fields (`decidedBy`, `decisionReason`, `mintError`, `mintAttempts`, `merchantId`, free-text `notes`) are **scrubbed** from this response. They only surface on the SUPER_ADMIN admin route.
+
+**Use case**: an agent loop walking a brand-attestation request from `PENDING → MINTED`. Recommended cadence: 30s → 60s → 120s exponential backoff for up to ~5 minutes, then hand the lifecycle back to the merchant. On `MINTED`, call `verify_brand_attestation` to confirm the on-chain envelope decodes cleanly and surface the easscan link to the merchant.
+
+Wraps: [`GET /v2/attestations/brand/:shopSlug/request-status`](/api-reference/public/brand-attestation-request).
+
 ## `get_trust_fabric_stats`
 
 "What's the platform's overall trust-fabric scale?" — returns aggregate-only counts across lenders, service providers, methodology versions, and attestations by schema. No PII, no per-row data, no auth required. Use this to gauge platform scale before issuing per-merchant queries or to power a partner-facing dashboard.
@@ -209,5 +264,6 @@ Wraps: [`GET /v2/trust-fabric/stats`](/api-reference/public/trust-fabric-stats).
 
 ## Related
 
+- [Brand attestation: request → mint → verify](/guides/trust-fabric/brand-attestation-lifecycle) — end-to-end Schema A lifecycle walkthrough
 - [Trust Fabric overview](/concepts/trust-fabric) — full architecture
 - [MCP Server](/agentic/mcp-server) — connection + auth

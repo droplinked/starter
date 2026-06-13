@@ -66,6 +66,12 @@
             ]
           },
           {
+            "group": "Trust Fabric Guides",
+            "pages": [
+              "guides/trust-fabric/brand-attestation-lifecycle"
+            ]
+          },
+          {
             "group": "Order Lifecycle",
             "pages": [
               "guides/order-lifecycle",

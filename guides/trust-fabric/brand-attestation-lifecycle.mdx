@@ -1,0 +1,459 @@
+---
+title: "Brand attestation: request → mint → verify"
+description: "End-to-end walkthrough of the Schema A brand-attestation lifecycle for merchants, AI agents, and third-party verifiers."
+---
+
+A Schema A `BrandAttestation` is the on-chain receipt that proves a brand slug
+on droplinked has been operator-reviewed and is who it says it is. This page
+walks the full lifecycle — request → operator approval → EAS Schema A mint →
+merchant polling → public verifier read — across the three audiences that
+touch it: merchants requesting from the shop builder, AI agents requesting on
+behalf of a merchant via MCP, and third-party verifiers reading the resulting
+on-chain attestation.
+
+<Note>
+Schema A is currently anchored on **Base Sepolia testnet**. Mainnet flip is
+gated on the KMS-backed signer migration. Every endpoint below returns the
+active chain in its response so consumers can verify on the right
+[easscan domain](https://easscan.org).
+</Note>
+
+## When to use this guide
+
+- **Merchants** — you clicked **Request brand attestation** in the shop
+  builder and want to know what happens next.
+- **AI agents** — you're orchestrating a merchant-onboarding flow via the
+  droplinked MCP server and need to drive the same lifecycle programmatically.
+- **Third-party verifiers** (lenders, partners, regulators) — you need to
+  resolve a brand attestation UID to chain-anchored facts without trusting
+  droplinked.
+
+If you only want the API contract for the two endpoints, jump straight to the
+[Brand attestation request reference](/api-reference/public/brand-attestation-request).
+If you want the architectural context for Schema A in the 4-axis trust fabric,
+see [Trust Fabric overview](/concepts/trust-fabric).
+
+## The state machine
+
+A brand-attestation request walks five discriminator values. Four are real
+queue-row states; the fifth (`NONE`) is a synthetic state the status endpoint
+returns when no row exists yet, so the widget can render the initial CTA
+without 404-handling.
+
+<AccordionGroup>
+  <Accordion title="NONE — no request exists" icon="circle">
+    No row in the queue for this `shopSlug`. The status endpoint returns
+    `{ "status": "NONE", "request": null }` and always 200. UIs render the
+    **Request brand attestation** CTA in this state.
+  </Accordion>
+
+  <Accordion title="PENDING — awaiting operator review" icon="hourglass-half">
+    Merchant has clicked the CTA. A queue row is in
+    SUPER_ADMIN review. Re-clicking the CTA is idempotent — the API returns
+    the same `requestId` instead of duplicating the row. UIs render
+    "Pending operator review — we'll email you when it ships".
+  </Accordion>
+
+  <Accordion title="APPROVED — mint orchestrator engaged" icon="thumbs-up">
+    Operator has approved the row. The mint orchestrator will attempt a
+    Schema A on-chain mint. If the mint fails (RPC drop, gas spike,
+    wallet-nonce contention) the row **stays APPROVED**; `mintError` +
+    `mintAttempts` persist on the operator-side row for retry. The row is
+    **never auto-flipped back** to PENDING or REJECTED.
+  </Accordion>
+
+  <Accordion title="MINTED — on-chain attestation live" icon="circle-check">
+    Schema A attestation is on-chain. `attestationUid` + `mintedAt` are
+    populated on the public projection. The widget can quote the easscan
+    reference without a second round-trip. This is a terminal state — the
+    row is never re-minted.
+  </Accordion>
+
+  <Accordion title="REJECTED — operator declined" icon="circle-xmark">
+    Operator declined the row with a reason (visible only on the
+    SUPER_ADMIN console — never on the public projection). Terminal state.
+    The merchant may submit a fresh `PENDING` row at any time; the
+    partial-unique index on `(shopSlug, status: PENDING)` does NOT block
+    re-submits after a terminal state.
+  </Accordion>
+</AccordionGroup>
+
+## Step 1 — Request the attestation
+
+There are three equivalent paths to queue a request. They all hit the same
+backend endpoint and the same idempotency check.
+
+<Steps>
+  <Step title="Shop builder UI (merchant path)">
+    From your merchant dashboard, open the **Trust Fabric** card and click
+    **Request brand attestation**. Optionally add a free-text note (max
+    2048 chars — surfaces only to the operator). The card immediately
+    flips to "Pending operator review".
+
+    No further action is required from the merchant. The status card polls
+    `GET /v2/attestations/brand/:shopSlug/request-status` every 60s and
+    auto-advances through `PENDING → APPROVED → MINTED` (or `→ REJECTED`).
+  </Step>
+
+  <Step title="MCP `request_brand_attestation` tool (agent path)">
+    An AI agent orchestrating onboarding calls the MCP tool wired against
+    the droplinked MCP server.
+
+    ```typescript
+    const result = await mcp.callTool('request_brand_attestation', {
+      shopSlug: 'unstoppable',
+      notes: "Onboarding push initiated by agent on 2026-06-13",
+    });
+    ```
+
+    ```json
+    {
+      "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+      "status": "PENDING",
+      "message": "Your request is in the operator review queue"
+    }
+    ```
+
+    See [Brand attestation MCP tools](/agentic/lender-trinity-mcp-tools#request_brand_attestation)
+    for the full envelope.
+  </Step>
+
+  <Step title="Direct POST (custom integration path)">
+    If you're driving the flow from your own backend or a third-party
+    portal, hit the endpoint directly. No JWT, no IP-allowlist — the
+    endpoint is `@Public()`.
+
+    ```bash
+    curl -X POST https://apiv3.droplinked.com/v2/attestations/brand/unstoppable/request \
+      -H 'content-type: application/json' \
+      -d '{ "notes": "Q3 partner pitch on 2026-07-15" }'
+    ```
+
+    ```json
+    {
+      "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+      "status": "PENDING",
+      "message": "Your request is in the operator review queue"
+    }
+    ```
+
+    Idempotent on `(shopSlug, status: PENDING)`. Re-submitting while a
+    `PENDING` row exists returns the same `requestId` — never a 4xx.
+  </Step>
+</Steps>
+
+<Note>
+**Fail-open by design.** The endpoint hard-casts the response `status` to
+`PENDING` regardless of whether the row is new or re-found by the
+idempotency check. UIs should never have to disambiguate "first submit" vs
+"re-submit" — the discriminator alone drives the success toast.
+</Note>
+
+## Step 2 — Poll the status
+
+Once a request is queued, walk the discriminator with the status endpoint.
+The widget polls this; an agent can long-poll it; a third-party portal can
+display it.
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/attestations/brand/unstoppable/request-status | jq .
+```
+
+The endpoint **always** returns 200 — even when no row exists. Resolution
+rule: any `PENDING` row wins (there is at most one per slug by the partial
+index); otherwise the newest terminal row (`createdAt` desc) is returned.
+
+### Response shapes per state
+
+<Tabs>
+  <Tab title="NONE">
+    ```json
+    {
+      "status": "NONE",
+      "request": null
+    }
+    ```
+
+    No row in the queue. Render the initial CTA.
+  </Tab>
+
+  <Tab title="PENDING">
+    ```json
+    {
+      "status": "PENDING",
+      "request": {
+        "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+        "shopSlug": "unstoppable",
+        "status": "PENDING",
+        "attestationUid": null,
+        "mintedAt": null,
+        "createdAt": "2026-06-12T18:00:00Z"
+      }
+    }
+    ```
+
+    Awaiting operator review. `attestationUid` + `mintedAt` are `null`.
+  </Tab>
+
+  <Tab title="APPROVED">
+    ```json
+    {
+      "status": "APPROVED",
+      "request": {
+        "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+        "shopSlug": "unstoppable",
+        "status": "APPROVED",
+        "attestationUid": null,
+        "mintedAt": null,
+        "createdAt": "2026-06-12T18:00:00Z"
+      }
+    }
+    ```
+
+    Operator approved; the mint orchestrator is engaged. The row stays
+    here on mint failure — operator-side `mintError` + `mintAttempts`
+    drive the retry, never surfaced on the public projection.
+  </Tab>
+
+  <Tab title="MINTED">
+    ```json
+    {
+      "status": "MINTED",
+      "request": {
+        "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+        "shopSlug": "unstoppable",
+        "status": "MINTED",
+        "attestationUid": "0x9c4f7a3e8b1d2c6f5a0b8e9d1c2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f",
+        "mintedAt": "2026-06-13T07:42:11Z",
+        "createdAt": "2026-06-12T18:00:00Z"
+      }
+    }
+    ```
+
+    Terminal state. `attestationUid` is the EAS UID — see Step 3 for the
+    verifier link.
+  </Tab>
+
+  <Tab title="REJECTED">
+    ```json
+    {
+      "status": "REJECTED",
+      "request": {
+        "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+        "shopSlug": "unstoppable",
+        "status": "REJECTED",
+        "attestationUid": null,
+        "mintedAt": null,
+        "createdAt": "2026-06-12T18:00:00Z"
+      }
+    }
+    ```
+
+    Terminal state. The operator-side `decisionReason` is **scrubbed** from
+    the public projection — merchants will see the reason via the
+    operator-side notification (email), not via this endpoint. The
+    merchant may re-submit a fresh request at any time.
+  </Tab>
+</Tabs>
+
+<Note>
+**Operator-private fields stay private.** `decidedBy`, `decisionReason`,
+`mintError`, `mintAttempts`, `merchantId`, and the merchant's free-text
+`notes` are scrubbed from the public projection. They only surface on the
+SUPER_ADMIN admin route. The shape above is the full public surface.
+</Note>
+
+### Polling cadence
+
+- **Merchant widget**: 60s. The state walks `PENDING → APPROVED → MINTED`
+  over operator-review timelines (minutes to hours); a 60s poll cadence
+  feels live to the merchant without hammering the endpoint.
+- **AI agent**: prefer event-driven UX. If you can park the conversation
+  and ping the merchant when state advances, do that. Otherwise long-poll
+  at 30s intervals for up to 5 minutes — beyond that, hand the lifecycle
+  back to the merchant.
+- **Third-party verifier**: don't poll. Read once at decision time and
+  cache the `attestationUid` — the EAS attestation is immutable once
+  minted.
+
+## Step 3 — See the mint land on-chain
+
+Once `status === "MINTED"`, the `attestationUid` resolves to a Schema A
+attestation on the Ethereum Attestation Service. The easscan link scheme:
+
+```
+https://base-sepolia.easscan.org/attestation/view/<attestationUid>
+```
+
+For example (placeholder UID — your real UID will be different):
+
+```
+https://base-sepolia.easscan.org/attestation/view/0x9c4f7a3e8b1d2c6f5a0b8e9d1c2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f
+```
+
+<Warning>
+The UID above is **example-only** — copy-pasting it will resolve to a
+"not found" page on easscan. Use the real `attestationUid` returned by
+your `request-status` response.
+</Warning>
+
+The easscan UI surfaces:
+
+- The Schema A definition (the `BrandAttestation` schema UID)
+- The **issuer wallet** — droplinked's operator signer
+- The **recipient** — the merchant's on-chain address
+- The decoded payload — `brandSlug`, `displayName`, `issuedAt`,
+  `expiresAt`, and the registry pointers
+- A timeline of any subsequent revocations (Schema A revocations are rare
+  and operator-driven; the reconciler never auto-revokes)
+
+For the public verifier read **without** going through easscan, hit:
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/attestations/brand/unstoppable | jq .
+```
+
+This returns the same chain-anchored fields plus the active-chain marker so
+your client picks the right easscan domain for hyperlinks.
+
+## Step 4 — For AI agents
+
+Two MCP tools cover the full agent-side lifecycle, both published by the
+droplinked MCP server (`mcp.droplinked.com`):
+
+### `request_brand_attestation`
+
+```typescript
+const result = await mcp.callTool('request_brand_attestation', {
+  shopSlug: 'unstoppable',
+  notes: 'Filed on behalf of merchant during agentic onboarding',
+});
+```
+
+```json
+{
+  "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+  "status": "PENDING",
+  "message": "Your request is in the operator review queue"
+}
+```
+
+Use this when an agent is orchestrating a merchant's full onboarding
+flow — application form, lender match, brand-attestation request — and
+needs to queue the request without the merchant manually clicking the
+shop-builder CTA. The merchant must still own the shop slug; the tool
+does not bypass the operator review gate.
+
+### `get_brand_attestation_status`
+
+```typescript
+const status = await mcp.callTool('get_brand_attestation_status', {
+  shopSlug: 'unstoppable',
+});
+```
+
+```json
+{
+  "status": "MINTED",
+  "request": {
+    "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+    "shopSlug": "unstoppable",
+    "status": "MINTED",
+    "attestationUid": "0x9c4f7a3e8b1d2c6f5a0b8e9d1c2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f",
+    "mintedAt": "2026-06-13T07:42:11Z",
+    "createdAt": "2026-06-12T18:00:00Z"
+  }
+}
+```
+
+Use this in an agent loop to detect terminal state (`MINTED` or
+`REJECTED`) before handing back to a human. The five-state discriminator
+maps cleanly to a switch statement — same shape as the public HTTP
+endpoint, no envelope translation.
+
+A typical agent sequence:
+
+1. Call `request_brand_attestation` once at onboarding time.
+2. Call `get_brand_attestation_status` on a backoff (30s → 60s → 120s)
+   until `status` is `MINTED` or `REJECTED`.
+3. On `MINTED`, call `verify_brand_attestation` (Schema A read) to
+   confirm the on-chain envelope decodes cleanly. Then hand the merchant
+   the easscan link from Step 3.
+
+See [Lender Trinity MCP Tools](/agentic/lender-trinity-mcp-tools) for
+the full catalog including these two tools.
+
+## Step 5 — For third-party verifiers
+
+A third-party verifier (lender, partner, regulator) does **not** poll the
+request lifecycle. They consume the terminal artifact: the on-chain Schema
+A attestation referenced by `attestationUid`.
+
+The two canonical reads:
+
+### easscan UI (human verifier)
+
+Open `https://base-sepolia.easscan.org/attestation/view/<UID>` in a
+browser. Decoded payload + issuer wallet + timeline are visible without
+running any infrastructure.
+
+### Droplinked public read (programmatic verifier)
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/attestations/brand/<shopSlug> | jq .
+```
+
+Returns the chain-anchored claim envelope with the active-chain marker.
+Pair it with the public lender-registry endpoint to walk the trust trinity
+(brand → registered lender → underwritten credit-risk):
+
+```bash
+# 1. Brand attestation
+curl -s https://apiv3.droplinked.com/v2/attestations/brand/unstoppable | jq .
+
+# 2. Per-lender lookup if you need to verify a credit-risk attestation issuer
+curl -s https://apiv3.droplinked.com/v2/lenders/crediblex-uae | jq .
+
+# 3. Underwriting signals composite (Schema B + C rollup)
+curl -s https://apiv3.droplinked.com/v2/underwriting-signals/<merchantId> | jq .
+```
+
+See [Lender Registry Lookup](/api-reference/public/lender-registry) +
+[Underwriting Signals](/api-reference/public/underwriting-signals) for
+sibling-axis reads.
+
+<Note>
+Public verifier reads return only chain-anchored claims + aggregate
+identifiers — never the operator-side `notes`, `decisionReason`,
+`decidedBy`, or PII. Verifier-side policy decides whether the chain
+artifact is sufficient for the verifier's risk threshold; droplinked
+never blocks reads on its own opinion of "good standing".
+</Note>
+
+## Common errors
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `POST` returns `404` | `shopSlug` not found via `ShopService` | Confirm the slug matches the kebab-case URL slug, not the human-display name. |
+| `POST` returns `400` "notes too long" | `notes` exceeded 2048 chars | Trim the note; only the operator sees it anyway. |
+| `GET request-status` returns `NONE` after a successful `POST` | You're hitting a stale CDN cache (rare) or the wrong slug | Confirm the slug. The endpoints are not edge-cached at the application layer. |
+| Status stuck at `APPROVED` for >24h | Mint orchestrator hit a persistent RPC error | The row is recoverable — operator-side `mintError` + `mintAttempts` drive the retry. Email `support@droplinked.com` with the `requestId` if it persists. |
+| `MINTED` with a UID that doesn't resolve on easscan | Wrong chain — you're on the wrong easscan domain | Use `base-sepolia.easscan.org` (testnet) until mainnet flip. The active chain is returned in the chain-anchored read at `/v2/attestations/brand/:slug`. |
+| Repeated `POST` returns the same `requestId` | This is **expected** — the endpoint is idempotent on `(shopSlug, status: PENDING)` | Treat as success. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Trust Fabric (EAS Schema v2)" icon="diagram-project" href="/concepts/trust-fabric">
+    The 4-axis architecture context for Schema A and its sibling schemas.
+  </Card>
+  <Card title="Lender Trinity MCP Tools" icon="robot" href="/agentic/lender-trinity-mcp-tools">
+    Full catalog of MCP tools including `request_brand_attestation` and `get_brand_attestation_status`.
+  </Card>
+  <Card title="Brand attestation API reference" icon="code" href="/api-reference/public/brand-attestation-request">
+    Endpoint-level reference for `POST /request` + `GET /request-status`.
+  </Card>
+  <Card title="Embed Trust-Fabric Widget" icon="window" href="/guides/integrations/embed-trust-fabric-widget">
+    Drop-in widget for surfacing brand-attestation status on your own dashboard.
+  </Card>
+</CardGroup>
