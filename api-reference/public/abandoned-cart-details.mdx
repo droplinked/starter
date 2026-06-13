@@ -1,0 +1,190 @@
+---
+title: "Get abandoned cart details"
+description: "Read full cart contents, customer info, and recovery timeline for a single abandoned cart scoped to the authenticated merchant's shop."
+---
+
+`GET /v2/merchant/shops/:shopId/abandoned-carts/:cartId` returns the **full report-ready envelope** for one abandoned cart: line items (with thumbnails, SKUs, qty × unit price, line total), customer contact, subtotal in the cart's currency, the recovery-event timeline, and the recovery token (until the cart is recovered).
+
+<Note>
+This endpoint pairs with the [merchant list + stats](/api-reference/public/abandoned-carts-merchant) endpoints. The list returns row summaries; this endpoint returns the drawer-ready detail. Use this when a merchant clicks a row to see what was actually in the cart and how the recovery has progressed.
+</Note>
+
+## When to use this
+
+- The merchant dashboard renders a **cart-details drawer** when a merchant clicks a row in the abandoned-carts list
+- A future details page wants the full cart payload + recovery timeline in one round-trip
+- A pre-resend preview surface needs to confirm the contents before re-sending the recovery email
+
+## Authentication
+
+Merchant JWT (`PRODUCER` role) **plus** shop-ownership enforced server-side by the shared `MerchantShopScope` guard. The JWT-bound `shopId` claim must equal the `:shopId` path parameter. Cross-shop access returns `404` — never `403` — to avoid leaking the existence of `:cartId` to an enumeration attacker.
+
+## Request
+
+```
+GET /v2/merchant/shops/:shopId/abandoned-carts/:cartId
+```
+
+| Param | Type | In | Notes |
+|---|---|---|---|
+| `shopId` | string | path | The shop's Mongo `_id`. PRODUCER's JWT-bound `shopId` MUST match. |
+| `cartId` | string | path | The abandoned-cart row's Mongo `_id` (as returned by the list endpoint's `_id`). |
+
+### Curl example
+
+```bash
+curl -s "https://apiv3.droplinked.com/v2/merchant/shops/65f8.../abandoned-carts/65f8a1b2c3d4e5f6a7b8c9aa" \
+  -H "Authorization: Bearer $MERCHANT_JWT" | jq .
+```
+
+## Response (200)
+
+```json
+{
+  "_id": "65f8a1b2c3d4e5f6a7b8c9aa",
+  "customerEmail": "buyer@example.com",
+  "customerPhone": null,
+  "items": [
+    {
+      "productId": "65f8a1b2c3d4e5f6a7b8caaa",
+      "productTitle": "Vintage Tee",
+      "sku": "TEE-001",
+      "quantity": 2,
+      "unitPrice": 24.50,
+      "lineTotal": 49.00,
+      "imageUrl": "https://cdn.droplinked.io/p/tee-vintage-thumb.jpg"
+    }
+  ],
+  "subtotal": 49.00,
+  "currency": "USD",
+  "abandonedAt": "2026-06-10T18:23:00.000Z",
+  "lastSeenAt": "2026-06-10T18:42:00.000Z",
+  "recoveryEvents": [
+    { "type": "EMAIL_SENT",    "at": "2026-06-10T18:38:00.000Z", "channel": "email" },
+    { "type": "EMAIL_OPENED",  "at": "2026-06-10T19:01:00.000Z", "channel": "email" },
+    { "type": "EMAIL_CLICKED", "at": "2026-06-10T19:01:30.000Z", "channel": "email" }
+  ],
+  "recoveredAt": null,
+  "recoveryToken": "f3b8...e2c1"
+}
+```
+
+### Field reference
+
+| Field | Type | Notes |
+|---|---|---|
+| `_id` | string | The abandoned-cart row id. |
+| `customerEmail` | string \| null | `null` for guest checkouts. Render "Guest checkout" in the UI. |
+| `customerPhone` | string \| null | Null on v1 rows — reserved for v1.1 SMS-channel onboarding. |
+| `items[]` | array | One entry per line item snapshot at the time the cart was abandoned. May be empty for legacy rows. |
+| `items[].productId` | string | Source product `_id`. |
+| `items[].productTitle` | string | Display title (denormalized at snapshot time). |
+| `items[].sku` | string \| null | Null on legacy v1 rows that pre-date SKU denormalization. |
+| `items[].quantity` | int | Cart quantity at abandonment. |
+| `items[].unitPrice` | number | **MAJOR units** of `currency` (e.g. dollars, not cents). |
+| `items[].lineTotal` | number | `quantity × unitPrice`, pre-computed server-side. |
+| `items[].imageUrl` | string \| null | Thumbnail. Null on legacy v1 rows that pre-date image-URL denormalization. |
+| `subtotal` | number | Sum of `lineTotal`s in MAJOR units. |
+| `currency` | string | ISO-4217 code (e.g. `USD`, `EUR`, `JPY`). |
+| `abandonedAt` | ISO-8601 string | When the recovery cron flagged the cart. |
+| `lastSeenAt` | ISO-8601 string \| null | Last update on the source cart-v2 cart (customer's last interaction before bouncing). |
+| `recoveryEvents[]` | array | Recovery-attempt timeline, chronological. Empty for legacy rows. |
+| `recoveryEvents[].type` | enum | `EMAIL_SENT` \| `EMAIL_OPENED` \| `EMAIL_CLICKED` \| `RECOVERED` |
+| `recoveryEvents[].at` | ISO-8601 string | When the event occurred. |
+| `recoveryEvents[].channel` | enum | `email` \| `sms` \| `storefront` |
+| `recoveredAt` | ISO-8601 string \| null | When the cart was recovered. Null until the checkout-success chokepoint flips the row. |
+| `recoveryToken` | string \| null | **Present ONLY when `recoveredAt === null`** — the backend redacts the token after recovery to keep the leak surface minimal. Build the storefront resume URL as `https://droplinked.io/<shopSlug>/cart?recover=<token>`. |
+
+### Money fields are MAJOR units
+
+Unlike the [list endpoint](/api-reference/public/abandoned-carts-merchant) which serializes `cartTotalCents` (cents, integer minor units), the details endpoint returns `subtotal`, `unitPrice`, and `lineTotal` in **MAJOR units of `currency`**. The backend's projection layer converts once at the boundary using a zero-decimal-currency table (e.g. JPY/KRW have no fractional unit; USD/EUR have 2 decimals). The client can pass the values straight into `Intl.NumberFormat({ style: 'currency', currency })` without dividing by 100.
+
+This contract diverges from the list endpoint intentionally — the list optimizes for the table cell where minor-unit integers avoid float drift across aggregates; the drawer endpoint pre-formats the merchant-friendly value so the UI doesn't need to know the currency-decimals table.
+
+### Recovery token redaction
+
+The backend includes `recoveryToken` in the response **only** while `recoveredAt === null`. After the checkout-success chokepoint flips the row, the token is operationally useless (the cart cannot be re-recovered) and exposing it widens the leak surface. The merchant dashboard hides the "copy recovery link" CTA whenever the field is null — defense-in-depth even though the BE already redacts.
+
+### Recovery event channels
+
+| Channel | Source |
+|---|---|
+| `email` | The recovery email rail (MailerSend prod / nodemailer dev). |
+| `sms` | Reserved for v1.1 SMS-channel onboarding (no events emitted today). |
+| `storefront` | The `POST /v2/abandoned-cart-recovery/recover` resume endpoint (customer clicked through to the storefront). |
+
+## Error responses
+
+| Status | When |
+|---|---|
+| `401` | Missing/invalid JWT. |
+| `400` | Malformed `cartId` (not a valid Mongo ObjectId). |
+| `404` | Cart not found **OR** cart belongs to a different shop. Response body: `{ "error": "abandoned_cart_not_found" }`. **Clients must NOT distinguish the two cases** — the unified posture is an IDOR-correct response (a `403` would leak the cart id's existence to an enumeration attacker). |
+
+<Note>
+The list + stats endpoints documented on the [merchant page](/api-reference/public/abandoned-carts-merchant) are migrating from a `403` to a `404` posture on cross-shop access to match this endpoint (tracked in droplinked-backend PR #1980). Once that lands, all three endpoints will share the unified `404` + `abandoned_cart_not_found` body.
+</Note>
+
+## Drawer-style flow
+
+```typescript
+const BASE = "https://apiv3.droplinked.com";
+const SHOP_ID = "65f8a1b2c3d4e5f6a7b8c9cc";
+const SHOP_SLUG = "demo-shop"; // From the shop's public URL slug
+const JWT = process.env.MERCHANT_JWT!;
+
+interface RecoveryEvent {
+  type: "EMAIL_SENT" | "EMAIL_OPENED" | "EMAIL_CLICKED" | "RECOVERED";
+  at: string;
+  channel: "email" | "sms" | "storefront";
+}
+
+interface CartDetails {
+  _id: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  items: Array<{
+    productId: string;
+    productTitle: string;
+    sku: string | null;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    imageUrl: string | null;
+  }>;
+  subtotal: number;
+  currency: string;
+  abandonedAt: string;
+  lastSeenAt: string | null;
+  recoveryEvents: RecoveryEvent[];
+  recoveredAt: string | null;
+  recoveryToken: string | null;
+}
+
+async function loadCartDrawer(cartId: string) {
+  const res = await fetch(
+    `${BASE}/v2/merchant/shops/${SHOP_ID}/abandoned-carts/${cartId}`,
+    { headers: { Authorization: `Bearer ${JWT}` } },
+  );
+  if (res.status === 404) {
+    // Cart not found OR cross-shop — same friendly state, no leak.
+    return { kind: "not_found" as const };
+  }
+  const cart = (await res.json()) as CartDetails;
+  const subtotalLabel = new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: cart.currency,
+  }).format(cart.subtotal);
+  const recoveryUrl = cart.recoveryToken
+    ? `https://droplinked.io/${SHOP_SLUG}/cart?recover=${encodeURIComponent(cart.recoveryToken)}`
+    : null; // Hidden when recoveredAt !== null
+  return { kind: "loaded" as const, cart, subtotalLabel, recoveryUrl };
+}
+```
+
+## Related
+
+- [Abandoned carts (merchant)](/api-reference/public/abandoned-carts-merchant) — list + recovery-stats endpoints (the table this drawer is launched from)
+- [Resume an abandoned cart (public)](/api-reference/public/abandoned-cart-recovery) — the storefront-side endpoint customers hit from the recovery email link
+- [Embed the trust-fabric widget](/guides/integrations/embed-trust-fabric-widget) — the dashboard chrome the drawer launches inside
+- [Order lifecycle](/guides/order-lifecycle) — the chokepoint that flips a row to `RECOVERED`
