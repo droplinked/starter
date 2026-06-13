@@ -1,0 +1,212 @@
+---
+title: "Shopify webhook ingest"
+description: "Receive product + order webhooks from a connected Shopify store. HMAC-validated; rejects unauthed traffic with 401."
+---
+
+`POST /v2/integrations/shopify/webhook/{topic}` is the **public** wire-protocol endpoint
+Shopify webhooks land on after a merchant connects their store to droplinked. It is the
+hot path that keeps droplinked's InventoryOS catalog mirror in sync with the merchant's
+Shopify store of record.
+
+This page documents the **wire protocol** for engineers configuring Shopify webhooks
+themselves. For the merchant-facing integration walkthrough — how to connect a store,
+authorize the droplinked Shopify app, and verify the sync is healthy — see
+[Connect your Shopify store](/agentic/connect-shopify).
+
+Although this endpoint has no JWT and no IP allowlist, it is **not** an open ingest: every
+request is HMAC-validated against the per-shop webhook secret that droplinked issued at
+connection time. Unauthed traffic is rejected with a 401.
+
+## Supported topics
+
+The `{topic}` path segment selects the handler. Currently wired:
+
+| Topic | Behavior |
+|-------|----------|
+| `products-create` | Mirror the new product into droplinked's InventoryOS catalog. Idempotent on `shopify.product.id` |
+| `products-update` | Upsert the product mirror with the latest title, variants, images, and inventory |
+| `products-delete` | Soft-remove the product from the mirror (preserves history; hides from the catalog feed) |
+| `orders-create` | Log the order event. v1 is a stub — v2 will fire affiliate-attribution and repayment-attestation side effects |
+| `orders-updated` | Log the order update event. v1 stub — v2 will reconcile attribution state when an order moves through fulfillment / refund states |
+
+Additional topics will be added as the integration matures. Unknown topics return 404 with
+`message: "shopify_webhook_topic_not_supported"`.
+
+## HMAC validation
+
+Shopify computes an SHA-256 HMAC over the **raw request body** using the per-shop webhook
+secret and sends the result in the `X-Shopify-Hmac-Sha256` header. Droplinked re-computes
+the expected HMAC server-side using the secret it stored at connection time and
+constant-time-compares against the header.
+
+| Header | Description |
+|--------|-------------|
+| `X-Shopify-Hmac-Sha256` | Base64-encoded SHA-256 HMAC of the raw body, keyed on the per-shop webhook secret |
+| `X-Shopify-Shop-Domain` | The source shop's `.myshopify.com` domain — used to look up which secret to validate against |
+| `X-Shopify-Topic` | Informational — droplinked routes on the `{topic}` path segment, not this header |
+| `Content-Type` | `application/json` |
+
+On HMAC mismatch the endpoint returns **401** with reason `shopify_webhook_auth_failed`.
+The body is not parsed when validation fails, so no side effects fire.
+
+If the `X-Shopify-Shop-Domain` does not resolve to a connected shop, the endpoint returns
+**404** with a message instructing the operator to call `POST /admin/shopify-integration/connect`
+first.
+
+## Configuring the webhook in Shopify Admin
+
+In Shopify Admin → **Settings** → **Notifications** → **Webhooks**, add one webhook per
+supported topic. For each:
+
+| Field | Value |
+|-------|-------|
+| Event | The matching Shopify event (e.g. *Product creation* for `products-create`) |
+| Format | **JSON** |
+| URL | `https://apiv3.droplinked.com/v2/integrations/shopify/webhook/<topic>` |
+| Webhook API version | Latest stable (currently `2026-04`) |
+| Webhook signing secret | Provided by droplinked on `POST /admin/shopify-integration/connect` |
+
+The URL `<topic>` segment **must match exactly** one of the supported topics in the table
+above. Example URLs:
+
+```
+https://apiv3.droplinked.com/v2/integrations/shopify/webhook/products-create
+https://apiv3.droplinked.com/v2/integrations/shopify/webhook/products-update
+https://apiv3.droplinked.com/v2/integrations/shopify/webhook/products-delete
+https://apiv3.droplinked.com/v2/integrations/shopify/webhook/orders-create
+https://apiv3.droplinked.com/v2/integrations/shopify/webhook/orders-updated
+```
+
+## Example request
+
+A Shopify-emitted `products-create` webhook lands on droplinked as:
+
+```http
+POST /v2/integrations/shopify/webhook/products-create HTTP/1.1
+Host: apiv3.droplinked.com
+Content-Type: application/json
+X-Shopify-Topic: products/create
+X-Shopify-Shop-Domain: example-merchant.myshopify.com
+X-Shopify-Hmac-Sha256: aB3...=
+X-Shopify-Webhook-Id: 1234567890
+X-Shopify-Triggered-At: 2026-06-13T18:00:00.000Z
+
+{
+  "id": 987654321,
+  "title": "Limited Edition Tee",
+  "vendor": "Example Merchant",
+  "product_type": "Apparel",
+  "variants": [
+    {
+      "id": 11111,
+      "sku": "TEE-RED-M",
+      "price": "29.99",
+      "inventory_quantity": 42
+    }
+  ],
+  "images": [{ "src": "https://cdn.shopify.com/.../tee.jpg" }]
+}
+```
+
+### Response — 200 OK
+
+```json
+{ "ok": true }
+```
+
+### Response — 401 Unauthorized (HMAC mismatch)
+
+```json
+{
+  "statusCode": 401,
+  "message": "shopify_webhook_auth_failed"
+}
+```
+
+### Response — 404 Not Found (shop not connected)
+
+```json
+{
+  "statusCode": 404,
+  "message": "Shopify shop domain not registered with droplinked. Call POST /admin/shopify-integration/connect first."
+}
+```
+
+### Response — 404 Not Found (unsupported topic)
+
+```json
+{
+  "statusCode": 404,
+  "message": "shopify_webhook_topic_not_supported"
+}
+```
+
+### Response — 400 Bad Request (malformed body)
+
+```json
+{
+  "statusCode": 400,
+  "message": "shopify_webhook_body_invalid"
+}
+```
+
+Returned when HMAC validates but the JSON cannot be parsed or is missing required fields
+for the chosen topic.
+
+## Body forwarding and normalization
+
+After HMAC validation, droplinked normalizes the Shopify product shape into its
+[InventoryOS](/concepts/inventory-os) catalog model. The mapping is:
+
+| Shopify field | InventoryOS field |
+|---------------|-------------------|
+| `id` | `externalSourceIds.shopify.productId` |
+| `title` | `title` |
+| `vendor` | `brand` |
+| `variants[].id` | `skus[].externalSourceIds.shopify.variantId` |
+| `variants[].sku` | `skus[].sku` |
+| `variants[].price` | `skus[].priceCents` (×100) |
+| `variants[].inventory_quantity` | `skus[].stockOnHand` |
+| `images[].src` | `images[].url` |
+
+The Shopify store remains the **source of truth** — droplinked's mirror is a
+read-projection. Edits made in droplinked's admin UI for Shopify-sourced products are
+rejected; merchants edit in Shopify and the webhook reconciles the mirror.
+
+## Operator setup
+
+Before pointing Shopify webhooks at this endpoint, the merchant **must** be connected via
+the admin API:
+
+<Steps>
+  <Step title="Operator calls connect (SUPER_ADMIN-gated)">
+    `POST /admin/shopify-integration/connect` registers the shop's `*.myshopify.com`
+    domain, issues a per-shop webhook signing secret, and links the Shopify store to a
+    droplinked shop record.
+  </Step>
+  <Step title="Operator passes the secret to the merchant">
+    The webhook signing secret is returned in the response body of the connect call. It is
+    only retrievable once — re-running connect rotates the secret and invalidates the old
+    one.
+  </Step>
+  <Step title="Merchant configures webhooks in Shopify Admin">
+    Following the table above, the merchant adds one webhook per supported topic using the
+    issued secret as the signing secret.
+  </Step>
+  <Step title="Verify with a test product">
+    Create a draft product in Shopify. Droplinked should receive the `products-create`
+    webhook within seconds and mirror the product into InventoryOS. The connection-health
+    surface in admin shows the most recent successful webhook timestamp per topic.
+  </Step>
+</Steps>
+
+If the merchant skips the connect step and Shopify starts sending webhooks anyway, every
+webhook will 404 with the "shop domain not registered" message above. Shopify will retry
+on its own backoff schedule.
+
+## Related
+
+- [Connect your Shopify store](/agentic/connect-shopify) — merchant-facing integration
+  walkthrough.
+- [InventoryOS](/concepts/inventory-os) — the catalog model the webhook body is normalized
+  into.

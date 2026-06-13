@@ -1,0 +1,154 @@
+---
+title: "Resume an abandoned cart"
+description: "Restore a customer's cart from a recovery URL link sent in an automated email. Public, no auth — recovery token is the auth."
+---
+
+`POST /v2/abandoned-cart-recovery/recover` is the **public** endpoint a storefront calls
+when a customer clicks the **recover-cart link** in an automated abandoned-cart email. The
+endpoint takes the opaque `recoveryToken` from the URL, looks up the abandoned cart, and
+returns the cart contents so the storefront can re-hydrate the checkout exactly where the
+customer left off.
+
+The endpoint is unauthenticated by design — the recovery token **is** the auth. Tokens are
+single-purpose (cart-resume only), scoped to one cart, time-bound (7 days), and never carry
+PII in the URL.
+
+The cron that fires the recovery emails (which shops are eligible, how often, the email
+template) is operator-controlled and is documented in the operator runbook for cart
+abandonment — link will land once that runbook page ships.
+
+## When to use
+
+Call this when your storefront loads a URL that contains a `recover=<token>` query string
+parameter (the recovery email links land on `/cart?recover=<token>`). On success, populate
+the customer's cart state from the response. On failure, fall back to an empty cart and
+optionally surface a "this link has expired" notice.
+
+<Note>
+Recovery tokens are random 24-character `base64url`-encoded strings. They are unique,
+indexed, and contain no PII (no email, no shop slug, no product names). The URL is safe to
+log at the storefront edge, in CDN access logs, and in analytics.
+</Note>
+
+## POST /v2/abandoned-cart-recovery/recover
+
+### Authentication
+
+None — the `recoveryToken` is the auth. Tokens are single-use semantically (resumes the
+same cart) and rate-limited per IP (60 req/min).
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `recoveryToken` | string | Yes | The opaque token from the recovery URL (24 chars, base64url) |
+
+### Example request
+
+```bash
+curl -X POST https://apiv3.droplinked.com/v2/abandoned-cart-recovery/recover \
+  -H 'content-type: application/json' \
+  -d '{ "recoveryToken": "kQ7bN3pXm2vR8sLwT4yC1zJh" }'
+```
+
+### Response — 200 OK, cart found
+
+```json
+{
+  "found": true,
+  "cart": {
+    "cartId": "65f8a1b2c3d4e5f6a7b8c9aa",
+    "shopId": "65f8a1b2c3d4e5f6a7b8c9bb",
+    "shopSlug": "unstoppable",
+    "lineItems": [
+      {
+        "productId": "prod_xyz",
+        "skuId": "sku_xyz_red_m",
+        "quantity": 2,
+        "unitPriceCents": 2500
+      }
+    ],
+    "cartTotalCents": 5000,
+    "currency": "USD",
+    "customerEmail": "buyer@example.com",
+    "abandonedAt": "2026-06-10T18:23:00.000Z"
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `found` | `true` | Token resolved to a recoverable cart |
+| `cart.cartId` | string | The cart's `_id` — pass to checkout-intent on resume |
+| `cart.shopId` | string | The shop the cart belongs to |
+| `cart.shopSlug` | string | The shop's storefront slug — useful for redirecting to the right `*.droplinked.io` host if the link was opened on a different surface |
+| `cart.lineItems` | array | The cart's line items at abandonment time |
+| `cart.cartTotalCents` | int | Pre-discount cart subtotal |
+| `cart.currency` | string | Three-letter ISO 4217 |
+| `cart.customerEmail` | string | The email address the recovery message was sent to — for pre-filling the contact form |
+| `cart.abandonedAt` | ISO-8601 | When the cron flagged the cart as abandoned |
+
+### Response — 404 Not Found, token not recognized or expired
+
+```json
+{
+  "found": false,
+  "reason": "recovery_token_not_found_or_expired"
+}
+```
+
+The endpoint returns a single failure reason (`recovery_token_not_found_or_expired`) so
+that the storefront cannot distinguish "this token never existed" from "this token has
+expired" from a timing or enumeration perspective. From the storefront's POV the UX is the
+same in either case: surface a "this recovery link is no longer valid" notice and load an
+empty cart.
+
+### Error responses
+
+| Status | When |
+|--------|------|
+| `400` | Malformed body (missing `recoveryToken`, wrong type, length other than 24) |
+| `404` | Token not recognized or expired (see above) |
+| `429` | Rate limit exceeded for caller IP |
+
+## Recovery URL format
+
+The cron writes recovery URLs in this exact format:
+
+```
+https://{shopSlug}.droplinked.io/cart?recover=<recoveryToken>
+```
+
+The storefront SPA at that route reads the `recover` query parameter, calls this endpoint,
+and hydrates the cart from the response. If your custom storefront does not run on
+`*.droplinked.io`, you can still call this endpoint — the response includes `cart.shopSlug`
+so you can verify the link was intended for the surface that loaded it.
+
+## Expiration
+
+Recovery tokens expire **7 days** from cart abandonment. After expiry the token is
+permanently invalid — there is no re-issue. The customer would need to be served a fresh
+abandonment email (which can only be sent once per cart per the cron policy).
+
+The 7-day window is operator-tunable per shop in the cart-abandonment cron config, but
+defaults to 7 days for every shop.
+
+## Privacy
+
+<Note>
+Recovery tokens are random 24-character `base64url` strings. They are unique, server-side
+indexed, and contain **no PII** — no email address, no shop slug, no product IDs, no order
+ID. The URL can safely appear in browser history, CDN access logs, and email-client
+preview-mode renderings without leaking customer state.
+</Note>
+
+The cart record the token resolves to does contain the customer's email — but that record
+is only accessible via the token, never via enumeration.
+
+## Related
+
+- [Checkout payment-intent resolver](/api-reference/public/checkout-intent-resolver) —
+  the next step after the customer resumes their cart and proceeds to checkout.
+- [Merchants overview](/concepts/for-merchants) — how cart recovery fits into the
+  merchant's order lifecycle.
+- Operator runbook — cart-abandonment cron config and email templates — **coming**.
