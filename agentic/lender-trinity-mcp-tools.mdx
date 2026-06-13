@@ -33,6 +33,49 @@ const profile = await mcp.callTool('verify_lender', { lenderId: 'crediblex-uae' 
 
 Wraps: [`GET /v2/lenders/:lenderId`](/api-reference/public/lender-registry).
 
+## `get_lender_history`
+
+Trace a lender's full lifecycle — REGISTERED, STATUS_CHANGED, metadata edits. Verifiers use this to determine whether a lender was ACTIVE at the time a Schema B credit-risk attestation was minted, and to surface any SUSPENDED / ARCHIVED transitions.
+
+```typescript
+const history = await mcp.callTool('get_lender_history', { lenderId: 'crediblex-uae' });
+```
+
+```json
+{
+  "lenderId": "crediblex-uae",
+  "count": 3,
+  "events": [
+    {
+      "occurredAt": "2026-05-01T09:15:00Z",
+      "eventType": "LENDER_REGISTERED",
+      "previousStatus": null,
+      "newStatus": "PENDING_KYB"
+    },
+    {
+      "occurredAt": "2026-05-03T14:22:00Z",
+      "eventType": "LENDER_STATUS_CHANGED",
+      "previousStatus": "PENDING_KYB",
+      "newStatus": "ACTIVE"
+    },
+    {
+      "occurredAt": "2026-05-20T11:00:00Z",
+      "eventType": "LENDER_DISPLAY_NAME_CHANGED",
+      "previousStatus": null,
+      "newStatus": null
+    }
+  ]
+}
+```
+
+**Event types**: `LENDER_REGISTERED` / `LENDER_STATUS_CHANGED` / `LENDER_DISPLAY_NAME_CHANGED` / `LENDER_JURISDICTION_CHANGED` / `LENDER_SIGNING_WALLET_CHANGED` / `LENDER_REGULATOR_REFERENCE_CHANGED` / `LENDER_CONTACT_NOTES_CHANGED`.
+
+`previousStatus` / `newStatus` are non-null only for `LENDER_REGISTERED` + `LENDER_STATUS_CHANGED` events; both are null for metadata-change events.
+
+**Use case**: An agent presenting a Schema B credit-risk attestation needs to confirm the issuing lender was in good standing at attestation time — walk the timeline, find the `LENDER_STATUS_CHANGED` events bracketing the attestation's `occurredAt`, and assert the lender was `ACTIVE` in that window (and not subsequently SUSPENDED / ARCHIVED).
+
+Wraps: [`GET /v2/lenders/:lenderId/timeline`](/api-reference/public/lender-registry).
+
 ## `recommend_lender`
 
 "Which lenders should this merchant approach?" — given a jurisdiction (+ optional archetype filter), returns the ordered list of ACTIVE lenders by exact-match-first, GLOBAL-fallback-second, track-record sort within group.
@@ -89,6 +132,58 @@ const recs = await mcp.callTool('recommend_service_provider', {
 **Use case**: Merchant fulfillment onboarding asking "which 3PL should I integrate with" — agent ranks by track record (successful ingestion count + recency).
 
 Wraps: [`GET /v2/service-provider-routing/recommend`](/api-reference/public/service-provider-routing).
+
+## `get_methodology_versions`
+
+Return all methodology document versions ever registered for a lender, newest-first. Verifiers use this to trace a lender's full methodology lineage when an on-chain Schema B attestation cites a specific hash.
+
+```typescript
+const versions = await mcp.callTool('get_methodology_versions', { lenderId: 'crediblex-uae' });
+```
+
+```json
+{
+  "lenderId": "crediblex-uae",
+  "count": 3,
+  "versions": [
+    {
+      "version": 3,
+      "methodologyHash": "0xabc123...",
+      "documentUrl": "https://crediblex.ae/methodology/v3.pdf",
+      "displayName": "CredibleX Credit-Risk Methodology v3",
+      "status": "ACTIVE",
+      "effectiveAt": "2026-06-01T00:00:00Z",
+      "supersededAt": null
+    },
+    {
+      "version": 2,
+      "methodologyHash": "0xdef456...",
+      "documentUrl": "https://crediblex.ae/methodology/v2.pdf",
+      "displayName": "CredibleX Credit-Risk Methodology v2",
+      "status": "SUPERSEDED",
+      "effectiveAt": "2026-04-15T00:00:00Z",
+      "supersededAt": "2026-06-01T00:00:00Z"
+    },
+    {
+      "version": 1,
+      "methodologyHash": "0x789abc...",
+      "documentUrl": "https://crediblex.ae/methodology/v1.pdf",
+      "displayName": "CredibleX Credit-Risk Methodology v1",
+      "status": "SUPERSEDED",
+      "effectiveAt": "2026-03-01T00:00:00Z",
+      "supersededAt": "2026-04-15T00:00:00Z"
+    }
+  ]
+}
+```
+
+**Status enum**: `ACTIVE` / `SUPERSEDED` / `REVOKED`.
+
+**Privacy + bounds**: no `notes` field is exposed (operator-only); response is hard-capped at 100 versions per lender.
+
+**Use case**: An agent presented with a Schema B attestation needs to walk the lender's methodology history to see whether the cited `methodologyHash` is the most recent version or has been superseded — flag stale citations to the consuming application.
+
+Wraps: [`GET /v2/methodologies/:lenderId/versions`](/api-reference/public/methodology-registry).
 
 ## `get_trust_fabric_stats`
 
