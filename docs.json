@@ -162,7 +162,8 @@
           {
             "group": "Merchant API",
             "pages": [
-              "api-reference/public/abandoned-carts-merchant"
+              "api-reference/public/abandoned-carts-merchant",
+              "api-reference/public/abandoned-cart-details"
             ]
           },
           {
