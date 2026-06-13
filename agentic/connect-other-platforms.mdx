@@ -1,0 +1,150 @@
+---
+title: "Connect WooCommerce, BigCommerce, Magento, or custom"
+description: "Plug WooCommerce, BigCommerce, Magento 2.x, or a custom storefront into droplinked's InventoryOS. Same pattern as the Shopify connector — webhook receiver, HMAC validation, one-way mirror."
+---
+
+The [Shopify connector pattern](/agentic/connect-shopify) generalizes. Any platform that can emit webhooks on catalog + order events — WooCommerce, BigCommerce, Magento, or a custom Next.js / React / Express / Rails / Django storefront — can plug into [InventoryOS](/concepts/inventory-os) using the same webhook-receiver + signing-validation shape.
+
+This page walks through the per-platform webhook setup for the four most-requested origin platforms beyond Shopify. The droplinked side is identical in each case: one normalized catalog mirror, one per-merchant MCP surface, one ACP feed entry, one lender-routing eligibility.
+
+## Platform-specific integration
+
+<Tabs>
+  <Tab title="WooCommerce">
+    Configure webhooks from **WP Admin → WooCommerce → Settings → Advanced → Webhooks**. Point each event at the droplinked WooCommerce ingestion endpoint and copy the shared HMAC secret you generated in Step 1 below.
+
+    | WooCommerce topic | Destination |
+    |---|---|
+    | `product.created` | `https://apiv3.droplinked.com/v2/integrations/woo/webhook/product` |
+    | `product.updated` | `https://apiv3.droplinked.com/v2/integrations/woo/webhook/product` |
+    | `product.deleted` | `https://apiv3.droplinked.com/v2/integrations/woo/webhook/product` |
+    | `order.created` | `https://apiv3.droplinked.com/v2/integrations/woo/webhook/order` |
+    | `order.updated` | `https://apiv3.droplinked.com/v2/integrations/woo/webhook/order` |
+
+    WooCommerce uses a webhook secret in the URL signing scheme — droplinked's WooCommerce adapter does **HMAC-SHA256 validation parity** on the raw body using the secret you provided at connect time. Format: **JSON**.
+
+    <Note>
+      A dedicated WordPress plugin for one-click install is on the [InventoryOS roadmap](/concepts/inventory-os#whats-coming). Until then, the WP Admin webhook config above is the supported integration path.
+    </Note>
+  </Tab>
+
+  <Tab title="BigCommerce">
+    Configure webhooks from the **BigCommerce Control Panel → Apps → Webhooks** (or programmatically via the V3 Webhooks API). Subscribe to these scopes pointed at the droplinked BigCommerce ingestion endpoint:
+
+    | BigCommerce scope | Destination |
+    |---|---|
+    | `store/product/created` | `https://apiv3.droplinked.com/v2/integrations/bigcommerce/webhook` |
+    | `store/product/updated` | `https://apiv3.droplinked.com/v2/integrations/bigcommerce/webhook` |
+    | `store/product/deleted` | `https://apiv3.droplinked.com/v2/integrations/bigcommerce/webhook` |
+    | `store/order/created` | `https://apiv3.droplinked.com/v2/integrations/bigcommerce/webhook` |
+    | `store/order/updated` | `https://apiv3.droplinked.com/v2/integrations/bigcommerce/webhook` |
+
+    BigCommerce delivers webhooks with a **signed JWT payload** rather than an HMAC header. Droplinked's BigCommerce adapter validates the JWT signature against the per-merchant signing key configured at connect time.
+
+    <Note>
+      An official BigCommerce App on the App Marketplace is on the [InventoryOS roadmap](/concepts/inventory-os#whats-coming). Until then, configuring webhooks directly via the Control Panel (or the V3 Webhooks API) is the supported integration path.
+    </Note>
+  </Tab>
+
+  <Tab title="Magento 2.x">
+    Configure webhooks from **Admin → Stores → Configuration → Services → Webhooks** (Magento 2.4+ exposes a native Webhooks surface; older versions can install the Magento Webhooks extension). Subscribe to these events pointed at the droplinked Magento ingestion endpoint:
+
+    | Magento event | Destination |
+    |---|---|
+    | `catalog_product_save_after` | `https://apiv3.droplinked.com/v2/integrations/magento/webhook` |
+    | `catalog_product_delete_after` | `https://apiv3.droplinked.com/v2/integrations/magento/webhook` |
+    | `sales_order_save_after` | `https://apiv3.droplinked.com/v2/integrations/magento/webhook` |
+
+    Magento uses **RSA-signature signing** on extension-emitted webhooks. Droplinked's Magento adapter validates the RSA signature against the per-merchant public key registered at connect time.
+
+    <Note>
+      A Magento 2 extension (Adobe Commerce Marketplace listing) is on the [InventoryOS roadmap](/concepts/inventory-os#whats-coming). Until then, the Magento Webhooks surface (or extension) above is the supported integration path.
+    </Note>
+  </Tab>
+
+  <Tab title="Custom storefront">
+    For a custom Next.js, React, Express, Rails, Django, or any other headless storefront, emit JSON webhooks directly to droplinked's custom ingestion endpoint on product + order events:
+
+    ```bash
+    curl -X POST 'https://apiv3.droplinked.com/v2/integrations/custom/webhook' \
+      -H 'content-type: application/json' \
+      -H 'X-Droplinked-Shop-Slug: your-shop-slug' \
+      -H "X-Droplinked-Hmac-Sha256: $(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$HMAC_SECRET" -binary | base64)" \
+      -d "$BODY"
+    ```
+
+    Where `$BODY` is your JSON payload — for example, on a product create:
+
+    ```json
+    {
+      "event": "product.created",
+      "occurredAt": "2026-06-13T12:00:00Z",
+      "product": {
+        "originId": "sku_42",
+        "title": "Carbon Hoodie",
+        "description": "…",
+        "variants": [
+          { "originVariantId": "sku_42_m", "size": "M", "price": { "currency": "USD", "amount": 4900 } }
+        ],
+        "images": ["https://cdn.example.com/sku_42.jpg"],
+        "vendor": "Your Brand",
+        "tags": ["hoodie", "carbon"]
+      }
+    }
+    ```
+
+    Droplinked validates the `X-Droplinked-Hmac-Sha256` header against the HMAC secret you generated at connect time (SHA256 over the raw request body, base64-encoded).
+
+    <Note>
+      An SDK-style helper for the most common runtimes is coming as `@droplinked/connector-sdk` — see the [InventoryOS roadmap](/concepts/inventory-os#whats-coming).
+    </Note>
+  </Tab>
+</Tabs>
+
+## What you need before connecting
+
+Regardless of platform, the connect handshake gives you the three things every webhook receiver needs:
+
+- **Your droplinked merchant ID** — assigned at operator-onboarding time (`mch_…`)
+- **A shared HMAC secret** — generated when you call `POST /admin/integrations/connect` with your origin platform domain + preferred shop-slug
+- **Origin-platform webhook configuration access** — admin rights on the origin platform to wire up the webhook endpoints above
+
+Once you have all three, the platform-specific tab above tells you exactly which events to subscribe to.
+
+## Validation pattern
+
+Droplinked validates each origin platform's webhooks using the signing scheme that platform emits — the validation logic is per-adapter but the security posture is uniform:
+
+| Platform | Signing scheme | Validation |
+|---|---|---|
+| [Shopify](/agentic/connect-shopify) | SHA256 HMAC over raw body | `X-Shopify-Hmac-Sha256` header vs computed HMAC |
+| WooCommerce | SHA256 HMAC parity | `X-WC-Webhook-Signature` header vs computed HMAC |
+| BigCommerce | Signed JWT payload | JWT signature verified against per-merchant signing key |
+| Magento | RSA signature | Extension-emitted signature verified against per-merchant public key |
+| Custom storefront | SHA256 HMAC over raw body | `X-Droplinked-Hmac-Sha256` header vs computed HMAC |
+
+A failed signature check rejects the webhook with `401 Unauthorized` — no partial state is written into [InventoryOS](/concepts/inventory-os).
+
+## What you gain — same as Shopify
+
+The droplinked-side surfaces every connector unlocks are identical to what [Shopify merchants](/agentic/connect-shopify) get:
+
+- **Agent-shoppable distribution** via your per-merchant MCP at `mcp.droplinked.com/{shop-slug}/...`
+- **ACP feed inclusion** at `apiv3.droplinked.com/feed/acp.json`
+- **Lender-routing eligibility** via the [LenderRegistry](/api-reference/public/lender-registry) + [recommendation endpoint](/api-reference/public/lender-routing)
+- **Brand attestation** (Schema A) — operator-gated, makes your brand cryptographically verifiable to agents and verifiers
+- **Built-in affiliate network** with x402 settlement on the 70/20/10 split
+- **Cross-channel reconciliation** if you connect more than one origin platform (see below)
+
+## Cross-channel posture
+
+A merchant connecting both Shopify **and** WooCommerce — or BigCommerce + a custom Next.js site, or any other combination — gets a **unified InventoryOS view**: one normalized catalog, one repayment-history rollup, one lender-routing decision, one per-merchant MCP. The brand attestation is issued once and applies across every connected channel.
+
+See [InventoryOS — cross-channel reconciliation](/concepts/inventory-os#cross-channel-reconciliation) for the architectural deep-dive on why we bridge channels rather than silo them.
+
+## Related
+
+- [Connect your Shopify store](/agentic/connect-shopify) — the live, fully-built reference adapter
+- [InventoryOS](/concepts/inventory-os) — the bridge layer every connector feeds into
+- [Trust fabric](/concepts/trust-fabric) — Schema A/B/C/D attestation architecture
+- [For merchants](/concepts/for-merchants) — how droplinked composes with your existing commerce stack

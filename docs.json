@@ -47,6 +47,7 @@
             "pages": [
               "concepts/platform-model",
               "concepts/trust-fabric",
+              "concepts/inventory-os",
               "concepts/forensic-chain",
               "concepts/for-merchants",
               "concepts/for-defi-lenders",
@@ -186,6 +187,7 @@
               "agentic/acp-feed",
               "agentic/connect-your-store",
               "agentic/connect-shopify",
+              "agentic/connect-other-platforms",
               "agentic/storefront-mcp-discovery"
             ]
           }
