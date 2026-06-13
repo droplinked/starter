@@ -100,6 +100,19 @@ or new partner — can reconstruct the full trajectory without trusting droplink
     to your HTML head so consumer agents auto-discover your MCP endpoint.
   </Step>
 
+  <Step title="Request your brand attestation">
+    From the trust-fabric card in your dashboard, click **Request brand
+    attestation**. The request walks
+    `PENDING → APPROVED → MINTED` (or `→ REJECTED`) — operator-reviewed,
+    then the orchestrator mints a Schema A `BrandAttestation` on-chain.
+    No further action needed; the card polls the status endpoint and
+    auto-advances.
+
+    Full walkthrough — including the MCP-tool path for AI-agent onboarding
+    flows and the easscan verifier link — in
+    [Brand attestation: request → mint → verify](/guides/trust-fabric/brand-attestation-lifecycle).
+  </Step>
+
   <Step title="Apply for a credit line">
     Submit a lending application. droplinked's
     [`/v2/lender-routing/recommend`](/api-reference/public/lender-routing)
@@ -252,6 +265,7 @@ layer, not just by convention.
 
 ## Related
 
+- [Brand attestation: request → mint → verify](/guides/trust-fabric/brand-attestation-lifecycle) — end-to-end Schema A lifecycle walkthrough
 - [Trust Fabric (EAS Schema v2)](/concepts/trust-fabric) — 4-axis architecture overview
 - [Forensic Chain Workflow](/concepts/forensic-chain) — end-to-end verifier walkthrough
 - [DeFi Lender Onboarding](/concepts/for-defi-lenders) — the lender side of this story
