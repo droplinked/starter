@@ -90,6 +90,28 @@ const recs = await mcp.callTool('recommend_service_provider', {
 
 Wraps: [`GET /v2/service-provider-routing/recommend`](/api-reference/public/service-provider-routing).
 
+## `get_trust_fabric_stats`
+
+"What's the platform's overall trust-fabric scale?" — returns aggregate-only counts across lenders, service providers, methodology versions, and attestations by schema. No PII, no per-row data, no auth required. Use this to gauge platform scale before issuing per-merchant queries or to power a partner-facing dashboard.
+
+```typescript
+const stats = await mcp.callTool('get_trust_fabric_stats', {});
+```
+
+```json
+{
+  "asOf": "2026-06-13T02:00:00Z",
+  "lenders": { "total": 2, "active": 2, "pendingKyb": 0, "suspended": 0, "archived": 0 },
+  "serviceProviders": { "total": 5, "active": 4, "pendingKyb": 1, "suspended": 0, "archived": 0 },
+  "methodologies": { "totalLenders": 2, "activeVersions": 1, "supersededVersions": 3, "revokedVersions": 0 },
+  "attestations": { "schemaA": 12, "schemaB": 8, "schemaC": 4, "schemaD": 2 }
+}
+```
+
+**Use case**: partner dashboards showing droplinked trust-fabric scale; agent platform-scale signaling; freshness/health probes.
+
+Wraps: [`GET /v2/trust-fabric/stats`](/api-reference/public/trust-fabric-stats).
+
 ## Related
 
 - [Trust Fabric overview](/concepts/trust-fabric) — full architecture

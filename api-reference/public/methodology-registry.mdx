@@ -98,6 +98,98 @@ The canonical verifier path. Given a `lenderId` + `methodologyHash` parsed from 
 }
 ```
 
+## List all versions for a lender
+
+```
+GET /v2/methodologies/:lenderId/versions
+```
+
+Returns the **full versioned lineage** of methodology documents this lender has ever registered — ACTIVE, SUPERSEDED, and REVOKED — sorted newest-first by `effectiveAt`. Verifiers use this when they want to walk a lender's methodology history without already knowing specific `methodologyHash` values upfront (e.g. "show me every version CredibleX has ever published" for a regulator audit).
+
+<Note>
+This endpoint is **public** — no JWT, no IP-allowlist. The response is intentionally redacted to a verifier-safe whitelist. **Operator-only fields are deliberately NOT in the response:** `notes` (operator-only free-text), `createdBy`, `updatedBy`, and any internal lifecycle metadata. `lenderId` appears once in the envelope and is omitted from each row to avoid redundant payload.
+</Note>
+
+### Request
+
+| Param | Type | Notes |
+|---|---|---|
+| `lenderId` | string | Kebab-case, matches `^[a-z0-9_-]{3,64}$` |
+
+No query parameters. The response is capped at **100 versions** (hard cap — older versions are not paginated; a lender publishing >100 methodology versions is a registry-design escalation, not a paging escalation).
+
+### Response (200)
+
+```json
+{
+  "lenderId": "crediblex-uae",
+  "count": 3,
+  "versions": [
+    {
+      "version": "2.1.0",
+      "methodologyHash": "1f8b3c…",
+      "documentUrl": "https://crediblex.example.com/methodology/v2.1.0.pdf",
+      "displayName": "CredibleX UAE — SME Working-Capital Methodology v2.1",
+      "status": "ACTIVE",
+      "effectiveAt": "2026-05-01T00:00:00Z",
+      "supersededAt": null
+    },
+    {
+      "version": "2.0.0",
+      "methodologyHash": "b2e4f1…",
+      "documentUrl": "https://crediblex.example.com/methodology/v2.0.0.pdf",
+      "displayName": "CredibleX UAE — SME Working-Capital Methodology v2.0",
+      "status": "SUPERSEDED",
+      "effectiveAt": "2026-03-15T00:00:00Z",
+      "supersededAt": "2026-05-01T00:00:00Z"
+    },
+    {
+      "version": "1.0.0",
+      "methodologyHash": "a91d…",
+      "documentUrl": "https://crediblex.example.com/methodology/v1.0.0.pdf",
+      "displayName": "CredibleX UAE — SME Working-Capital Methodology v1.0",
+      "status": "SUPERSEDED",
+      "effectiveAt": "2026-02-01T00:00:00Z",
+      "supersededAt": "2026-03-15T00:00:00Z"
+    }
+  ]
+}
+```
+
+### Field reference
+
+| Field | Type | Notes |
+|---|---|---|
+| `lenderId` | string | Envelope only; not duplicated per row |
+| `count` | integer | Total versions returned (≤ 100 hard cap) |
+| `versions[].version` | string | Lender-published semantic version (e.g. `2.1.0`) |
+| `versions[].methodologyHash` | string | 64-char lowercase hex (SHA-256 of source document) |
+| `versions[].documentUrl` | string | URL of the source PDF/markdown — verifiers re-hash to confirm integrity |
+| `versions[].displayName` | string | Human-readable label |
+| `versions[].status` | enum | `ACTIVE` \| `SUPERSEDED` \| `REVOKED` |
+| `versions[].effectiveAt` | ISO 8601 | When this version went into force |
+| `versions[].supersededAt` | ISO 8601 \| null | When this version was superseded; `null` for the current `ACTIVE` row |
+
+### Sort order
+
+Versions are returned **newest-first by `effectiveAt`** — the current `ACTIVE` row (if any) is row 0; the lender's earliest registration is the last row.
+
+### Curl example
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/methodologies/crediblex-uae/versions | jq .
+```
+
+### When to use this vs. the by-hash / active endpoints
+
+- Use [`GET /v2/methodologies/:lenderId/active`](/api-reference/public/methodology-registry) (Endpoint 1 above) when you already know the lender and just want the *current* in-force methodology.
+- Use [`GET /v2/methodologies/:lenderId/:methodologyHash`](/api-reference/public/methodology-registry) (Endpoint 2 above) when you have a specific `methodologyHash` from a Schema B attestation and want to resolve it to its source document.
+- Use this `versions` endpoint when you want the **full lineage** without a specific hash in hand — for example, regulator audits asking "show me every methodology this lender has ever issued attestations against."
+
+### MCP wrapper
+
+Consumer agents reach this endpoint via the `get_methodology_versions` MCP tool (in flight as a separate droplinked-mcp PR — will be listed on the [Lender Trinity MCP Tools](/agentic/lender-trinity-mcp-tools) page once shipped) so ChatGPT / Claude / OpenAI Agents SDK callers can walk a lender's methodology lineage without prior knowledge of the path scheme.
+
 ## Verifier integrity check
 
 A complete verifier flow:
