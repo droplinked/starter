@@ -48,8 +48,13 @@
               "concepts/platform-model",
               "concepts/trust-fabric",
               "concepts/forensic-chain",
+<<<<<<< HEAD
               "concepts/for-merchants",
               "concepts/for-defi-lenders"
+=======
+              "concepts/for-defi-lenders",
+              "concepts/for-service-providers"
+>>>>>>> 49ad93e (docs: Service Providers on Droplinked — completes the partner-ecosystem trio (lender + merchant + SP))
             ]
           },
           {
