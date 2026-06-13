@@ -1,0 +1,69 @@
+---
+title: Inventory MCP
+description: "Agentic Model Context Protocol surface for droplinked's InventoryOS — let any AI agent find, track, attest, and transact against merchant inventory."
+---
+
+The **Inventory MCP** is droplinked's agentic surface over [InventoryOS](/concepts/inventory-os). Any
+MCP-capable agent (Claude Desktop, Claude Code, Cursor, Continue, the Vercel AI SDK, …) can
+discover merchant catalogs, place orders, issue refunds, and read on-chain attestation state —
+all against the public discovery doc, no merchant credentials required for read-side tools.
+
+Discovery URL (live):
+
+```bash
+curl -s https://apiv3.droplinked.com/.well-known/mcp.json | jq .tools[].name
+```
+
+## Tools
+
+The 11 LIVE tools as of 2026-06-13, returned by the canonical MCP discovery doc:
+
+| Tool | Purpose |
+|---|---|
+| `findInventory` | Discover SKUs across a merchant's shops, with stock + warehouse signals |
+| `getStockoutAlerts` | Surface critical stockout signals (privacy-aware per merchant attestation policy) |
+| `getProductDetail` | Full SKU detail including variants, pricing, fulfillment metadata |
+| `getShopInfo` | Shop-level metadata — owner, plan tier, PSP authorizations |
+| `searchProducts` | Free-text search across the public catalog |
+| `listMerchants` | Discover merchants on the platform (paginated) |
+| `placeOrderAgentic` | Single-call order placement that also returns the payment-intent for downstream PSP redirect |
+| `getOrderReceipt` | Customer/agent-facing receipt — items, totals, payment method (PSP-invisible) |
+| `getOrderStatus` | Light-weight fulfillment polling — state machine projection only |
+| `refundOrder` | Agent-initiated refund routed through the existing PSP refund chokepoint |
+| `queryEventLog` | SUPER_ADMIN observability into the Pillar 5 EventBus (admin-only via shared-secret bridge) |
+
+Each tool validates input with a JSON Schema returned in the discovery doc and calls
+`https://apiv3.droplinked.com` as the canonical base.
+
+## Discovery
+
+```bash
+curl -s https://apiv3.droplinked.com/.well-known/mcp.json
+```
+
+Returns the full tool registry — names, descriptions, input schemas, output shapes. Any
+compliant MCP client will use this to auto-discover the surface.
+
+## Privacy + cost-efficiency
+
+Inventory + attestation tools respect each merchant's `MerchantAttestationPolicy`:
+
+- Default: **opt-in private** — `findInventory` returns a redacted attestation status for
+  merchants who have not opted in to on-chain publishing
+- **`lenders_only` scope** — visible to allowlisted lenders via authenticated calls
+- **`public` scope** — visible to anyone
+
+On-chain attestations are **batched daily** by default to keep gas cost predictable. See
+[EAS Schema v2](/concepts/trust-fabric) for the 4-axis trust fabric (brand / credit / inventory
+/ cross-attestation) that the Inventory MCP reads from.
+
+## Where to go next
+
+- [MCP Server reference](/agentic/mcp-server) — install instructions for Claude Desktop, Cursor,
+  Continue, and other MCP clients
+- [Storefront MCP discovery](/agentic/storefront-mcp-discovery) — per-shop discovery for
+  embedding the MCP surface in customer-facing storefronts
+- [Connect your store](/agentic/connect-your-store) — onboard a merchant + opt-in to attestation
+  publishing
+- [InventoryOS concept](/concepts/inventory-os) — the architectural model underlying the
+  Inventory MCP surface
