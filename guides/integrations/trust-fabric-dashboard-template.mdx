@@ -1,0 +1,265 @@
+---
+title: "Trust-Fabric Dashboard Template"
+description: "Drop-in HTML + JavaScript reference dashboard that polls /v2/trust-fabric/stats and renders aggregate counts. Adapt for your own brand."
+---
+
+A copy-pastable reference dashboard for partners, lenders, and treasury teams who
+want to embed droplinked's live trust-fabric scale (and their own activity) into
+an internal portal. Sixty-second read; everything below is public, no auth, no SDK.
+
+## Who this is for
+
+- **Lenders + DeFi vaults** displaying their own credit-risk activity alongside the
+  platform aggregate. See also [DeFi Lender Onboarding](/concepts/for-defi-lenders).
+- **Partner portals** signaling platform scale to their internal teams without
+  exposing per-row data.
+- **Treasury teams** evaluating droplinked who want a live read on the trust-fabric
+  trinity before signing onboarding paperwork.
+
+The dashboard is **read-only** — every endpoint it polls is public + unauthenticated.
+No JWT, no IP-allowlist, no SDK install. Drop it onto an internal HTTPS origin and
+it works.
+
+## Live data sources
+
+The dashboard polls four public endpoints:
+
+| Endpoint | What it surfaces | Cadence |
+|---|---|---|
+| [`GET /v2/trust-fabric/stats`](/api-reference/public/trust-fabric-stats) | Top-line aggregate (lenders, service providers, methodology versions, attestations by schema) | 60s |
+| [`GET /v2/lenders?status=ACTIVE`](/api-reference/public/lender-registry) | Registered lender list (display name, jurisdiction, archetype) | 60s |
+| [`GET /v2/methodologies/:lenderId/versions`](/api-reference/public/methodology-registry) | Per-lender methodology depth | on demand |
+| [`GET /v2/lender-routing/recommend?jurisdiction=...`](/api-reference/public/lender-routing) | Jurisdiction-ranked lender recommendations | on demand |
+
+<Note>
+`/v2/trust-fabric/stats` has **no server-side cache** in v1 — every call hits the
+live aggregate. The recommended client-side polling cadence is **60 seconds or
+greater**. The `asOf` field in the response lets you display data freshness
+honestly even with stale-while-revalidate strategies.
+</Note>
+
+## Dashboard code
+
+<Tabs>
+  <Tab title="Vanilla HTML + JS">
+    Self-contained — save as `dashboard.html`, open in any browser.
+
+    ```html
+    <!doctype html>
+    <html lang="en">
+    <head>
+    <meta charset="utf-8" />
+    <title>Droplinked Trust-Fabric Dashboard</title>
+    <style>
+      body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 32px; background: #f6faf8; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 1200px; margin: 0 auto; }
+      .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+      .label { color: #5b6b64; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+      .value { font-size: 32px; font-weight: 600; color: #11221c; }
+      .pill { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; background: #2bcfa122; color: #06c295; margin-top: 8px; }
+      h1, h2 { color: #11221c; }
+      .lender-list { margin-top: 24px; max-width: 1200px; margin-left: auto; margin-right: auto; }
+      .lender-row { background: #fff; border-radius: 8px; padding: 16px 24px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+      .footer { margin-top: 32px; color: #5b6b64; font-size: 13px; text-align: center; }
+      .footer a { color: #06c295; }
+    </style>
+    </head>
+    <body>
+      <h1>Droplinked Trust-Fabric — Live</h1>
+      <p id="asOf" style="color: #5b6b64;">…</p>
+      <div id="grid" class="grid">
+        <!-- cards rendered here -->
+      </div>
+      <div class="lender-list">
+        <h2>Active lenders</h2>
+        <div id="lenders">…</div>
+      </div>
+      <p class="footer">
+        Data from <a href="https://apiv3.droplinked.com/v2/trust-fabric/stats">apiv3.droplinked.com/v2/trust-fabric/stats</a>
+        + <a href="https://docs.droplinked.com">docs.droplinked.com</a>.
+        Updated every 60 seconds.
+      </p>
+      <script>
+        const API = 'https://apiv3.droplinked.com';
+        async function refresh() {
+          try {
+            const [stats, lenders] = await Promise.all([
+              fetch(API + '/v2/trust-fabric/stats').then(r => r.json()),
+              fetch(API + '/v2/lenders?status=ACTIVE').then(r => r.json()),
+            ]);
+            document.getElementById('asOf').textContent = 'As of ' + new Date(stats.asOf).toLocaleString();
+            document.getElementById('grid').innerHTML = [
+              { label: 'Active lenders', value: stats.lenders.active },
+              { label: 'Active service providers', value: stats.serviceProviders.active },
+              { label: 'Active methodology versions', value: stats.methodologies.activeVersions },
+              { label: 'Schema B credit-risk attestations', value: stats.attestations.schemaB },
+              { label: 'Schema C repayment-history', value: stats.attestations.schemaC },
+              { label: 'Schema A brand attestations', value: stats.attestations.schemaA },
+            ].map(c => `<div class="card"><div class="label">${c.label}</div><div class="value">${c.value}</div></div>`).join('');
+            document.getElementById('lenders').innerHTML = (lenders.lenders || []).map(l =>
+              `<div class="lender-row"><div><strong>${l.displayName}</strong><br><small>${l.jurisdiction} · ${l.archetype}</small></div><div><span class="pill">${l.status}</span></div></div>`
+            ).join('') || '<p>No active lenders yet.</p>';
+          } catch (err) {
+            document.getElementById('asOf').textContent = 'Error fetching data — see console';
+            console.error(err);
+          }
+        }
+        refresh();
+        setInterval(refresh, 60_000);
+      </script>
+    </body>
+    </html>
+    ```
+  </Tab>
+
+  <Tab title="React">
+    Just the fetch + render pattern — drop into any existing React app. Uses
+    plain `useEffect` polling at 60s; swap for SWR or React Query for
+    stale-while-revalidate if you've already adopted them.
+
+    ```tsx
+    import { useEffect, useState } from 'react';
+
+    const API = 'https://apiv3.droplinked.com';
+
+    type Stats = {
+      asOf: string;
+      lenders: { total: number; active: number };
+      serviceProviders: { total: number; active: number };
+      methodologies: { totalLenders: number; activeVersions: number };
+      attestations: { schemaA: number; schemaB: number; schemaC: number; schemaD: number };
+    };
+
+    type Lender = {
+      lenderId: string;
+      displayName: string;
+      jurisdiction: string;
+      archetype: string;
+      status: string;
+    };
+
+    export function TrustFabricDashboard() {
+      const [stats, setStats] = useState<Stats | null>(null);
+      const [lenders, setLenders] = useState<Lender[]>([]);
+      const [error, setError] = useState<string | null>(null);
+
+      useEffect(() => {
+        let cancelled = false;
+
+        async function load() {
+          try {
+            const [s, l] = await Promise.all([
+              fetch(`${API}/v2/trust-fabric/stats`).then((r) => r.json()),
+              fetch(`${API}/v2/lenders?status=ACTIVE`).then((r) => r.json()),
+            ]);
+            if (cancelled) return;
+            setStats(s);
+            setLenders(l.lenders ?? []);
+            setError(null);
+          } catch (err) {
+            if (!cancelled) setError(String(err));
+          }
+        }
+
+        load();
+        const id = setInterval(load, 60_000);
+        return () => {
+          cancelled = true;
+          clearInterval(id);
+        };
+      }, []);
+
+      if (error) return <div>Error: {error}</div>;
+      if (!stats) return <div>Loading…</div>;
+
+      const cards = [
+        { label: 'Active lenders', value: stats.lenders.active },
+        { label: 'Active service providers', value: stats.serviceProviders.active },
+        { label: 'Active methodology versions', value: stats.methodologies.activeVersions },
+        { label: 'Schema B credit-risk', value: stats.attestations.schemaB },
+        { label: 'Schema C repayment-history', value: stats.attestations.schemaC },
+        { label: 'Schema A brand', value: stats.attestations.schemaA },
+      ];
+
+      return (
+        <div>
+          <h1>Droplinked Trust-Fabric — Live</h1>
+          <p>As of {new Date(stats.asOf).toLocaleString()}</p>
+          <div className="grid">
+            {cards.map((c) => (
+              <div key={c.label} className="card">
+                <div className="label">{c.label}</div>
+                <div className="value">{c.value}</div>
+              </div>
+            ))}
+          </div>
+          <h2>Active lenders</h2>
+          {lenders.map((l) => (
+            <div key={l.lenderId} className="lender-row">
+              <div>
+                <strong>{l.displayName}</strong>
+                <br />
+                <small>
+                  {l.jurisdiction} · {l.archetype}
+                </small>
+              </div>
+              <span className="pill">{l.status}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## CORS
+
+All four endpoints above are CORS-permissive — they respond with
+`Access-Control-Allow-Origin: *` to browser fetches from any origin. You can verify
+locally:
+
+```bash
+curl -sI -H "Origin: https://yourdomain.example" \
+  https://apiv3.droplinked.com/v2/trust-fabric/stats | grep -i access-control
+```
+
+If you encounter CORS issues from a specific origin, email `support@droplinked.com`
+with the origin + the failing request — it likely indicates a WAF rule, not a CORS
+policy.
+
+## What to customize
+
+The reference dashboard is intentionally minimal. Common customizations:
+
+- **Brand chrome** — swap the `#2bcfa1` / `#06c295` palette for your own; replace
+  the `<h1>` with your logo.
+- **Filter to your own lenderId** — replace the `/v2/lenders?status=ACTIVE` poll
+  with a single-row `/v2/lenders/:lenderId` lookup and show only your own
+  activity.
+- **Per-methodology version history** — add a click handler on each lender row
+  that opens `/v2/methodologies/:lenderId/versions` and renders the timeline.
+- **Jurisdiction routing widget** — add an input + button calling
+  `/v2/lender-routing/recommend?jurisdiction=...` and render the ranked
+  recommendations.
+- **Aggregate trend** — store the `asOf` + counts in a small client-side ring
+  buffer (e.g. `localStorage`) and render a 24h sparkline of Schema B growth.
+
+## Caching
+
+Recommend a **client-side cache of 60 seconds or greater**. The
+`/v2/trust-fabric/stats` endpoint has no server-side cache in v1 — every call hits
+the live aggregate. The other endpoints (`/v2/lenders`, `/v2/methodologies/:lenderId/versions`,
+`/v2/lender-routing/recommend`) likewise execute live; treat them the same.
+
+If you're polling at higher cadence than 60s, layer a service-worker cache or
+React Query / SWR with `staleTime: 60_000` to keep partner dashboards responsive
+without unnecessary load on the apiv3 origin.
+
+## Related
+
+- [Trust-Fabric Stats](/api-reference/public/trust-fabric-stats) — endpoint reference
+- [DeFi Lender Onboarding](/concepts/for-defi-lenders) — full lender onboarding narrative
+- [Trust Fabric (EAS Schema v2)](/concepts/trust-fabric) — 4-axis architecture overview
+- [Lender Registry Lookup](/api-reference/public/lender-registry) — `/v2/lenders/*` reference
+- [Methodology Registry Lookup](/api-reference/public/methodology-registry) — `/v2/methodologies/*` reference

@@ -47,7 +47,8 @@
             "pages": [
               "concepts/platform-model",
               "concepts/trust-fabric",
-              "concepts/forensic-chain"
+              "concepts/forensic-chain",
+              "concepts/for-defi-lenders"
             ]
           },
           {
@@ -55,7 +56,8 @@
             "pages": [
               "guides/deploy-flow",
               "guides/environment-variables",
-              "guides/security/supply-chain"
+              "guides/security/supply-chain",
+              "guides/integrations/trust-fabric-dashboard-template"
             ]
           },
           {
