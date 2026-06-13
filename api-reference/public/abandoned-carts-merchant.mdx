@@ -1,0 +1,188 @@
+---
+title: "Abandoned carts (merchant)"
+description: "List your shop's abandoned carts + view recovery rate stats. Merchant-scoped — requires PRODUCER role + shop ownership."
+---
+
+`GET /v2/merchant/shops/:shopId/abandoned-carts` and `GET /v2/merchant/shops/:shopId/abandoned-carts/stats` are the merchant-facing surface for the abandoned-cart recovery admin page. They let the shop owner view their own recovery funnel — the paginated list of abandoned carts and the top-of-page stat cards (active / recovered / recoveryRate).
+
+<Note>
+These endpoints are gated by `RoleGuard([PRODUCER, SUPER_ADMIN])` PLUS an in-handler shop-ownership assertion: a PRODUCER's JWT-bound `shopId` claim must equal the `:shopId` path parameter. Cross-shop reads from a merchant token return `403`. SUPER_ADMIN tokens carry no `shopId` claim and pass through for operator impersonation.
+</Note>
+
+## Scope
+
+These endpoints are the **merchant-scoped** counterpart to the SUPER_ADMIN admin surface at `/admin/shops/:shopId/abandoned-carts`. The original admin route remains mounted at its original path with its original guard — this is strictly additive. The recovery cron, schema, and write-path are untouched.
+
+| Surface | Path | Guard |
+|---|---|---|
+| Public storefront resume | [`POST /v2/abandoned-cart-recovery/recover`](/api-reference/public/abandoned-cart-recovery) | None (recovery token is the auth) |
+| Merchant dashboard (this page) | `GET /v2/merchant/shops/:shopId/abandoned-carts*` | `PRODUCER` (own shop) or `SUPER_ADMIN` |
+| Operator admin | `GET /admin/shops/:shopId/abandoned-carts*` | `SUPER_ADMIN` only |
+
+## GET — list abandoned carts
+
+```
+GET /v2/merchant/shops/:shopId/abandoned-carts
+```
+
+Returns the merchant's abandoned carts, sorted newest-`abandonedAt`-first, paginated.
+
+### Request
+
+| Param | Type | In | Notes |
+|---|---|---|---|
+| `shopId` | string | path | The shop's Mongo `_id`. PRODUCER's JWT-bound `shopId` MUST match. |
+| `status` | enum | query, optional | `ABANDONED` \| `EMAIL_QUEUED` \| `EMAIL_SENT` \| `RECOVERED` \| `EXPIRED`. Omitted = all states. |
+| `page` | int | query, optional | 1-indexed page number. Default `1`. Junk inputs clamp to `1`. |
+| `pageSize` | int | query, optional | Default `100`, max `500`. Junk inputs clamp to `1`. |
+
+### Curl example
+
+```bash
+curl -s "https://apiv3.droplinked.com/v2/merchant/shops/65f8.../abandoned-carts?status=EMAIL_SENT&page=1&pageSize=20" \
+  -H "Authorization: Bearer $MERCHANT_JWT" | jq .
+```
+
+### Response (200)
+
+```json
+{
+  "rows": [
+    {
+      "_id": "65f8a1b2c3d4e5f6a7b8c9aa",
+      "cartId": "65f8a1b2c3d4e5f6a7b8c9bb",
+      "shopId": "65f8a1b2c3d4e5f6a7b8c9cc",
+      "customerEmail": "buyer@example.com",
+      "customerName": "Jamie Doe",
+      "cartTotalCents": 5000,
+      "currency": "USD",
+      "status": "EMAIL_SENT",
+      "abandonedAt": "2026-06-10T18:23:00.000Z",
+      "emailSentAt": "2026-06-10T18:38:00.000Z",
+      "expiresAt": "2026-06-17T18:23:00.000Z",
+      "createdAt": "2026-06-10T18:23:00.000Z"
+    }
+  ],
+  "total": 47,
+  "page": 1,
+  "pageSize": 20
+}
+```
+
+### Lifecycle states
+
+| `status` | Meaning |
+|---|---|
+| `ABANDONED` | Threshold crossed (cart with items + no checkout for N hours); awaiting next cron sweep |
+| `EMAIL_QUEUED` | Cron selected this row for sending |
+| `EMAIL_SENT` | Email rail accepted the send (recovery URL is live) |
+| `RECOVERED` | Customer returned + checked out via the checkout-success chokepoint |
+| `EXPIRED` | Past `expiresAt` (7 days from `abandonedAt`) without recovery |
+
+### Error responses
+
+| Status | When |
+|---|---|
+| `401` | Missing/invalid JWT |
+| `403` | PRODUCER's `shopId` claim does not match the path `:shopId`, or token lacks `PRODUCER`/`SUPER_ADMIN` role |
+
+## GET — recovery stats
+
+```
+GET /v2/merchant/shops/:shopId/abandoned-carts/stats
+```
+
+Aggregate counts for the top-of-page stat cards. Client-side aggregation over the paginated list would produce a wrong `recoveryRate` past page 1 — this endpoint computes the totals server-side over the full collection.
+
+### Curl example
+
+```bash
+curl -s "https://apiv3.droplinked.com/v2/merchant/shops/65f8.../abandoned-carts/stats" \
+  -H "Authorization: Bearer $MERCHANT_JWT" | jq .
+```
+
+### Response (200)
+
+```json
+{
+  "activeCount": 12,
+  "recoveredCount": 4,
+  "recoveryRate": 0.25
+}
+```
+
+### Field reference
+
+| Field | Type | Notes |
+|---|---|---|
+| `activeCount` | int | Rows in `ABANDONED` \| `EMAIL_QUEUED` \| `EMAIL_SENT` — carts still in the recovery funnel. |
+| `recoveredCount` | int | Rows in `RECOVERED` — the chokepoint flip happens at checkout-success (NOT email click-through), so this number directly tracks **converted** recoveries. |
+| `recoveryRate` | float | `recoveredCount / (activeCount + recoveredCount)`, in `[0, 1]`. Zero-denominator edge case returns `0` (NOT `NaN` / `null`) — a brand-new shop with no abandoned-cart history would otherwise produce `0/0`. The FE renders `0` as `—` to avoid surfacing a misleading "0% recovery rate" before any data exists. |
+
+<Note>
+`recoveryRate` is **checkout-success semantic**, not click-through. A customer who clicks the recovery email but bounces off checkout does NOT count as recovered. The chokepoint is `service.markRecovered` invoked from the checkout-success path — see the [`POST /v2/abandoned-cart-recovery/recover`](/api-reference/public/abandoned-cart-recovery) endpoint that resumes the cart upstream of that flip.
+</Note>
+
+Both `countDocuments` calls run in parallel and hit the existing `{shopId, status, abandonedAt}` compound index — covered counts, no collection scan.
+
+### Error responses
+
+Same gating + 401/403 semantics as the list endpoint above.
+
+## Typical merchant dashboard flow
+
+```typescript
+const BASE = "https://apiv3.droplinked.com";
+const SHOP_ID = "65f8a1b2c3d4e5f6a7b8c9cc";
+const JWT = process.env.MERCHANT_JWT!;
+
+interface Stats {
+  activeCount: number;
+  recoveredCount: number;
+  recoveryRate: number;
+}
+
+interface CartRow {
+  _id: string;
+  cartId: string;
+  customerEmail: string;
+  customerName: string | null;
+  cartTotalCents: number;
+  currency: string;
+  status: "ABANDONED" | "EMAIL_QUEUED" | "EMAIL_SENT" | "RECOVERED" | "EXPIRED";
+  abandonedAt: string;
+}
+
+interface ListResponse {
+  rows: CartRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+async function loadDashboard(page = 1) {
+  const headers = { Authorization: `Bearer ${JWT}` };
+  const [stats, list] = await Promise.all([
+    fetch(`${BASE}/v2/merchant/shops/${SHOP_ID}/abandoned-carts/stats`, { headers })
+      .then((r) => r.json() as Promise<Stats>),
+    fetch(
+      `${BASE}/v2/merchant/shops/${SHOP_ID}/abandoned-carts?page=${page}&pageSize=20`,
+      { headers },
+    ).then((r) => r.json() as Promise<ListResponse>),
+  ]);
+
+  // Render stat cards: "—" when recoveryRate === 0 + no carts at all
+  const rateLabel =
+    stats.activeCount + stats.recoveredCount === 0
+      ? "—"
+      : `${(stats.recoveryRate * 100).toFixed(1)}%`;
+
+  return { stats, list, rateLabel };
+}
+```
+
+## Related
+
+- [Resume an abandoned cart (public)](/api-reference/public/abandoned-cart-recovery) — the storefront-side endpoint customers hit from the recovery email link
+- [Merchants overview](/concepts/for-merchants) — where cart recovery fits in the merchant order lifecycle
+- [Order lifecycle](/guides/order-lifecycle) — the chokepoint that flips a row to `RECOVERED`

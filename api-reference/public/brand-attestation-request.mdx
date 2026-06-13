@@ -1,0 +1,187 @@
+---
+title: "Brand attestation request"
+description: "Submit a brand attestation request + poll its lifecycle status. Backed by an operator-curated review + EAS Schema A mint."
+---
+
+`POST /v2/attestations/brand/:shopSlug/request` and `GET /v2/attestations/brand/:shopSlug/request-status` are the merchant-facing CTA + polling endpoints behind the trust-fabric dashboard widget's **Request brand attestation** modal. Together they queue an operator-reviewed request and let the storefront flip its UI between the four lifecycle states without leaving the dashboard.
+
+<Note>
+Both endpoints are **public** — no JWT, no IP-allowlist. The `:shopSlug` is the URL-safe brand slug (same value the on-chain `BrandAttestation.brandSlug` carries — NOT the human-display name).
+</Note>
+
+## Lifecycle
+
+A request walks four states. The on-chain Schema A mint is gated behind operator review — clicking the CTA does NOT directly mint:
+
+| State | Meaning |
+|---|---|
+| `PENDING` | Merchant has clicked the CTA. Awaiting SUPER_ADMIN review. |
+| `APPROVED` | Operator has approved the queue row. The mint orchestrator will attempt a Schema A on-chain mint. On mint failure the row STAYS `APPROVED` (`mintError` + `mintAttempts` persist for retry); it is never auto-flipped back. |
+| `MINTED` | Schema A attestation is on-chain. `attestationUid` + `mintedAt` are populated and the widget can quote the EAS reference without a second round-trip. |
+| `REJECTED` | Operator declined the row with a reason. The merchant may re-submit a fresh `PENDING` row (the partial-unique index on `(shopSlug, status: PENDING)` does NOT block re-submits after a terminal state). |
+
+The status endpoint also reports a synthetic `NONE` state when no request row exists for the slug (used by the widget to render the initial CTA).
+
+## POST — submit a request
+
+```
+POST /v2/attestations/brand/:shopSlug/request
+```
+
+Idempotent on `(shopSlug, status: PENDING)`. Re-submitting while a `PENDING` row exists returns the same `requestId` instead of creating a duplicate — the widget always renders a success toast and never has to handle a "duplicate" 4xx.
+
+### Request
+
+| Param | Type | In | Notes |
+|---|---|---|---|
+| `shopSlug` | string | path | Kebab-case brand slug — same value as `BrandAttestation.brandSlug` |
+| `notes` | string | body, optional | Free-text merchant note. Max 2048 chars. Surfaces on the operator queue only. |
+
+### Curl example
+
+```bash
+curl -X POST https://apiv3.droplinked.com/v2/attestations/brand/unstoppable/request \
+  -H 'content-type: application/json' \
+  -d '{ "notes": "Need this for the Q3 partner pitch on 2026-07-15" }'
+```
+
+### Response (200)
+
+```json
+{
+  "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+  "status": "PENDING",
+  "message": "Your request is in the operator review queue"
+}
+```
+
+The response is intentionally minimal — operator-only fields (`decidedBy`, `decisionReason`, `merchantId`, internal `notes`) never cross the public surface. `status` is hard-cast to `PENDING` on this endpoint: an `APPROVED` / `MINTED` / `REJECTED` row can never be returned by the idempotency check (only `PENDING` matches the dedupe index).
+
+### Error responses
+
+| Status | When |
+|---|---|
+| `400` | `shopSlug` invalid or `notes` exceeds 2048 chars |
+| `404` | No shop found for the slug (resolved via `ShopService`) |
+
+## GET — poll the status
+
+```
+GET /v2/attestations/brand/:shopSlug/request-status
+```
+
+The widget polls this to walk through `NONE → PENDING → APPROVED → MINTED` (or `→ REJECTED`) without leaving the merchant dashboard. Resolution rule: any `PENDING` row wins (there is at most one by index); otherwise the newest terminal row (`createdAt` desc) is returned.
+
+### Curl example
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/attestations/brand/unstoppable/request-status | jq .
+```
+
+### Response (200, history exists)
+
+```json
+{
+  "status": "MINTED",
+  "request": {
+    "requestId": "65f8a1b2c3d4e5f6a7b8c9aa",
+    "shopSlug": "unstoppable",
+    "status": "MINTED",
+    "attestationUid": "0x9c4f7a3e8b1d2c6f5a0b8e9d1c2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f",
+    "mintedAt": "2026-06-13T07:42:11Z",
+    "createdAt": "2026-06-12T18:00:00Z"
+  }
+}
+```
+
+When `status === "MINTED"` the `attestationUid` resolves on EAS Base via the standard easscan link scheme — e.g. `https://base.easscan.org/attestation/view/0x9c4f7a3e…` — so the widget can link the merchant directly to the on-chain record without a second round-trip.
+
+### Response (200, no history)
+
+```json
+{
+  "status": "NONE",
+  "request": null
+}
+```
+
+<Note>
+The status endpoint **always** returns 200 — even when no request exists. The synthetic `NONE` discriminator lets the widget render the initial **Request brand attestation** CTA without 404-handling. Storefronts should treat `request === null` as the "Not requested" UI state.
+</Note>
+
+### Field reference
+
+| Field | Type | Notes |
+|---|---|---|
+| `status` | enum | `NONE` \| `PENDING` \| `APPROVED` \| `MINTED` \| `REJECTED` |
+| `request.requestId` | string | Mongo `_id` of the latest queue row |
+| `request.shopSlug` | string | Normalised lowercase slug |
+| `request.status` | enum | `PENDING` \| `APPROVED` \| `MINTED` \| `REJECTED` — never `NONE` (that state implies `request: null`) |
+| `request.attestationUid` | string \| null | 0x-prefixed EAS attestation UID. Only populated when `status === "MINTED"` |
+| `request.mintedAt` | ISO 8601 \| null | When the Schema A mint succeeded on-chain. Only populated when `status === "MINTED"` |
+| `request.createdAt` | ISO 8601 \| null | When the merchant clicked the CTA |
+
+Operator-private fields (`decidedBy`, `decisionReason`, `mintError`, `mintAttempts`, `merchantId`, free-text `notes`) are SCRUBBED from the public projection — they only surface on the SUPER_ADMIN admin route.
+
+## TypeScript flow example
+
+A merchant dashboard widget driving the four-state UI:
+
+```typescript
+type BrandAttestationStatus = "NONE" | "PENDING" | "APPROVED" | "MINTED" | "REJECTED";
+
+interface StatusResponse {
+  status: BrandAttestationStatus;
+  request: {
+    requestId: string;
+    shopSlug: string;
+    status: Exclude<BrandAttestationStatus, "NONE">;
+    attestationUid: string | null;
+    mintedAt: string | null;
+    createdAt: string | null;
+  } | null;
+}
+
+const BASE = "https://apiv3.droplinked.com";
+
+async function fetchStatus(shopSlug: string): Promise<StatusResponse> {
+  const res = await fetch(`${BASE}/v2/attestations/brand/${shopSlug}/request-status`);
+  return res.json();
+}
+
+async function submitRequest(shopSlug: string, notes?: string) {
+  const res = await fetch(`${BASE}/v2/attestations/brand/${shopSlug}/request`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ notes: notes ?? null }),
+  });
+  return res.json();
+}
+
+// Initial render — pick the UI branch off the status discriminator
+const s = await fetchStatus("unstoppable");
+switch (s.status) {
+  case "NONE":
+    // Render the "Request brand attestation" CTA
+    break;
+  case "PENDING":
+    // Render "Pending operator review — we'll email you when it ships"
+    break;
+  case "APPROVED":
+    // Render "Approved — on-chain mint in progress"
+    break;
+  case "MINTED":
+    // Render the easscan link from request.attestationUid
+    break;
+  case "REJECTED":
+    // Render rejection notice + offer fresh re-submit
+    break;
+}
+```
+
+## Related
+
+- [Trust Fabric overview](/concepts/trust-fabric) — where Schema A brand attestations fit in the 4-axis architecture
+- [Lender Registry Lookup](/api-reference/public/lender-registry) — the sibling registry pattern this module mirrors
+- [Methodology Registry Lookup](/api-reference/public/methodology-registry) — Schema B verifier flow
+- [Merchants overview](/concepts/for-merchants) — how the trust-fabric widget surfaces on the merchant dashboard

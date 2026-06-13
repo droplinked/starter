@@ -147,9 +147,16 @@
               "api-reference/public/lender-registry",
               "api-reference/public/lender-routing",
               "api-reference/public/methodology-registry",
+              "api-reference/public/brand-attestation-request",
               "api-reference/public/service-provider-routing",
               "api-reference/public/upgrade-preview",
               "api-reference/public/underwriting-signals"
+            ]
+          },
+          {
+            "group": "Merchant API",
+            "pages": [
+              "api-reference/public/abandoned-carts-merchant"
             ]
           },
           {
