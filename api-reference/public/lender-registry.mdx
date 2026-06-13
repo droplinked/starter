@@ -65,6 +65,79 @@ The `found` discriminator lets MCP / agent consumers branch without 404-handling
 | `regulatorReference` | string \| null | FSRA / SCA / etc. license number when applicable |
 | `issuedAttestationCount` | int | Lifetime count of Schema B attestations this lender has issued |
 
+## Lifecycle timeline
+
+```
+GET /v2/lenders/:lenderId/timeline
+```
+
+Returns the whitelist-redacted lifecycle history of a registered lender — used by third-party verifiers asking the temporal question: **was this lender `ACTIVE` at the time a Schema B attestation was minted?** A point-in-time `status` lookup against `GET /v2/lenders/:lenderId` only answers *right now*; the timeline lets a verifier replay the lender's state at any `occurredAt` in the past.
+
+<Note>
+This endpoint is **public** — no JWT, no IP-allowlist. The response is intentionally redacted to a verifier-safe whitelist. **The following operator-only fields are deliberately NOT in the response:** `actorId` (which admin made the change), `reason` (free-text justification), and raw before/after value diffs for metadata-change events (display name, jurisdiction, signing wallet, regulator reference, contact notes). Only `previousStatus` / `newStatus` are exposed, and only for `LENDER_REGISTERED` + `LENDER_STATUS_CHANGED` events.
+</Note>
+
+### Request
+
+| Param | Type | Notes |
+|---|---|---|
+| `lenderId` | string | Kebab-case, matches `^[a-z0-9_-]{3,64}$` |
+
+### Response (200)
+
+```json
+{
+  "lenderId": "crediblex-uae",
+  "count": 3,
+  "events": [
+    {
+      "occurredAt": "2026-06-10T14:22:11Z",
+      "eventType": "LENDER_STATUS_CHANGED",
+      "previousStatus": "PENDING_KYB",
+      "newStatus": "ACTIVE"
+    },
+    {
+      "occurredAt": "2026-06-08T09:15:03Z",
+      "eventType": "LENDER_DISPLAY_NAME_CHANGED",
+      "previousStatus": null,
+      "newStatus": null
+    },
+    {
+      "occurredAt": "2026-06-01T00:00:00Z",
+      "eventType": "LENDER_REGISTERED",
+      "previousStatus": null,
+      "newStatus": "PENDING_KYB"
+    }
+  ]
+}
+```
+
+Events are ordered **newest-first** and capped at **500 events** per response (hard cap — older events are not paginated).
+
+### Event types
+
+| `eventType` | Carries `previousStatus` / `newStatus`? |
+|---|---|
+| `LENDER_REGISTERED` | `previousStatus: null`, `newStatus` set (typically `PENDING_KYB`) |
+| `LENDER_STATUS_CHANGED` | both set |
+| `LENDER_DISPLAY_NAME_CHANGED` | both `null` |
+| `LENDER_JURISDICTION_CHANGED` | both `null` |
+| `LENDER_SIGNING_WALLET_CHANGED` | both `null` |
+| `LENDER_REGULATOR_REFERENCE_CHANGED` | both `null` |
+| `LENDER_CONTACT_NOTES_CHANGED` | both `null` |
+
+`previousStatus` / `newStatus` values are drawn from the lifecycle enum: `PENDING_KYB` | `ACTIVE` | `SUSPENDED` | `ARCHIVED`. For metadata-change events the raw before/after values are intentionally redacted — verifiers can confirm *that* a change occurred at `occurredAt` (and combine that with the current public profile) but cannot read the operator-only diff.
+
+### Curl example
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/lenders/crediblex-uae/timeline | jq .
+```
+
+### MCP wrapper
+
+Consumer agents reach this endpoint via the [`get_lender_history`](/agentic/lender-trinity-mcp-tools) MCP tool — already live on [`mcp.droplinked.com`](https://mcp.droplinked.com) — so ChatGPT / Claude / OpenAI Agents SDK callers can replay a lender's lifecycle without prior knowledge of the path scheme.
+
 ## Related
 
 - [Lender Routing Recommendation](/api-reference/public/lender-routing) — "which lender should this merchant approach"

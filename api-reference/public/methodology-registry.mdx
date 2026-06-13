@@ -131,3 +131,85 @@ If the local hash diverges from the on-chain hash, the methodology document at `
 ## Discovery
 
 The MCP server advertises this endpoint via the discovery doc at [`mcp.droplinked.com/.well-known/mcp.json`](https://mcp.droplinked.com/.well-known/mcp.json) under the `verify_methodology` tool, so consumer agents (ChatGPT, Claude, OpenAI Agents SDK) reach it without any prior knowledge of the path scheme.
+
+## Lifecycle timeline
+
+```
+GET /v2/methodologies/:lenderId/:methodologyHash/timeline
+```
+
+Returns the whitelist-redacted lifecycle history of a single methodology version (keyed by `lenderId` + `methodologyHash`) — used by third-party verifiers asking the temporal question: **was this methodology version `ACTIVE` at the time a Schema B attestation was minted, or was it already `SUPERSEDED` / `REVOKED`?** The point-in-time `status` from `GET /v2/methodologies/:lenderId/:methodologyHash` only answers *right now*; the timeline lets a verifier replay state at the attestation's `occurredAt`.
+
+<Note>
+This endpoint is **public** — no JWT, no IP-allowlist. The response is intentionally redacted to a verifier-safe whitelist. **The following operator-only fields are deliberately NOT in the response:** `actorId` (which admin made the change), `reason` (free-text justification), and raw before/after value diffs for metadata-change events (display name, document URL, notes, semantic version). Only `previousStatus` / `newStatus` are exposed, and only for `METHODOLOGY_REGISTERED` + `METHODOLOGY_SUPERSEDED` + `METHODOLOGY_REVOKED` events.
+</Note>
+
+### Request
+
+| Param | Type | Notes |
+|---|---|---|
+| `lenderId` | string | Kebab-case, matches `^[a-z0-9_-]{3,64}$` |
+| `methodologyHash` | string | 64-char lowercase hex (SHA-256 of the source document) |
+
+### Response (200)
+
+```json
+{
+  "lenderId": "crediblex-uae",
+  "methodologyHash": "a91d…",
+  "count": 3,
+  "events": [
+    {
+      "occurredAt": "2026-05-01T00:00:00Z",
+      "eventType": "METHODOLOGY_SUPERSEDED",
+      "previousStatus": "ACTIVE",
+      "newStatus": "SUPERSEDED"
+    },
+    {
+      "occurredAt": "2026-03-15T10:30:00Z",
+      "eventType": "METHODOLOGY_DISPLAY_NAME_CHANGED",
+      "previousStatus": null,
+      "newStatus": null
+    },
+    {
+      "occurredAt": "2026-02-01T00:00:00Z",
+      "eventType": "METHODOLOGY_REGISTERED",
+      "previousStatus": null,
+      "newStatus": "ACTIVE"
+    }
+  ]
+}
+```
+
+Events are ordered **newest-first** and capped at **500 events** per response (hard cap — older events are not paginated).
+
+### Event types
+
+| `eventType` | Carries `previousStatus` / `newStatus`? |
+|---|---|
+| `METHODOLOGY_REGISTERED` | `previousStatus: null`, `newStatus: "ACTIVE"` |
+| `METHODOLOGY_SUPERSEDED` | both set (`ACTIVE` → `SUPERSEDED`) |
+| `METHODOLOGY_REVOKED` | both set (typically `ACTIVE` or `SUPERSEDED` → `REVOKED`) |
+| `METHODOLOGY_DISPLAY_NAME_CHANGED` | both `null` |
+| `METHODOLOGY_DOCUMENT_URL_CHANGED` | both `null` |
+| `METHODOLOGY_NOTES_CHANGED` | both `null` |
+| `METHODOLOGY_VERSION_CHANGED` | both `null` |
+
+`previousStatus` / `newStatus` values are drawn from the lifecycle enum: `ACTIVE` | `SUPERSEDED` | `REVOKED`. For metadata-change events the raw before/after values are intentionally redacted — verifiers can confirm *that* a change occurred at `occurredAt` but cannot read the operator-only diff (use the source-document re-hash flow from [Verifier integrity check](#verifier-integrity-check) above to detect document-content tampering).
+
+### Verifier policy
+
+The point of the timeline is to let a verifier decide whether a methodology was in force at the moment the on-chain attestation was minted:
+
+- **`SUPERSEDED` at check time, but `ACTIVE` at the attestation's `occurredAt`** → **legitimate**. The methodology was the lender's current scorecard when they signed; the supersession is a forward-looking change. The lifecycle is monotonic in the verifier-friendly direction: `ACTIVE` events strictly precede `SUPERSEDED` events for the same version.
+- **`REVOKED` at any point** → **red flag**. Revocation indicates the methodology was withdrawn (e.g. flawed risk model, compliance issue). Verifier-side policy decides whether to honor historical attestations against a revoked methodology; the default agent posture is to flag and surface for human review.
+
+### Curl example
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/methodologies/crediblex-uae/a91d…/timeline | jq .
+```
+
+### MCP wrapper
+
+Consumer agents reach this endpoint via the [`get_methodology_timeline`](/agentic/lender-trinity-mcp-tools) MCP tool — already live on [`mcp.droplinked.com`](https://mcp.droplinked.com) — so ChatGPT / Claude / OpenAI Agents SDK callers can replay a methodology's lifecycle without prior knowledge of the path scheme.
