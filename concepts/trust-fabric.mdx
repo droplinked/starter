@@ -72,7 +72,9 @@ Consumer agents (ChatGPT, Claude, OpenAI Agents SDK) consume the trust fabric vi
 | `verify_cross_attestation` | Schema D read |
 | `get_trust_dossier` | Multi-axis composite |
 | `verify_lender` | Lender registry lookup |
+| `get_lender_history` | Lender lifecycle timeline (REGISTERED / STATUS_CHANGED / metadata edits, redacted) |
 | `verify_methodology` | Methodology registry lookup by `(lenderId, hash)` |
+| `get_methodology_timeline` | Methodology lifecycle timeline (REGISTERED / SUPERSEDED / REVOKED, redacted) |
 | `recommend_lender` | Lender routing |
 | `recommend_service_provider` | Service-provider routing |
 
