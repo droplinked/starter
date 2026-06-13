@@ -1,0 +1,344 @@
+---
+title: "Embed Trust-Fabric Widget"
+description: "Surface your droplinked trust-fabric posture (brand attestation, credit line, lender associations) on your own merchant dashboard or storefront with copy-paste React + vanilla JS snippets."
+---
+
+Most merchants finish onboarding, get their brand attestation hash, get matched
+with a lender, and then never see any of it again. The trust-fabric posture they
+spent the onboarding flow earning sits in the SUPER_ADMIN console or in an
+attestation API they don't know they can query. This page closes that loop: a
+drop-in widget that surfaces your trust-fabric posture — brand attestation
+status, credit line, recent lender associations, repayment history — on your
+own merchant dashboard, custom storefront, or external admin portal.
+
+Every endpoint the widget polls is `@Public()` — no JWT, no SDK, no IP
+allowlist. Copy the snippet, swap the two placeholder constants for your
+shop slug and merchant ID, and the widget renders.
+
+## What the widget shows
+
+- Your **Schema A brand attestation** status — `ACTIVE`, `PENDING`, or
+  not-yet-issued.
+- Your **associated lender(s)** sourced from the `LenderRegistry` via the
+  routing recommender.
+- Your most-recent **credit-risk attestation (Schema B)**, if any — credit
+  line amount + issuing lender.
+- Your **repayment-history (Schema C)** rollup — successful settlements count.
+- Your **trust-tier** (if `/v2/upgrade-preview` returns one — `starter`,
+  `verified`, `trusted`, etc.).
+- Aggregate **trust-fabric scale** from `/v2/trust-fabric/stats` so you can
+  display a "Powered by Droplinked Trust Fabric" badge with live platform
+  numbers.
+
+## Live data sources
+
+| Endpoint | What it surfaces |
+|---|---|
+| [`GET /v2/attestations/brand/:slug`](/concepts/trust-fabric) | Schema A brand attestation status |
+| [`GET /v2/attestations/credit-risk/:merchantId`](/concepts/trust-fabric) | Schema B credit-risk attestation (current credit line + issuing lender) |
+| [`GET /v2/attestations/repayment-history/:merchantId`](/concepts/trust-fabric) | Schema C repayment rollup |
+| [`GET /v2/upgrade-preview`](/api-reference/public/upgrade-preview) | Trust-tier projection |
+| [`GET /v2/lender-routing/recommend?jurisdiction=...`](/api-reference/public/lender-routing) | Associated / recommended lenders |
+| [`GET /v2/trust-fabric/stats`](/api-reference/public/trust-fabric-stats) | Aggregate platform badge numbers |
+
+All six endpoints are public + unauthenticated. The widget calls them in
+parallel and renders whatever returns; missing endpoints (e.g. no credit-risk
+attestation yet) degrade gracefully to "none active".
+
+## Widget code
+
+<Tabs>
+  <Tab title="Vanilla HTML + JS">
+    Self-contained — drop into any existing HTML page or merchant admin
+    template.
+
+    ```html
+    <div id="droplinked-trust-fabric-widget"></div>
+    <script>
+      const SHOP_SLUG = 'your-shop-slug';       // change me
+      const MERCHANT_ID = 'your-merchant-id';   // change me
+      const API = 'https://apiv3.droplinked.com';
+
+      async function loadTrustFabric() {
+        const widget = document.getElementById('droplinked-trust-fabric-widget');
+        widget.innerHTML = '<p style="color:#5b6b64;">Loading trust-fabric posture…</p>';
+        try {
+          const [brand, credit, repayment, upgrade, stats] = await Promise.all([
+            fetch(`${API}/v2/attestations/brand/${SHOP_SLUG}`).then((r) => r.json()).catch(() => null),
+            fetch(`${API}/v2/attestations/credit-risk/${MERCHANT_ID}`).then((r) => r.json()).catch(() => null),
+            fetch(`${API}/v2/attestations/repayment-history/${MERCHANT_ID}`).then((r) => r.json()).catch(() => null),
+            fetch(`${API}/v2/upgrade-preview?merchantId=${MERCHANT_ID}`).then((r) => r.json()).catch(() => null),
+            fetch(`${API}/v2/trust-fabric/stats`).then((r) => r.json()).catch(() => null),
+          ]);
+
+          const creditLine = credit?.attestation?.creditLineCents
+            ? `$${(credit.attestation.creditLineCents / 100).toFixed(2)}`
+            : 'none active';
+          const settlements = repayment?.summary?.successfulSettlements ?? 0;
+          const tier = upgrade?.currentTier || 'starter';
+          const brandStatus = brand?.status || 'not yet issued';
+          const activeLenders = stats?.lenders?.active ?? 0;
+          const schemaB = stats?.attestations?.schemaB ?? 0;
+
+          widget.innerHTML = `
+            <div style="background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.06);font-family:system-ui,-apple-system,sans-serif;max-width:480px;">
+              <h2 style="margin:0 0 16px;color:#11221c;font-size:18px;">Trust-Fabric Posture</h2>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div>
+                  <div style="color:#5b6b64;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Brand attestation</div>
+                  <div style="font-size:14px;color:#11221c;margin-top:4px;">${brandStatus}</div>
+                </div>
+                <div>
+                  <div style="color:#5b6b64;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Trust tier</div>
+                  <div style="font-size:14px;color:#11221c;margin-top:4px;">${tier}</div>
+                </div>
+                <div>
+                  <div style="color:#5b6b64;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Credit line</div>
+                  <div style="font-size:14px;color:#11221c;margin-top:4px;">${creditLine}</div>
+                </div>
+                <div>
+                  <div style="color:#5b6b64;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Settlements</div>
+                  <div style="font-size:14px;color:#11221c;margin-top:4px;">${settlements}</div>
+                </div>
+              </div>
+              <p style="color:#5b6b64;font-size:11px;margin:0;padding-top:12px;border-top:1px solid #eef2f0;">
+                Powered by Droplinked Trust Fabric — ${activeLenders} active lenders, ${schemaB} on-chain credit attestations
+              </p>
+            </div>
+          `;
+        } catch (err) {
+          widget.innerHTML = '<p style="color:#a13;">Could not load trust-fabric data.</p>';
+          console.error(err);
+        }
+      }
+      loadTrustFabric();
+      setInterval(loadTrustFabric, 5 * 60_000); // 5 min refresh
+    </script>
+    ```
+  </Tab>
+
+  <Tab title="React">
+    Drop the hook + component into any existing React app. Uses plain
+    `useEffect` polling — swap for SWR or React Query if you've already
+    standardized on one.
+
+    ```tsx
+    import { useEffect, useState } from 'react';
+
+    const API = 'https://apiv3.droplinked.com';
+
+    type TrustFabricData = {
+      brand: { status?: string } | null;
+      credit: { attestation?: { creditLineCents?: number; lenderId?: string } } | null;
+      repayment: { summary?: { successfulSettlements?: number } } | null;
+      upgrade: { currentTier?: string } | null;
+      stats: {
+        lenders?: { active?: number };
+        attestations?: { schemaB?: number };
+      } | null;
+    };
+
+    function useTrustFabric(shopSlug: string, merchantId: string) {
+      const [data, setData] = useState<TrustFabricData | null>(null);
+
+      useEffect(() => {
+        let cancelled = false;
+
+        async function load() {
+          const [brand, credit, repayment, upgrade, stats] = await Promise.all([
+            fetch(`${API}/v2/attestations/brand/${shopSlug}`).then((r) => r.json()).catch(() => null),
+            fetch(`${API}/v2/attestations/credit-risk/${merchantId}`).then((r) => r.json()).catch(() => null),
+            fetch(`${API}/v2/attestations/repayment-history/${merchantId}`).then((r) => r.json()).catch(() => null),
+            fetch(`${API}/v2/upgrade-preview?merchantId=${merchantId}`).then((r) => r.json()).catch(() => null),
+            fetch(`${API}/v2/trust-fabric/stats`).then((r) => r.json()).catch(() => null),
+          ]);
+          if (!cancelled) setData({ brand, credit, repayment, upgrade, stats });
+        }
+
+        load();
+        const id = setInterval(load, 5 * 60_000);
+        return () => {
+          cancelled = true;
+          clearInterval(id);
+        };
+      }, [shopSlug, merchantId]);
+
+      return data;
+    }
+
+    export function TrustFabricWidget({
+      shopSlug,
+      merchantId,
+    }: {
+      shopSlug: string;
+      merchantId: string;
+    }) {
+      const data = useTrustFabric(shopSlug, merchantId);
+      if (!data) return <div style={{ color: '#5b6b64' }}>Loading trust-fabric posture…</div>;
+
+      const brandStatus = data.brand?.status || 'not yet issued';
+      const tier = data.upgrade?.currentTier || 'starter';
+      const creditLine = data.credit?.attestation?.creditLineCents
+        ? `$${(data.credit.attestation.creditLineCents / 100).toFixed(2)}`
+        : 'none active';
+      const settlements = data.repayment?.summary?.successfulSettlements ?? 0;
+      const activeLenders = data.stats?.lenders?.active ?? 0;
+      const schemaB = data.stats?.attestations?.schemaB ?? 0;
+
+      const labelStyle: React.CSSProperties = {
+        color: '#5b6b64',
+        fontSize: 11,
+        textTransform: 'uppercase',
+        letterSpacing: '.08em',
+      };
+      const valueStyle: React.CSSProperties = {
+        fontSize: 14,
+        color: '#11221c',
+        marginTop: 4,
+      };
+
+      return (
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 12,
+            padding: 24,
+            boxShadow: '0 1px 3px rgba(0,0,0,.06)',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            maxWidth: 480,
+          }}
+        >
+          <h2 style={{ margin: '0 0 16px', color: '#11221c', fontSize: 18 }}>
+            Trust-Fabric Posture
+          </h2>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 12,
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <div style={labelStyle}>Brand attestation</div>
+              <div style={valueStyle}>{brandStatus}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Trust tier</div>
+              <div style={valueStyle}>{tier}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Credit line</div>
+              <div style={valueStyle}>{creditLine}</div>
+            </div>
+            <div>
+              <div style={labelStyle}>Settlements</div>
+              <div style={valueStyle}>{settlements}</div>
+            </div>
+          </div>
+          <p
+            style={{
+              color: '#5b6b64',
+              fontSize: 11,
+              margin: 0,
+              paddingTop: 12,
+              borderTop: '1px solid #eef2f0',
+            }}
+          >
+            Powered by Droplinked Trust Fabric — {activeLenders} active lenders,{' '}
+            {schemaB} on-chain credit attestations
+          </p>
+        </div>
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Privacy + auth
+
+Every endpoint this widget calls is decorated with `@Public()` in the API —
+no JWT, no API key, no IP allowlist. That means you can embed the snippet
+directly in client-side code on a shop builder template or a custom
+storefront without proxying through a backend.
+
+The fields surfaced are public-safe by design:
+
+- Statuses, tier labels, credit line amount, settlement counts.
+- No operator-side actor IDs.
+- No signing wallet addresses.
+- No regulator references or audit reasons.
+- No counterparty PII.
+
+Treat this widget as the merchant-facing analog of the public lender
+registry — everything is meant to be visible, and nothing leaks the
+operator-only fields that live behind SUPER_ADMIN.
+
+## Customization
+
+- **Brand chrome** — swap the `#2bcfa1` / `#06c295` / `#11221c` palette for
+  your own; replace the `<h2>` heading with your own copy or logo.
+- **Hide cards** — remove the credit-line card on a storefront where you
+  only want to show brand attestation, or remove the "Powered by" footer on
+  an internal admin portal.
+- **Per-tier badges** — render a different SVG / color for each
+  `upgrade.currentTier` value (`starter` / `verified` / `trusted`).
+- **Lender association list** — call
+  `/v2/lender-routing/recommend?jurisdiction=YOUR_GEO` and render the top-N
+  recommended lenders alongside the credit line for a "who'd underwrite you
+  today" view.
+- **Link to forensic chain** — if you also want to expose attestation hashes,
+  link `brand.attestationUid` through to the public block explorer rather
+  than rendering the hex on the card itself.
+
+## Polling cadence
+
+Recommend a **client-side refresh of 5 minutes or greater** for this widget.
+The endpoints used here are aggregate / lookup endpoints — they don't change
+at high velocity. The reference [Trust-Fabric Dashboard Template](/guides/integrations/trust-fabric-dashboard-template)
+uses 60-second polling because it's a platform-aggregate dashboard; a
+per-merchant posture widget changes more slowly (status flips, periodic
+credit-line refreshes), so 5 minutes is plenty.
+
+If you embed multiple instances of this widget on the same page, cache the
+fetch responses at module scope or behind SWR / React Query with
+`staleTime: 300_000` to avoid duplicate requests.
+
+## CORS
+
+All endpoints used here are CORS-permissive — they respond with
+`Access-Control-Allow-Origin: *` to browser fetches from any origin. You
+can verify locally:
+
+```bash
+curl -sI -H "Origin: https://yourdomain.example" \
+  https://apiv3.droplinked.com/v2/trust-fabric/stats | grep -i access-control
+```
+
+If a specific origin fails, email `support@droplinked.com` with the origin
++ the failing request — it usually indicates a WAF rule rather than a CORS
+policy.
+
+## What this widget does NOT show
+
+Operator-only fields stay in the SUPER_ADMIN console and never appear in
+the public attestation endpoints — so they don't appear in this widget
+either:
+
+- Signing wallet addresses + key custody references.
+- Per-attestation audit-log entries (who issued, when, on what host).
+- Operator notes / underwriting reasons.
+- Regulator correspondence references.
+- Lender-side risk scoring detail.
+
+If you need any of those surfaces for an internal admin tool, build it
+behind the SUPER_ADMIN JWT — don't try to extend this widget.
+
+## Related
+
+- [Trust-Fabric Dashboard Template](/guides/integrations/trust-fabric-dashboard-template) — platform-aggregate dashboard (for lenders / partner portals)
+- [For Merchants](/concepts/for-merchants) — merchant-side narrative for the trust-fabric value prop
+- [Trust Fabric (EAS Schema v2)](/concepts/trust-fabric) — 4-axis architecture overview
+- [Trust-Fabric Stats](/api-reference/public/trust-fabric-stats) — aggregate endpoint reference
+- [Upgrade Preview](/api-reference/public/upgrade-preview) — trust-tier projection endpoint
+- [Lender Routing](/api-reference/public/lender-routing) — jurisdiction-ranked lender recommender
