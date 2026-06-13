@@ -1,0 +1,275 @@
+---
+title: "Droplinked vs Shopify"
+description: "How droplinked's commerce platform differs from Shopify — same product-types and PSPs, but with on-chain trust fabric, multi-PSP routing, agentic-commerce surfaces, and built-in lender ecosystem."
+---
+
+Shopify is the gold standard for SMB commerce. The visual store editor, the massive
+theme library, the app store, the brand recognition, the funded support team — for a
+merchant who needs a turnkey storefront and a mature SaaS workflow, it's hard to beat.
+Droplinked does not try to.
+
+Droplinked starts from a different assumption: that the merchant's **identity**,
+**inventory**, and **underwriting** can be cryptographically verifiable; that
+**distribution** should reach AI shopping agents in addition to human browsers; and
+that **lending capital** should be sourced from licensed DeFi protocols and vaults
+rather than a single processor's balance sheet. Same product types. Same PSPs.
+Different trust posture.
+
+This page is for two audiences. If you're a merchant evaluating commerce platforms,
+it lays out the honest tradeoff. If you're a partnership lead evaluating droplinked
+as an integration target — a lender, a 3PL, an agent surface — it surfaces the
+differentiators that make droplinked a distinct integration surface from Shopify.
+
+## What's the same
+
+Both platforms cover the baseline a modern commerce merchant expects:
+
+| Capability | Shopify | Droplinked |
+|---|---|---|
+| Physical / digital / POD product types | Yes | Yes |
+| Multi-PSP support (Stripe, PayPal, regional acquirers) | Yes | Yes (5+ wired in: Stripe, PayPal, Telr, Bonum, PayMob) |
+| Theme templates + storefront customization | Yes (massive) | Yes (focused set) |
+| Order management + shipping (EasyPost / carriers) | Yes | Yes ([EasyPost](/guides/integrations/easypost)) |
+| Multi-currency / multi-language | Yes | Yes |
+| Analytics dashboard | Yes | Yes |
+| Merchant KYB onboarding | Yes | Yes (chain-anchored — see Schema A) |
+| Print-on-demand integrations | Yes (Printful, etc.) | Yes ([Printful](/guides/integrations/printful)) |
+| AI-assisted content (titles, descriptions, banners) | Yes (Shopify Magic) | Yes ([AI endpoints](/api-reference/ai/overview)) |
+| Public catalog APIs | Yes | Yes (`/product-v2/public/shop/{name}`) |
+
+If your evaluation stops at this row, both platforms can carry the same catalog.
+The differentiators sit one layer up.
+
+## What's uniquely droplinked
+
+<CardGroup cols={2}>
+  <Card title="On-chain inventory + brand attestation" icon="shield-check">
+    Schema A `BrandAttestation` pins your brand slug cryptographically to a signing
+    wallet on the [Ethereum Attestation Service](https://attest.org). Impostors
+    can't claim your slug; verifiers can independently audit your brand identity
+    on-chain. See [Trust Fabric](/concepts/trust-fabric).
+  </Card>
+  <Card title="Trust-fabric trinity" icon="diagram-project">
+    `LenderRegistry` + `ServiceProviderRegistry` + `MethodologyRegistry` anchor a
+    4-axis trust fabric (brand / credit-risk / repayment-history / peer-trust).
+    Compare to Stripe Capital: droplinked routes you to a **licensed lender**
+    publishing an auditable methodology, not just a processor's internal credit decision.
+  </Card>
+  <Card title="Agent-shoppable distribution" icon="robot">
+    A per-merchant MCP server (`mcp.droplinked.com/{shopSlug}/...`) and a
+    [Stripe ACP feed](/agentic/acp-feed) mean ChatGPT, Claude, Cursor, and the
+    OpenAI Agents SDK can discover and transact against your catalog without you
+    building integrations. See [Agentic Commerce](/agentic/overview).
+  </Card>
+  <Card title="Multi-PSP backbone" icon="network-wired">
+    Five PSPs from one wire — Stripe + PayPal as Tier-1 always-eligible, plus
+    Telr / Bonum / PayMob for corridor-aware routing across GCC, MENA, Mongolia,
+    Egypt. The resolver picks the optimal authorized PSP per transaction; you
+    don't pick per-checkout.
+  </Card>
+  <Card title="Built-in affiliate network" icon="users">
+    Full affiliate dashboard, commission tracking, payouts, and a discovery
+    marketplace — without an app-store install. Conversions can settle through
+    x402 micropayments and a 70/20/10 split that rewards the surface that closed
+    the sale.
+  </Card>
+  <Card title="Web3 / NFT / POD as first-class" icon="cube">
+    NFT-gated drops, stablecoin settlement, and POD inventory are first-class
+    catalog citizens — not bolt-on apps you wire together yourself.
+  </Card>
+</CardGroup>
+
+## What Shopify still does better (honest)
+
+If we don't surface this list, the page isn't useful. Shopify has real advantages
+that haven't gone away:
+
+- **Drag-and-drop visual store editor** with a theme marketplace measured in
+  thousands of options and a long tail of agencies that can customize them.
+- **App store** — thousands of plugins for loyalty, reviews, SMS marketing,
+  subscriptions, returns, upsell, etc. Most niches are a one-click install away.
+- **Brand recognition + a funded support team.** Merchants know what Shopify is;
+  procurement and finance teams have heard of it.
+- **Mature SaaS workflow** — abandoned-cart recovery, email campaign builder,
+  returns flow, reviews UX, customer-profile CRM. Years of iteration baked in.
+- **POS hardware** for in-person retail (card reader, in-store register, unified
+  inventory across online + offline).
+
+Droplinked is younger on every one of these dimensions. We say so on purpose.
+
+## Pricing posture (qualitative)
+
+Shopify charges roughly **$39–$2,000 / month + 2.4–2.9% per transaction** depending
+on tier (Basic / Shopify / Advanced / Plus), plus per-app subscriptions on top.
+
+Droplinked's pricing model is operator-controlled and tier-based. Specifics live on
+[droplinked.com](https://droplinked.com) — please contact sales for current tier
+pricing rather than trusting a number quoted in a docs page that may drift. The
+mental model: droplinked tries to capture less per-transaction friction and more
+of its margin from the trust-fabric + agentic-distribution side of the stack.
+
+## When to choose droplinked
+
+- You want your **brand cryptographically verifiable on-chain** — anti-impersonation,
+  regulator-auditable, slug-pinned to a signing wallet (Schema A
+  `BrandAttestation`).
+- You're **underserved by Stripe Capital** and want access to licensed DeFi lenders,
+  vaults, and treasuries underwriting against your real cash flow. The
+  `LenderRegistry` carries jurisdiction-aware routing — `?jurisdiction=AE` returns
+  ACTIVE lenders in your corridor with `GLOBAL` fallback.
+- You want **agent-shoppable distribution** — your catalog discoverable inside
+  ChatGPT, Claude, Cursor without each integration being a separate BD cycle.
+  Every shop gets a per-merchant MCP surface at `mcp.droplinked.com/{shopSlug}/...`
+  with no extra wiring.
+- You **operate across multi-PSP corridors** — GCC, MENA, Mongolia, Egypt — where a
+  single global processor leaves money on the table or fails outright. The
+  multi-PSP resolver routes to the optimal authorized acquirer per transaction.
+- You want a **built-in affiliate network** rather than stitching together a
+  third-party app and a payout reconciler. Conversions can settle through x402
+  micropayments + a 70/20/10 split that rewards the surface (publisher, agent,
+  storefront) that closed the sale.
+- You sell **digital products, NFTs, or POD items** as first-class catalog entries
+  rather than via plugins that papered over a physical-only data model.
+- You want **a forensic audit trail you can hand to a regulator or a new payment
+  partner** — every status change, attestation mint, and repayment event is
+  preserved on-chain. See [Forensic Chain Workflow](/concepts/forensic-chain).
+
+## When to choose Shopify (or stay on Shopify)
+
+Also honest:
+
+- You need a **massive visual theme marketplace** and an agency ecosystem fluent in
+  customizing it.
+- You need a **mature app ecosystem** — loyalty programs, reviews infrastructure,
+  SMS marketing, subscriptions, returns workflows.
+- You're a **brick-and-mortar retailer** needing POS hardware and a unified
+  inventory layer across online + in-person.
+- You've **already built your tech stack on Shopify Plus** and the migration cost
+  outweighs the trust-fabric + agentic-distribution upside today.
+
+## Hybrid posture
+
+<Note>
+  **Droplinked is additive distribution.** You don't have to replatform off Shopify
+  to use it. Keep your Shopify storefront and connect your catalog to droplinked for
+  the agent-shoppable + on-chain attestation layer. See
+  [Connect your store](/agentic/connect-your-store) — the goal is additive reach,
+  not migration.
+</Note>
+
+The cleanest hybrid pattern in practice:
+
+1. Keep Shopify as your operational backend — themes, app store apps, POS,
+   abandoned-cart flow, marketing email, accounting integrations.
+2. Connect the same catalog to droplinked — your products appear in the ACP feed
+   and in a per-merchant MCP surface ChatGPT / Claude / Cursor can call.
+3. Optionally pull a Schema A brand attestation on the droplinked side so verifier
+   agents can confirm the brand identity behind both your Shopify storefront and
+   your droplinked surface.
+4. Optionally apply for a verifiable credit-line via the `LenderRegistry` — even
+   if all settlement still happens through your Shopify-Stripe stack today.
+
+That posture lets you keep the Shopify SaaS workflow you're already paying for and
+layer droplinked on top as a distribution + capital surface, not a replacement.
+
+## Migration intent
+
+If you do want to bring the catalog over wholesale, see
+[Connect your store](/agentic/connect-your-store) for the connect-an-existing-store
+surface. Direct Shopify → droplinked product import (bulk SKU + image pull from a
+Shopify admin token) is on the roadmap; for now the connect path treats your
+Shopify store as the source of truth and projects it into the droplinked agentic
+layer.
+
+## Architecture comparison
+
+| Dimension | Shopify | Droplinked |
+|---|---|---|
+| **PSP routing** | Shopify Payments (Stripe-backed default) with manual configuration of alternates | Multi-PSP backbone with **corridor-aware routing** across 5+ acquirers |
+| **Lending capital** | Shopify Capital — Stripe balance-sheet-funded, processor-internal decision | `LenderRegistry` trinity — licensed DeFi protocols, vaults, and treasuries, with a published methodology hash anchored on-chain |
+| **Brand identity** | Shopify domain + brand assets in a SaaS account | Schema A `BrandAttestation` — brand slug pinned to a signing wallet on-chain |
+| **Underwriting transparency** | Internal model; merchants see the outcome, not the criteria | `MethodologyRegistry` publishes the per-lender methodology hash linked from every Schema B attestation |
+| **Agent reach** | Shopify Magic Search + emerging agentic surfaces | Per-merchant MCP server + [ACP feed](/agentic/acp-feed) consumed by ChatGPT / Claude / Cursor today |
+| **Attestation audit** | Shopify dashboard logs (operator-internal) | Trinity-wide append-only audit log + public timeline endpoints (lender-history, methodology-timeline) |
+| **Affiliate layer** | Third-party apps (Refersion, GoAffPro, etc.) | First-class — dashboard, commission tracking, x402 settlement, 70/20/10 split |
+| **Service-provider routing** | Manual partner directory | `ServiceProviderRegistry` + `/v2/service-provider-routing/recommend` — track-record-ranked |
+
+## The bridge-the-gap angle
+
+Droplinked sits between **DeFi capital** (yield-seeking vaults, protocol treasuries,
+on-chain lending desks) and **real commerce** (merchants generating cash flow on
+physical, digital, and POD catalogs). Shopify Capital is funded from Stripe's
+balance sheet and quoted from an internal credit model. Droplinked surfaces capital
+from licensed lenders publishing their methodology on-chain, with repayment streams
+back to the lender wallet anchored in append-only Schema C attestations.
+
+It's a different posture, not a better processor. If you want capital from a
+balance-sheet you can independently audit, droplinked is the surface that exposes
+it. If you want the Stripe balance sheet wrapped in a SaaS UX, Shopify Capital is
+exactly that.
+
+The same posture extends to the **service-provider side**: 3PLs, WMS partners, and
+fulfillment operators can plug in as Schema D peer-trust issuers, and merchants
+discover them through `/v2/service-provider-routing/recommend` ranked by track
+record rather than paid placement. The Shopify analogue is the partner directory
+plus per-app reviews; droplinked's analogue is a track-record-ranked routing
+endpoint anchored in an append-only audit log.
+
+## Common questions from evaluating merchants
+
+**"Do I have to use crypto?"** No. Card / PayPal / regional acquirer settlement
+is first-class. Stablecoin settlement is one path, not the only one. Merchants who
+never touch a wallet still get every droplinked benefit — multi-PSP routing,
+agent distribution, the affiliate network — with fiat payouts.
+
+**"Do my customers have to know about any of this?"** No. The customer sees a
+checkout page with their familiar payment methods (card, PayPal, BNPL, Apple Pay,
+crypto). The PSP under the card category is invisible — that's a routing decision
+droplinked makes server-side based on the merchant's authorized PSPs.
+
+**"Do I lose the Shopify themes I already built?"** Only if you replatform.
+The [Connect your store](/agentic/connect-your-store) path keeps your Shopify
+storefront live and projects your catalog into droplinked's agentic + attestation
+layers in parallel. Your themes don't move.
+
+**"Is the trust fabric live today?"** Yes — currently on Base Sepolia testnet for
+the full 4-axis Schema v2 (`A` / `B` / `C` / `D`) and the registry trinity
+(`LenderRegistry` / `ServiceProviderRegistry` / `MethodologyRegistry`). Mainnet is
+gated on the KMS-backed signer migration. Every `/v2/attestations/*` endpoint
+returns the active chain in its response so verifiers can confirm receipts on the
+right [easscan](https://easscan.org) domain.
+
+**"What does the integration look like in code?"** Read APIs are the same shape
+as any commerce REST surface — `GET /shops/v2/public/name/{name}`,
+`GET /product-v2/public/shop/{name}`. Trust-fabric reads are
+`GET /v2/attestations/...` and the composite
+[`GET /v2/underwriting-signals/:merchantId`](/api-reference/public/underwriting-signals).
+Agents reach you via [MCP](/agentic/mcp-server) and [ACP](/agentic/acp-feed).
+
+## What's coming
+
+We try not to over-promise. The honest roadmap for the next two quarters, as it
+affects parity with Shopify's mature SaaS workflow:
+
+- **Discount + promotion engine** — in flight.
+- **Abandoned-cart recovery** — scoped, not built.
+- **Returns UI** — scoped, not built.
+- **Email campaign builder** — outreach + transactional are wired; merchant
+  campaign UX is roadmap.
+- **Direct Shopify product import** — roadmap.
+
+If parity on a specific workflow is load-bearing for your evaluation, it's worth a
+conversation with the team rather than trusting a docs roadmap snapshot.
+
+## Related
+
+- [Platform model](/concepts/platform-model) — the core Droplinked objects (Shop,
+  Product, Cart, Order).
+- [Trust Fabric](/concepts/trust-fabric) — the 4-axis on-chain attestation layer.
+- [Merchants on Droplinked](/concepts/for-merchants) — the merchant-side narrative.
+- [DeFi Lender Onboarding](/concepts/for-defi-lenders) — how lenders plug in.
+- [Service Providers on Droplinked](/concepts/for-service-providers) — how 3PLs
+  and WMS partners plug in.
+- [Agentic Commerce](/agentic/overview) — MCP + ACP feed + x402 settlement.
+- [Connect your store](/agentic/connect-your-store) — keep Shopify, add droplinked
+  for agentic distribution.
