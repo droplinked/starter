@@ -134,7 +134,10 @@
           {
             "group": "Public API",
             "pages": [
-              "api-reference/public/checkout-intent-resolver"
+              "api-reference/public/checkout-intent-resolver",
+              "api-reference/public/discounts-validate",
+              "api-reference/public/abandoned-cart-recovery",
+              "api-reference/public/shopify-webhook-ingest"
             ]
           },
           {

@@ -1,0 +1,183 @@
+---
+title: "Validate a discount code"
+description: "Validate a merchant-issued coupon code against a cart shape. Returns whether the code applies + the discount amount in cents. Public, no auth."
+---
+
+`POST /v2/discounts/validate` is the **public** endpoint a checkout SPA (or a
+partner-built custom checkout) calls to pre-validate a customer-entered coupon code against
+the cart they are about to submit. It returns whether the code is eligible plus the
+discount amount the customer would see at redemption time.
+
+It is a **precondition** for redemption — the actual write (incrementing the code's usage
+counter and applying the discount to the order) happens server-side at the
+[checkout-intent resolver](/api-reference/public/checkout-intent-resolver) chokepoint when
+the FE submits the cart with the validated `discountCode` field set.
+
+Merchants create and configure their discount codes in the shop-builder admin (CRUD UI for
+expiry / min-purchase / per-customer caps / scope). The shop-builder admin discount-creation
+guide is **coming** — link will land once that page ships.
+
+## When to use
+
+Call this once when a customer enters a code in the checkout UI, before enabling the
+"Apply" CTA or before posting the cart to checkout-intent. The endpoint never mutates
+state — calling it repeatedly is safe and rate-limited per IP.
+
+Partner integrators building a custom storefront on top of droplinked's catalog and
+checkout backbone should call this endpoint immediately before
+`POST /v2/checkout/intent` so the customer sees the post-discount total in the cart
+summary that matches what redemption will actually charge.
+
+<Note>
+This endpoint **does not redeem**. It does not decrement remaining uses, does not mark a
+code as consumed, and does not bind the code to a customer. Redemption (incrementing usage
+count, applying the line-item discount, recording the redemption event) happens at
+`POST /v2/checkout/intent` when the `discountCode` field is provided.
+</Note>
+
+## POST /v2/discounts/validate
+
+### Authentication
+
+None — public endpoint. Rate-limited per IP (60 req/min).
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `shopId` | string | Yes | The shop the code belongs to (`Shop._id`) |
+| `code` | string | Yes | The coupon code as the customer typed it. Case-insensitive on the server side |
+| `cartTotalCents` | int | Yes | Pre-discount cart subtotal in the shop's currency, in cents |
+| `lineItems` | array | Yes | Cart line items — used to evaluate scope/product-restricted codes |
+| `lineItems[].productId` | string | Yes | `Product._id` |
+| `lineItems[].quantity` | int | Yes | Units of this product in the cart |
+| `lineItems[].unitPriceCents` | int | Yes | Per-unit price in cents, pre-discount |
+
+### Example request
+
+```bash
+curl -X POST https://apiv3.droplinked.com/v2/discounts/validate \
+  -H 'content-type: application/json' \
+  -d '{
+    "shopId": "abc123",
+    "code": "SAVE20",
+    "cartTotalCents": 5000,
+    "lineItems": [
+      { "productId": "prod_xyz", "quantity": 1, "unitPriceCents": 5000 }
+    ]
+  }'
+```
+
+### Response — 200 OK, code valid
+
+```json
+{
+  "valid": true,
+  "discount": {
+    "code": "SAVE20",
+    "discountType": "percentage",
+    "discountValue": 20,
+    "discountAmountCents": 1000,
+    "currency": "USD"
+  },
+  "discountAmountCents": 1000
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `valid` | `true` | Code is eligible against this cart shape |
+| `discount.code` | string | Echoed code as stored (canonical case) |
+| `discount.discountType` | enum (`percentage` \| `fixed`) | How the code reduces the cart |
+| `discount.discountValue` | int | The percent (for `percentage`) or fixed-cents value (for `fixed`) configured on the code |
+| `discount.discountAmountCents` | int | Computed discount in cents for this exact cart |
+| `discount.currency` | string | Three-letter ISO 4217 |
+| `discountAmountCents` | int | Same as `discount.discountAmountCents` — convenience top-level field |
+
+### Response — 200 OK, code invalid
+
+```json
+{
+  "valid": false,
+  "reason": "code_expired"
+}
+```
+
+The status code is still **200** when a code is structurally well-formed but not eligible
+— the response body is the source of truth (the FE branches on `valid`). The endpoint only
+returns non-200 for malformed input (400) or rate-limit (429).
+
+### Reason codes
+
+When `valid: false`, the `reason` field carries a stable enum the FE maps to a
+human-readable message.
+
+| `reason` | Suggested FE message |
+|----------|----------------------|
+| `code_not_found` | "That code isn't recognized. Check the spelling and try again." |
+| `code_expired` | "This code has expired." |
+| `code_not_yet_active` | "This code isn't active yet. Try again on the start date." |
+| `code_exhausted` | "This code has reached its redemption limit." |
+| `code_disabled` | "This code has been disabled by the merchant." |
+| `min_purchase_not_met` | "Add more to your cart to use this code." |
+| `product_not_in_scope` | "This code doesn't apply to the items in your cart." |
+
+The enum is stable — new reason codes will only be added, never renamed. FE clients should
+default to a generic "This code can't be applied" string when an unknown reason arrives.
+
+### Error responses
+
+| Status | When |
+|--------|------|
+| `400` | Malformed body (missing `shopId`, negative `cartTotalCents`, empty `lineItems`) |
+| `404` | `shopId` does not resolve to an active shop |
+| `429` | Rate limit exceeded for caller IP |
+
+## JavaScript example
+
+```javascript
+const res = await fetch('https://apiv3.droplinked.com/v2/discounts/validate', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    shopId,
+    code: enteredCode,
+    cartTotalCents,
+    lineItems,
+  }),
+});
+const result = await res.json();
+
+if (result.valid) {
+  setCartDiscount(result.discountAmountCents);
+  setAppliedCode(result.discount.code);
+} else {
+  setCodeError(reasonToMessage(result.reason));
+}
+```
+
+## For partner integrators
+
+Partners building custom checkouts on top of droplinked's catalog and checkout backbone
+should call `POST /v2/discounts/validate` immediately before submitting the cart to
+`POST /v2/checkout/intent`. The pattern is:
+
+1. Customer enters a code in your checkout UI
+2. Your storefront calls `POST /v2/discounts/validate` with the current cart shape
+3. If `valid: true`, render the post-discount cart total in the summary and pass the
+   validated code through as the `discountCode` field on `POST /v2/checkout/intent`
+4. The checkout-intent resolver redeems the code as part of the same transaction that
+   creates the order
+
+This pattern guarantees the customer sees the same total at validation, at the cart
+summary, and at the PSP authorization step — and that no double-redemption is possible
+because redemption only happens at intent submission.
+
+## Related
+
+- [Checkout payment-intent resolver](/api-reference/public/checkout-intent-resolver) — the
+  chokepoint where validated discount codes are redeemed.
+- [Merchants overview](/concepts/for-merchants) — the merchant-facing view of how discounts
+  fit into the order lifecycle.
+- Shop-builder admin discount-creation guide — **coming** (lands once the admin docs page
+  ships).
