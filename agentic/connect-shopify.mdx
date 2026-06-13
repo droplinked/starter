@@ -1,0 +1,352 @@
+---
+title: Connect your Shopify store
+description: "Plug your existing Shopify catalog into droplinked's InventoryOS — agent-shoppable distribution, lender-ecosystem financing, on-chain trust-fabric posture — without re-platforming or migrating. Keep your Shopify storefront, checkout, and admin."
+---
+
+Droplinked doesn't replace Shopify. It plugs into your existing store as an **additive layer**
+— the same way an analytics suite, a review widget, or a loyalty app does — except the
+surface it adds is agentic distribution, cross-channel inventory, and access to a
+licensed-lender financing ecosystem.
+
+What you keep: your Shopify storefront, theme, checkout flow, admin, the entire Shopify app
+ecosystem, and your Shopify Payments routing. What you gain: an InventoryOS mirror that
+keeps your catalog reconciled across channels, agent-shoppable distribution via a
+per-merchant MCP surface plus the ACP feed, and access to droplinked's LenderRegistry for
+credit lines beyond Stripe Capital's balance-sheet ceiling.
+
+No re-platforming. No catalog migration. No customer-data move. Connect, sync, and route.
+
+## What you gain
+
+<CardGroup cols={3}>
+  <Card title="Agent-shoppable distribution" icon="robot">
+    ChatGPT, Claude, Cursor, and the OpenAI Agents SDK discover your catalog through a
+    per-merchant MCP surface and the ACP feed.
+  </Card>
+  <Card title="Cross-channel inventory" icon="warehouse">
+    InventoryOS reconciles stock across Shopify, droplinked, and future channels — one
+    canonical view, Shopify stays source of truth.
+  </Card>
+  <Card title="Lender ecosystem access" icon="building-columns">
+    Beyond Stripe Capital: licensed DeFi lenders and treasuries, methodology-pinned credit
+    attestations, jurisdiction-aware routing.
+  </Card>
+  <Card title="On-chain trust fabric" icon="shield-check">
+    A Schema A brand attestation makes your brand cryptographically verifiable to agents and
+    verifiers — impostors can't claim your slug.
+  </Card>
+  <Card title="Multi-PSP backbone" icon="credit-card">
+    Beyond Shopify Payments — Stripe + PayPal + Telr + Bonum + PayMob, corridor-aware
+    routing for the regions Shopify Payments doesn't cover.
+  </Card>
+  <Card title="Built-in affiliate network" icon="share-nodes">
+    Droplinked's affiliate program runs alongside Shopify — no app install, 70/20/10 split
+    on conversions sourced by agents and publishers.
+  </Card>
+</CardGroup>
+
+## What stays in Shopify
+
+You keep, untouched:
+
+- Your storefront URL, theme, and brand chrome
+- Shopify checkout (or whatever custom checkout you already run)
+- Shopify customer accounts and order history
+- Shopify Payments and your existing payout schedule
+- Shopify admin, reports, and analytics
+- Every Shopify app and plugin you've already installed
+
+## What gets added on droplinked
+
+After you connect, droplinked maintains:
+
+- A read-only mirror of your catalog inside droplinked InventoryOS
+- A per-merchant MCP surface at `mcp.droplinked.com/{shop-slug}/...` (live today)
+- Inclusion in the ACP feed at `apiv3.droplinked.com/feed/acp.json`
+- A Schema A brand attestation (operator-gated — see below)
+- Lender-routing recommendations via `GET /v2/lender-routing/recommend`
+- Optional affiliate-network participation with x402 settlement
+
+<Note>
+  Shopify Admin → Settings → Apps doesn't change. The droplinked surface lives at
+  `droplinked.com` (merchant dashboard) and exposes the per-merchant MCP at
+  `mcp.droplinked.com/{shop-slug}` — completely outside the Shopify control plane.
+</Note>
+
+## The 5-step integration
+
+<Steps>
+  <Step title="Install the droplinked Shopify connector">
+    The dedicated Shopify App Store listing is planned (see [What's coming](#whats-coming))
+    — until then, connect via Shopify Admin's built-in webhook configuration. This pattern
+    keeps your data plane simple and avoids an app-install permission grant beyond what
+    droplinked needs to mirror your catalog.
+
+    In Shopify Admin → **Settings** → **Notifications** → **Webhooks**, add these events
+    pointed at the droplinked ingestion endpoint:
+
+    | Shopify event | Destination |
+    |---|---|
+    | `products/create` | `https://apiv3.droplinked.com/v2/integrations/shopify/webhook` |
+    | `products/update` | `https://apiv3.droplinked.com/v2/integrations/shopify/webhook` |
+    | `inventory_levels/update` | `https://apiv3.droplinked.com/v2/integrations/shopify/webhook` |
+    | `orders/create` | `https://apiv3.droplinked.com/v2/integrations/shopify/webhook` |
+    | `orders/updated` | `https://apiv3.droplinked.com/v2/integrations/shopify/webhook` |
+
+    Format: **JSON**. Shopify will sign each request with HMAC-SHA256 using the secret it
+    displays at webhook-creation time — keep that value, you'll hand it to droplinked in
+    Step 2.
+  </Step>
+
+  <Step title="Map your Shopify store to a droplinked merchant">
+    Hand droplinked the Shopify shop domain and the webhook HMAC secret. Droplinked
+    validates every inbound webhook signature, creates the droplinked merchant entity, and
+    binds the shop-slug routing for steps 3-5.
+
+    ```bash
+    curl -X POST 'https://apiv3.droplinked.com/v2/integrations/shopify/connect' \
+      -H 'authorization: Bearer YOUR_DROPLINKED_API_KEY' \
+      -H 'content-type: application/json' \
+      -d '{
+        "shopifyShopDomain": "your-store.myshopify.com",
+        "shopifyWebhookSecret": "shpss_…",
+        "preferredShopSlug": "your-shop-slug"
+      }'
+    ```
+
+    Response includes the assigned `droplinkedMerchantId` and the final `shopSlug` (which
+    becomes part of your per-merchant MCP URL).
+
+    <Warning>
+      Treat `shopifyWebhookSecret` as a credential. Pass it over TLS, never check it into
+      source control, and rotate it if it leaks — Shopify will let you regenerate it from
+      the same Notifications panel.
+    </Warning>
+  </Step>
+
+  <Step title="Initial catalog sync">
+    Webhooks only carry products from the moment they're installed forward. To backfill
+    your existing catalog into droplinked InventoryOS, kick a bulk sync:
+
+    ```bash
+    curl -X POST 'https://apiv3.droplinked.com/v2/integrations/shopify/sync' \
+      -H 'authorization: Bearer YOUR_DROPLINKED_API_KEY' \
+      -H 'content-type: application/json' \
+      -d '{ "droplinkedMerchantId": "mch_…" }'
+    ```
+
+    Droplinked pages through the Shopify Admin GraphQL API (`products` connection) using
+    your stored credentials and writes a read-only mirror into InventoryOS. Typical
+    catalogs (1k-10k SKUs) finish in minutes; large catalogs run async and emit a webhook
+    when complete.
+  </Step>
+
+  <Step title="Confirm agentic distribution">
+    Verify your catalog is now reachable through the per-merchant MCP surface and the ACP
+    feed.
+
+    Per-merchant MCP manifest:
+    ```bash
+    curl https://mcp.droplinked.com/your-shop-slug/manifest
+    ```
+
+    Per-merchant tool list (search, get product, start checkout):
+    ```bash
+    curl https://mcp.droplinked.com/your-shop-slug/mcp/tools
+    ```
+
+    Your products in the ACP feed:
+    ```bash
+    curl -s https://apiv3.droplinked.com/feed/acp.json \
+      | jq '.items[] | select(.brand == "Your Brand Name")'
+    ```
+
+    See [Storefront MCP Discovery](/agentic/storefront-mcp-discovery) for the one-line
+    Shopify Liquid snippet that advertises this MCP URL from your storefront's `<head>` so
+    agents that land directly on your shop can auto-discover it.
+  </Step>
+
+  <Step title="Apply for a credit line">
+    With your catalog mirrored and your shop bound to a droplinked merchant, you're
+    eligible to apply for financing via the LenderRegistry.
+
+    ```bash
+    curl -X POST 'https://apiv3.droplinked.com/v2/lending-applications' \
+      -H 'authorization: Bearer YOUR_DROPLINKED_API_KEY' \
+      -H 'content-type: application/json' \
+      -d '{
+        "droplinkedMerchantId": "mch_…",
+        "jurisdiction": "AE",
+        "requestedAmount": { "currency": "USD", "amount": 50000 }
+      }'
+    ```
+
+    The routing engine picks a recommended lender by your jurisdiction and methodology
+    fit. Approval is operator-gated (per the LenderRegistry trinity) — once issued, your
+    Schema B credit-risk attestation is on-chain and your repayment history (Schema C)
+    accrues from Shopify + droplinked orders combined.
+  </Step>
+</Steps>
+
+## The InventoryOS bridge
+
+InventoryOS is droplinked's cross-channel inventory layer. When you connect Shopify, the
+bridge between Shopify and InventoryOS runs by a few simple rules:
+
+- **Shopify is source of truth for stock.** Droplinked maintains a mirror; we never
+  authoritatively claim a unit you didn't tell us about.
+- **Order events from Shopify decrement droplinked's view.** A `orders/create` webhook
+  updates the mirrored stock level — the next agent query sees the same number Shopify
+  would have returned.
+- **Catalog sync is one-way by default.** Droplinked never overwrites your Shopify catalog
+  — title, price, description, images all flow Shopify → droplinked, not the other way.
+  Two-way sync is opt-in and scoped per-field.
+- **Conflict resolution.** When the same product attribute is set in both systems, Shopify
+  wins on price / title / description / images. Droplinked annotates the mirrored record
+  with attestation metadata (Schema A brand link, Schema C repayment history) the agents
+  consume.
+- **Read more.** A dedicated `/concepts/inventory-os` deep-dive is coming. Until then, the
+  [platform model](/concepts/platform-model) and [for-merchants concept
+  page](/concepts/for-merchants) describe how the inventory layer fits the rest of the
+  stack.
+
+## Agentic distribution flow
+
+How an agent goes from your Shopify storefront URL to a checked-out order:
+
+```mermaid
+flowchart TD
+    A[Shopify catalog] --> B[droplinked InventoryOS]
+    B --> C[Per-merchant MCP surface<br/>mcp.droplinked.com/your-shop-slug]
+    C --> D[ChatGPT / Claude / Cursor /<br/>OpenAI Agents SDK]
+    D --> E[Discover + recommend<br/>your product]
+    E --> F[Buyer routes back to<br/>your Shopify checkout]
+    F --> G[Shopify orders/create<br/>webhook to droplinked]
+    G --> H[Affiliate attribution +<br/>Schema C repayment-history attestation]
+```
+
+The point: **agents discover and route; Shopify still owns the transaction.** The buyer
+checks out on your storefront, against your Shopify Payments, with your tax and shipping
+rules. Droplinked only sees the order event after Shopify writes it.
+
+## Optimal financing — the lender-routing pitch
+
+Stripe Capital is excellent — for merchants Stripe wants to fund off its own balance sheet.
+Outside that envelope (different jurisdiction, different methodology fit, larger ticket,
+faster turnaround), you're on your own.
+
+Droplinked's LenderRegistry surfaces an ecosystem of licensed lenders and DeFi treasuries
+(CredibleX in the UAE, Valinor Vault as a global DeFi vault, more in onboarding) and routes
+you to the right one based on:
+
+- **Jurisdiction.** `GET /v2/lender-routing/recommend?jurisdiction=AE` returns
+  exact-jurisdiction matches first, then `GLOBAL` fallbacks, sorted by track record.
+- **Methodology fit.** Your underwriting methodology is pinned in a Schema B credit-risk
+  attestation — verifiers and downstream lenders can verify it cryptographically.
+- **Repayment history.** Schema C attestations accrue across Shopify orders + droplinked
+  orders + any other channel you wire in. Track record stays with you, not with a single
+  PSP.
+- **Tier upgrades.** Use [`/v2/upgrade-preview`](/api-reference/public/upgrade-preview) to
+  preview what the next financing tier requires — drives a tight feedback loop on the
+  metrics that move you forward.
+
+See the [Lender Routing Recommendation](/api-reference/public/lender-routing) endpoint for
+the live integration shape.
+
+## Optional: brand attestation
+
+Schema A brand attestations are issued operator-gated. They make your brand
+cryptographically verifiable — an agent that sees "Your Brand" in a product feed can verify
+the on-chain attestation rather than trust a string match.
+
+To request one, email `support@droplinked.com` with your droplinked merchant ID and brand
+materials. Once issued:
+
+- Your brand slug binds to your wallet — impostor merchants can't claim it
+- Verifiers (agents, downstream lenders, partners) can verify with a single read
+- The Schema A attestation surfaces in agent discovery as a "verified brand" badge
+
+See the [Trust Fabric Statistics](/api-reference/public/trust-fabric-stats) endpoint for
+the public roll-up of how many brands are verified.
+
+## What's coming
+
+A realistic roadmap — what's live today is the integration above; these are the next
+upgrades, in roughly the order we'll ship them:
+
+- A direct **Shopify App Store** listing (replaces the webhook-config dance in Step 1)
+- Auto-sync product images and variant matrices into InventoryOS (today we sync the
+  product record; rich media follows)
+- Two-way inventory sync (opt-in, per-field) so you can run droplinked-side promotional
+  edits and have them flow back into Shopify
+- **WooCommerce, BigCommerce, and Magento adapters** — same five-step pattern, different
+  webhook surfaces
+- Customer-account cross-channel reconciliation so a buyer's Shopify-side order history
+  and droplinked-side affiliate history live behind one identity
+
+## FAQ
+
+<AccordionGroup>
+  <Accordion title="Do I have to migrate my Shopify products?">
+    No. Droplinked maintains a one-way read-only mirror — Shopify stays the source of truth
+    for your catalog, prices, descriptions, and stock levels.
+  </Accordion>
+  <Accordion title="Does this affect my Shopify checkout?">
+    No. Buyers still check out via your Shopify checkout, against your Shopify Payments
+    routing, with your tax and shipping rules. Droplinked only sees the order event after
+    Shopify writes it.
+  </Accordion>
+  <Accordion title="Can I disconnect at any time?">
+    Yes. Revoke the webhooks from Shopify Admin → Settings → Notifications and the mirror
+    stops updating. Email `support@droplinked.com` to clear the droplinked-side merchant
+    entity if you want a clean slate.
+  </Accordion>
+  <Accordion title="How does droplinked make money on this?">
+    Three sources: affiliate-network commissions on agent-sourced conversions (the 10%
+    agent share / 20% droplinked share of the 70/20/10 split), lender-side fees on
+    financing originated through the LenderRegistry, and premium MCP rate-limits / SLAs for
+    high-volume agent operators. Final pricing for the lender and premium-MCP tiers is
+    still being nailed — `support@droplinked.com` has the latest sheet.
+  </Accordion>
+  <Accordion title="What about my customer data?">
+    Customer PII stays in Shopify. Droplinked only receives order events
+    (`orders/create`, `orders/updated`) and only the fields needed for attribution and
+    Schema C repayment-history attestation — not full customer profiles, addresses, or
+    payment data.
+  </Accordion>
+  <Accordion title="Can I use droplinked's brand attestation without connecting Shopify?">
+    Yes. Operator-onboarded merchants get Schema A regardless of storefront source —
+    Shopify, WooCommerce, custom Next.js, or no storefront at all. The Shopify connector is
+    additive, not a prerequisite.
+  </Accordion>
+</AccordionGroup>
+
+## Other platforms
+
+The same five-step pattern works for the rest of the ecosystem — the webhook surface
+changes per platform, the droplinked side is identical:
+
+- **WooCommerce** — WooCommerce REST API webhooks at `wp-json/wc/v3/webhooks` (dedicated
+  guide coming at `/agentic/connect-woocommerce`)
+- **BigCommerce** — V3 Webhooks API (`stores/{hash}/v3/hooks`) (dedicated guide coming at
+  `/agentic/connect-bigcommerce`)
+- **Magento / Adobe Commerce** — Magento webhook module or a thin adapter against the REST
+  catalog API (dedicated guide coming)
+- **Custom Next.js / React / headless storefronts** — register your own webhook emitter
+  against the droplinked ingestion endpoint; see [Connect your store](/agentic/connect-your-store)
+  for the platform-agnostic shape and [Storefront MCP
+  Discovery](/agentic/storefront-mcp-discovery) for the `<meta name="mcp-url">` advertise
+  pattern.
+
+## Related
+
+- [Connect your store](/agentic/connect-your-store) — platform-agnostic connect surface
+- [Storefront MCP Discovery](/agentic/storefront-mcp-discovery) — advertise your
+  per-merchant MCP URL from your storefront `<head>`
+- [For merchants](/concepts/for-merchants) — how droplinked composes with your existing
+  commerce stack
+- [Trust fabric](/concepts/trust-fabric) — Schema A/B/C/D attestation architecture
+- [Lender Routing Recommendation](/api-reference/public/lender-routing) — pick the right
+  lender by jurisdiction
+- [Trust Fabric Statistics](/api-reference/public/trust-fabric-stats) — public rollup of
+  verified-brand counts and credit-attestation volumes

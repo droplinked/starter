@@ -185,6 +185,7 @@
               "agentic/underwriting-mcp-tools",
               "agentic/acp-feed",
               "agentic/connect-your-store",
+              "agentic/connect-shopify",
               "agentic/storefront-mcp-discovery"
             ]
           }
