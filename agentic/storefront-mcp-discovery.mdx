@@ -1,0 +1,198 @@
+---
+title: Storefront MCP Discovery
+description: "Make your storefront agent-shoppable by advertising your per-merchant MCP URL via a `<meta>` tag. ChatGPT, Claude, Cursor, Continue, Cline, and Vercel AI SDK convergently probe for this."
+---
+
+The MCP server at `mcp.droplinked.com` already serves a per-merchant tool surface at
+`/{shopSlug}/manifest`, `/{shopSlug}/mcp/tools`, and `/{shopSlug}/mcp/tools/{name}` — but an
+agent that arrives at your storefront in the wild has no signal pointing it at that surface.
+This page closes that gap.
+
+The convergent pattern across ChatGPT, Claude, Cursor, Continue, Cline, and the Vercel AI
+SDK is the same: probe the storefront `<head>` for a `<meta name="mcp-url">` tag. Add one
+line of HTML and your storefront becomes agent-shoppable — additive distribution, not
+migration. Your existing checkout, catalog, and merchant config are untouched.
+
+## The pattern
+
+```html
+<meta name="mcp-url" content="https://mcp.droplinked.com/your-shop-slug">
+```
+
+That's the whole contract. Drop it in your storefront's `<head>` and agents will discover
+your per-merchant MCP surface on the next page load.
+
+## What changes
+
+- An agent given only your storefront URL can probe the HTML, discover your MCP URL, fetch
+  your manifest, and call your tools — no prior knowledge of Droplinked required.
+- No additional auth is required. The per-merchant surface is unauthenticated; merchants
+  opt in by registering the shop on Droplinked.
+- Your catalog becomes discoverable by agentic shopping surfaces — Stripe ACP, OpenAI
+  ChatGPT, Claude.ai, and any MCP-capable client.
+
+## Implementation by storefront type
+
+<Tabs>
+  <Tab title="droplinked.io">
+    Storefronts hosted on `droplinked.io/{shopSlug}` advertise the meta tag automatically.
+    No action needed — the storefront template injects it at render time using your shop
+    slug.
+
+    Verify with:
+    ```bash
+    curl -s https://droplinked.io/your-shop-slug | grep -i 'mcp-url'
+    ```
+  </Tab>
+  <Tab title="Next.js / React">
+    Add to your root layout or `<Head>` component:
+    ```tsx
+    // app/layout.tsx (Next.js App Router)
+    export default function RootLayout({ children }: { children: React.ReactNode }) {
+      return (
+        <html lang="en">
+          <head>
+            <meta
+              name="mcp-url"
+              content="https://mcp.droplinked.com/your-shop-slug"
+            />
+          </head>
+          <body>{children}</body>
+        </html>
+      );
+    }
+    ```
+
+    Or via `next/head` in the Pages Router:
+    ```tsx
+    import Head from 'next/head';
+
+    export default function Storefront() {
+      return (
+        <>
+          <Head>
+            <meta name="mcp-url" content="https://mcp.droplinked.com/your-shop-slug" />
+          </Head>
+          {/* ... */}
+        </>
+      );
+    }
+    ```
+  </Tab>
+  <Tab title="Shopify Liquid">
+    Add to `layout/theme.liquid` inside the `<head>` block:
+    ```liquid
+    <head>
+      {% comment %} ... existing head tags ... {% endcomment %}
+      <meta name="mcp-url" content="https://mcp.droplinked.com/your-shop-slug">
+    </head>
+    ```
+
+    If you advertise multiple Droplinked-connected shops from one Shopify theme, pick the
+    primary slug — agents follow the first `mcp-url` they see.
+  </Tab>
+  <Tab title="Generic HTML">
+    Paste the tag into your storefront's `<head>`:
+    ```html
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta name="mcp-url" content="https://mcp.droplinked.com/your-shop-slug">
+        <!-- ... -->
+      </head>
+      <body>
+        <!-- ... -->
+      </body>
+    </html>
+    ```
+  </Tab>
+</Tabs>
+
+## Discovery walkthrough
+
+<Steps>
+  <Step title="Agent receives a storefront URL">
+    The agent gets your storefront URL from a user prompt, a search result, a link in chat,
+    or a referrer. It knows nothing else about your shop.
+  </Step>
+  <Step title="Agent fetches the storefront HTML and parses the meta tag">
+    The agent issues a `GET` for the storefront page and scans the `<head>` for
+    `<meta name="mcp-url">`. The `content` attribute is your per-merchant MCP base URL.
+  </Step>
+  <Step title="Agent fetches the per-merchant manifest">
+    ```bash
+    curl https://mcp.droplinked.com/your-shop-slug/manifest
+    ```
+    The manifest declares shop metadata, tool URLs, and any auth requirements (none, for
+    the public catalog surface).
+  </Step>
+  <Step title="Agent fetches the tool list">
+    ```bash
+    curl https://mcp.droplinked.com/your-shop-slug/mcp/tools
+    ```
+    Returns the same tool inventory as the platform-wide [MCP server](/agentic/mcp-server),
+    pre-bound to your shop — no shop-slug argument required on every call.
+  </Step>
+  <Step title="Agent invokes tools">
+    ```bash
+    curl -X POST https://mcp.droplinked.com/your-shop-slug/mcp/tools/search_products \
+      -H 'content-type: application/json' \
+      -d '{"query": "t-shirt"}'
+    ```
+    From here the agent runs the usual MCP loop — `search_products`, `get_product`,
+    `start_checkout` — scoped to your catalog.
+  </Step>
+</Steps>
+
+## Validation
+
+Verify your storefront emits the meta tag:
+```bash
+curl -s https://your-shop.example.com/ | grep -i 'mcp-url'
+```
+
+You should see a single line containing `<meta name="mcp-url" content="…">`.
+
+Verify the per-merchant manifest responds:
+```bash
+curl https://mcp.droplinked.com/your-shop-slug/manifest
+```
+
+You should get a JSON document with your shop metadata and the tool URLs. A 404 means the
+shop slug isn't registered — see [Connect your store](/agentic/connect-your-store).
+
+## Fallback discovery
+
+If your storefront can't add the meta tag (e.g. a hosted platform with no `<head>` editor),
+agents can still find your shop via:
+
+- **Platform-wide discovery** — the well-known doc at
+  `https://mcp.droplinked.com/.well-known/mcp.json` carries a
+  `merchantDiscovery.pathTemplate` an agent can substitute any shop slug into.
+- **The `find_merchant` tool** — exposed on the platform-wide [MCP server](/agentic/mcp-server),
+  searchable by slug, name, or category.
+- **The ACP feed** — `https://apiv3.droplinked.com/feed/acp.json` lists every Droplinked
+  shop's catalog and is ingested by Stripe ACP and other agentic shopping surfaces.
+
+Storefront-advertised discovery is the lowest-friction path for an agent that lands on a
+single shop; the fallbacks cover everything else.
+
+## Privacy & security
+
+<Note>
+  The per-merchant manifest exposes only catalog metadata (shop name, slug, product feed
+  URL, tool URLs) and payment-method categories. It does **not** expose PII, merchant
+  operator data, sales numbers, or internal config. Merchants can opt out by un-registering
+  the shop (operator-gated).
+</Note>
+
+## Related
+
+- [MCP server](/agentic/mcp-server) — platform-wide tool inventory inherited by every
+  per-merchant surface.
+- [Connect your store](/agentic/connect-your-store) — register a shop so its per-merchant
+  surface comes online.
+- [Lender trinity MCP tools](/agentic/lender-trinity-mcp-tools) — agent-facing trust-fabric
+  tools that pair with per-merchant discovery.
+- [Platform model](/concepts/platform-model) — how the agentic layer sits atop the commerce
+  primitives.
