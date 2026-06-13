@@ -1,0 +1,125 @@
+---
+title: "Trust-Fabric Stats"
+description: "Aggregate-only counts of the trust-fabric trinity — registered lenders, service providers, methodology versions, on-chain attestations by schema. Powers partner-facing dashboards without exposing per-row data."
+---
+
+`GET /v2/trust-fabric/stats` returns a platform-wide aggregate roll-up of the [trust-fabric trinity](/concepts/trust-fabric) — the count of registered lenders, registered WMS/3PL service providers, registered methodology versions, and on-chain attestations broken out by schema (A/B/C/D). It's the third-party visualization surface for partner dashboards, agent platform-scale signaling, and freshness probes.
+
+The endpoint is intentionally **aggregate-only**: no per-row data, no PII, no merchant identifiers, no individual lender names. To resolve a specific entity (lender, methodology, service provider), use the per-id endpoints documented elsewhere in this section.
+
+<Note>
+This endpoint exposes only aggregate counts. To resolve a specific lender or methodology, use the per-id endpoints documented elsewhere in this section.
+</Note>
+
+## Request
+
+```
+GET /v2/trust-fabric/stats
+```
+
+No path params, no query params, no body. No JWT — **public** endpoint.
+
+## Response (200)
+
+```json
+{
+  "lenders": {
+    "total": 2,
+    "active": 2
+  },
+  "serviceProviders": {
+    "total": 5,
+    "active": 4
+  },
+  "methodologies": {
+    "totalLenders": 2,
+    "activeVersions": 1
+  },
+  "attestations": {
+    "schemaA": 12,
+    "schemaB": 8,
+    "schemaC": 4,
+    "schemaD": 2
+  },
+  "asOf": "2026-06-12T01:30:00Z"
+}
+```
+
+## Field reference
+
+### `lenders.*`
+
+| Field | Type | Notes |
+|---|---|---|
+| `lenders.total` | int | Lifetime count of registered lenders across all lifecycle states (`PENDING_KYB` \| `ACTIVE` \| `SUSPENDED` \| `ARCHIVED`) |
+| `lenders.active` | int | Subset of `total` currently in `ACTIVE` state — eligible to mint Schema B credit-risk attestations |
+
+### `serviceProviders.*`
+
+| Field | Type | Notes |
+|---|---|---|
+| `serviceProviders.total` | int | Lifetime count of registered WMS/3PL providers across all lifecycle states |
+| `serviceProviders.active` | int | Subset of `total` currently `ACTIVE` — eligible to mint Schema D cross-attestations and accept HMAC-gated ingestion webhooks |
+
+### `methodologies.*`
+
+| Field | Type | Notes |
+|---|---|---|
+| `methodologies.totalLenders` | int | Count of distinct lenders that have registered at least one methodology version |
+| `methodologies.activeVersions` | int | Count of methodology versions currently in `ACTIVE` state across all lenders (excludes `SUPERSEDED` + `REVOKED`) |
+
+### `attestations.*`
+
+| Field | Type | Notes |
+|---|---|---|
+| `attestations.schemaA` | int | Count of on-chain `BrandAttestation` records (axis A — brand control) |
+| `attestations.schemaB` | int | Count of on-chain `CreditRiskAttestation` records (axis B — credit underwriting) |
+| `attestations.schemaC` | int | Count of on-chain `RepaymentHistoryAttestation` records (axis C — settlement history) |
+| `attestations.schemaD` | int | Count of on-chain `CrossAttestation` records (axis D — peer trust) |
+
+### `asOf`
+
+| Field | Type | Notes |
+|---|---|---|
+| `asOf` | ISO 8601 timestamp | Server time at which the rollup was computed. Use for freshness probes. |
+
+## Privacy discipline
+
+This endpoint is deliberately scoped to platform-wide aggregates. The following are **NOT** in the response:
+
+- Individual lender names, IDs, or signing wallets
+- Merchant identifiers (no `merchantId`, no shop slug, no wallet)
+- Methodology hashes, document URLs, or version strings
+- Service provider IDs or display names
+- Any per-attestation data (`uid`, `issuerWallet`, `subject`, payload)
+- Any PII (no email, no operator names, no admin actor IDs)
+
+For per-row reads, use the dedicated public endpoints (each enforces its own redaction whitelist): [`/v2/lenders/:lenderId`](/api-reference/public/lender-registry), [`/v2/methodologies/:lenderId/:hash`](/api-reference/public/methodology-registry), [`/v2/service-provider-routing/recommend`](/api-reference/public/service-provider-routing), and the per-merchant attestation reads.
+
+## When to use
+
+- **Partner-facing dashboards** showing platform scale — "Droplinked has underwritten N merchants across M lenders" — without exposing the underlying merchant or lender list
+- **Agent platform-scale signaling** — a consumer agent answering "how big is this trust fabric" before deciding to integrate
+- **Freshness probes** — `asOf` lets a caller confirm the aggregate is computed recently (independent of any per-row read freshness)
+- **Health checks** — non-zero counts across all four axes confirm the schema registry, reconciler, and on-chain pipeline are all live
+
+## Caching
+
+There's **no server-side cache** in v1 — every call hits the live aggregate. Given the aggregate nature of the response (counts only, no per-row data, no high-cardinality dimensions), clients **SHOULD** cache at a **60s+ TTL** to keep partner dashboards responsive without unnecessary load. The `asOf` field lets clients display freshness honestly even with stale-while-revalidate strategies.
+
+## Curl example
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/trust-fabric/stats | jq .
+```
+
+## Related
+
+- [Trust Fabric overview](/concepts/trust-fabric) — the 4-axis architecture this endpoint rolls up
+- [Lender Registry Lookup](/api-reference/public/lender-registry) — per-`lenderId` profile read
+- [Methodology Registry Lookup](/api-reference/public/methodology-registry) — per-`(lenderId, hash)` methodology read
+- [Service-Provider Routing](/api-reference/public/service-provider-routing) — ranked WMS/3PL recommendations
+
+## MCP tool
+
+Consumer agents reach this endpoint via the `get_trust_fabric_stats` MCP tool (separate PR in droplinked-mcp, in flight) — so ChatGPT / Claude / OpenAI Agents SDK callers can query platform-scale aggregates without prior knowledge of the path scheme.
