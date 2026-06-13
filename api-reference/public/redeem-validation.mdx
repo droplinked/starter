@@ -1,0 +1,250 @@
+---
+title: "Validate a redeem code (discount or gift card)"
+description: "Pre-validate a discount code or gift-card code before applying it at checkout. Fail-open posture — backend faults return HTTP 200 with a structured error envelope so the FE renders inline retry instead of crashing the redeem field."
+---
+
+Validate a discount code or gift-card code before applying it at checkout. Both endpoints share a single request envelope (`code` + `shopId` + `cartTotalCents` + `currency`) so a single unified redeem field on the storefront can swap the URL path based on which kind the buyer typed.
+
+**Fail-open posture.** Backend faults return **HTTP 200** with `{ valid: false, error: "service_unavailable" }` — never a 5xx. The redeem field is payment-adjacent and 5xx-ing it would leave the buyer with a broken checkout. The FE renders an inline error + retry CTA instead of crashing.
+
+<Note>
+These endpoints are **read-only**. They never bump a discount's `timesUsed` counter or flip a gift card's `isRedeemed` state. Actual redemption happens atomically with payment authorization at the [checkout-intent resolver](/api-reference/public/checkout-intent-resolver) chokepoint when the FE submits the cart with the validated code field set.
+</Note>
+
+## When to use this
+
+- A storefront or partner checkout renders a **unified redeem field** that accepts either a discount code or a gift-card code, and dispatches to the matching validator based on which path the buyer picks (or based on inline heuristics in the FE)
+- A custom checkout wants to preview the redeem amount in the cart summary **before** the buyer hits "Pay" — so the buyer sees the same total at validation, at the cart summary, and at the PSP authorization step
+- The FE needs a stable typed error envelope (rather than HTTP status branching) so it can surface inline messages without try/catching every fetch
+
+Call this once when the buyer enters a code, before enabling the "Apply" CTA. The endpoint never mutates state — calling it repeatedly is safe.
+
+## Authentication
+
+None — both endpoints are public. Decorated with `@Public()` on the controller and mounted under `/v2/redeem/*`.
+
+## Shared request body
+
+Both endpoints accept the same `RedeemValidationDto` payload.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `code` | string (1–64 chars) | Yes | The redemption code as the buyer typed it. Case-insensitive on the server side. |
+| `shopId` | string | Yes | The shop the code belongs to (`Shop._id`). |
+| `cartTotalCents` | int (>= 0) | Yes | Pre-redeem cart subtotal in the shop's currency, in **cents** (minor units). |
+| `currency` | string (1–8 chars) | Yes | ISO-4217 currency code (e.g. `USD`). Informational for the discount path (the discount row carries its own currency for FIXED_AMOUNT codes) and ignored for the gift-card path (gift-card balance is currency-less per the v1 schema). Required on the wire so the FE contract matches the unified field exactly. |
+| `appliedCodes` | string[] | No | Codes already applied to the cart. When supplied, a same-code reapply short-circuits to `already_applied` without a service round-trip. v1 of the shop-builder unified redeem field does not send this — safe to omit. |
+
+## Shared response envelope
+
+Both endpoints return the same union response shape at **HTTP 200** for every business outcome.
+
+**Success — `valid: true`:**
+
+```json
+{
+  "valid": true,
+  "kind": "discount",
+  "code": "FREESHIP10",
+  "valueCents": 1000,
+  "label": "$10 off shipping"
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `valid` | `true` | Code is eligible against this cart shape. |
+| `kind` | `"discount"` \| `"giftcard"` | Mirrors which endpoint was hit — useful for typed reducers on the FE. |
+| `code` | string | Normalized echo of the redemption code (canonical case as stored). |
+| `valueCents` | int | Discount amount applied to this cart, in cents. **Capped** server-side so it never exceeds `cartTotalCents` (you'll never refund more than the cart is worth). |
+| `label` | string | Human-readable name surfaced as a confirmation pill on the order summary (e.g. `"$10 off shipping"`, `"Gift card balance applied"`). |
+
+**Error — `valid: false`:**
+
+```json
+{
+  "valid": false,
+  "error": "min_cart_not_met",
+  "minCartCents": 5000
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `valid` | `false` | Code is structurally well-formed but not eligible against this cart. |
+| `error` | enum | One of the values in the error-code table below. |
+| `minCartCents` | int | **Only set on `error: "min_cart_not_met"`** — the threshold the FE should render as "spend $X more to unlock". |
+
+## Error codes
+
+The `error` enum is **stable** — new codes will only be added, never renamed. FE clients should default to a generic "This code can't be applied" string when an unknown reason arrives.
+
+| `error` | Returned by | When | Suggested FE message |
+|---|---|---|---|
+| `invalid_code` | discount + giftcard | Code unrecognized, disabled, expired, not-yet-active, exhausted, or out-of-scope for the cart's products. The endpoint **deliberately collapses** every promo-engine lifecycle failure into a single public reason (see [Architecture notes](#architecture-notes)). | "That code isn't recognized. Check the spelling and try again." |
+| `already_applied` | discount + giftcard | The same `code` already appears in the buyer's `appliedCodes` array. | "You've already applied this code." |
+| `min_cart_not_met` | discount only | Discount has a minimum-purchase rule and `cartTotalCents < minPurchaseCents`. The response carries `minCartCents` so the FE can render "spend $X more". | "Add more to your cart to use this code." |
+| `zero_balance` | giftcard only | Gift card exists but its remaining balance is `0` (fully spent). | "This gift card has no balance left." |
+| `expired` | giftcard only | Gift card exists but its expiry timestamp has passed. | "This gift card has expired." |
+| `service_unavailable` | discount + giftcard | Backend fault while calling into the discount engine or gift-card repo. **Fail-open envelope** — the FE should render an inline "Try again" CTA. | "Something went wrong validating that code. Try again." |
+
+## `POST /v2/redeem/discount/validate`
+
+Validates a merchant-issued coupon code against the cart's total.
+
+### Curl example
+
+```bash
+curl -X POST https://apiv3.droplinked.com/v2/redeem/discount/validate \
+  -H 'content-type: application/json' \
+  -d '{
+    "code": "FREESHIP10",
+    "shopId": "65f8000000000000000000aa",
+    "cartTotalCents": 9999,
+    "currency": "USD"
+  }'
+```
+
+### Success response
+
+```json
+{
+  "valid": true,
+  "kind": "discount",
+  "code": "FREESHIP10",
+  "valueCents": 1000,
+  "label": "$10 off shipping"
+}
+```
+
+### Min-purchase failure response
+
+```json
+{
+  "valid": false,
+  "error": "min_cart_not_met",
+  "minCartCents": 5000
+}
+```
+
+### Invalid-code failure response
+
+```json
+{
+  "valid": false,
+  "error": "invalid_code"
+}
+```
+
+## `POST /v2/redeem/giftcard/validate`
+
+Validates a gift-card code against the cart's total. Same request envelope; `kind: "giftcard"` on success.
+
+### Curl example
+
+```bash
+curl -X POST https://apiv3.droplinked.com/v2/redeem/giftcard/validate \
+  -H 'content-type: application/json' \
+  -d '{
+    "code": "GIFTABC1234",
+    "shopId": "65f8000000000000000000aa",
+    "cartTotalCents": 9999,
+    "currency": "USD"
+  }'
+```
+
+### Success response
+
+```json
+{
+  "valid": true,
+  "kind": "giftcard",
+  "code": "GIFTABC1234",
+  "valueCents": 2500,
+  "label": "Gift card balance applied"
+}
+```
+
+### Zero-balance failure response
+
+```json
+{
+  "valid": false,
+  "error": "zero_balance"
+}
+```
+
+### Expired failure response
+
+```json
+{
+  "valid": false,
+  "error": "expired"
+}
+```
+
+## Schema-validation errors (`400`)
+
+The only non-200 status either endpoint emits is `400` for **structurally malformed** requests (missing required field, negative `cartTotalCents`, `code` longer than 64 chars, etc.). A malformed request is a structural FE bug that a retry can't fix — so the fail-open envelope does not apply.
+
+| Status | When |
+|---|---|
+| `200` | Every business outcome — success **or** typed error (`valid: false`). Branch on the response body, not the status code. |
+| `400` | Schema validation failed on the request body. |
+
+## Architecture notes
+
+### Reason-code collapsing (discount internals)
+
+The underlying discount engine surfaces a rich internal reason union — `code_not_found` / `code_disabled` / `code_expired` / `code_not_yet_active` / `code_exhausted` / `product_not_in_scope`. The public `/v2/redeem/discount/validate` surface **deliberately collapses all six into `invalid_code`**.
+
+This follows the Apple / Shopify convention of not leaking promotion-engine internals to the buyer:
+
+- Telling an enumeration attacker which exact code is `disabled` vs `expired` widens the leak surface
+- The FE can't render anything different for "disabled" vs "expired" anyway — the UX outcome is identical
+- The internal reason is preserved in server logs for the merchant dashboard
+
+`min_purchase_not_met` is the one discount internal reason that **does** surface (as `min_cart_not_met` + `minCartCents`) — because the FE can render a useful "spend $X more to unlock" prompt the buyer can act on.
+
+### Gift-card disambiguation
+
+The gift-card repo's `getGiftCardByCode` returns `null` across multiple failure modes (missing / fully-redeemed / expired). To preserve a useful FE surface, the service runs a best-effort secondary lookup on the null path to disambiguate `zero_balance` vs `expired` vs `invalid_code`. The disambiguation walk is wrapped in its own try/catch so transient gift-card-repo faults cannot escape the fail-open envelope — the worst case is the public reason collapses to `invalid_code`.
+
+### Fail-open: backend errors return HTTP 200
+
+Both validators wrap the engine call in try/catch and return `{ valid: false, error: "service_unavailable" }` at **HTTP 200** on any backend fault. The redeem field is payment-adjacent — 5xx-ing it would leave buyers with a broken checkout. The FE renders an inline retry CTA and the buyer keeps going. This matches the PSP-stability backbone discipline (the same posture the resolver/gate path uses).
+
+The only exception is request-schema validation — a malformed body returns `400`, because a structural FE bug is not something a retry can fix.
+
+### Redemption happens at the checkout-intent chokepoint
+
+These endpoints are a **precondition** for redemption, not the write. The actual mutation (decrementing remaining uses on a discount, marking a gift card as `isRedeemed`, applying the line-item discount to the order) happens server-side at the [checkout-intent resolver](/api-reference/public/checkout-intent-resolver) chokepoint when the FE submits the cart with the validated code field set.
+
+That single chokepoint design means:
+
+- No double-redemption is possible — the redemption write is atomic with payment authorization
+- These validators can be called repeatedly without side effects
+- The FE never has to "release" a code on cart-abandonment — nothing was ever locked
+
+### Known v1 limitation: line items not in the unified envelope
+
+The unified `RedeemValidationDto` does **not** carry line items. Discounts scoped to specific products (`PRODUCT_IDS` scope) will therefore validate as `invalid_code` on this surface — the public collapse layer doesn't expose `product_not_in_scope` separately. This matches the v1 shape of the shop-builder unified redeem field, which doesn't submit line items.
+
+If you need product-scoped discount validation today, call the original [`POST /v2/discounts/validate`](/api-reference/public/discounts-validate) endpoint — it carries `lineItems` and returns the granular reason union directly.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Checkout payment-intent resolver" icon="lock" href="/api-reference/public/checkout-intent-resolver">
+    The chokepoint where validated discount + gift-card codes are atomically redeemed against payment authorization. These validators are a precondition — the resolver is the write.
+  </Card>
+  <Card title="Validate a discount code (granular)" icon="ticket" href="/api-reference/public/discounts-validate">
+    The original discount-only validator. Carries `lineItems` and returns the full reason union (`code_expired` / `code_not_yet_active` / `product_not_in_scope` / etc.) without the public collapse layer. Use when you need product-scope validation.
+  </Card>
+  <Card title="Resume an abandoned cart" icon="cart-shopping" href="/api-reference/public/abandoned-cart-recovery">
+    The storefront-side endpoint customers hit from the recovery email link. Often paired with redeem-field pre-validation when a recovery email carries a bounce-back coupon.
+  </Card>
+  <Card title="Order lifecycle" icon="timeline" href="/guides/order-lifecycle">
+    Where the resolver's atomic redemption write fits into the full order timeline (cart → intent → PSP authorization → order created).
+  </Card>
+</CardGroup>
