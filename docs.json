@@ -198,6 +198,7 @@
             "group": "Build with agents",
             "pages": [
               "agentic/overview",
+              "agentic/inventory-mcp",
               "agentic/mcp-server",
               "agentic/lender-trinity-mcp-tools",
               "agentic/underwriting-mcp-tools",
