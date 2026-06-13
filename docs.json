@@ -133,6 +133,7 @@
           {
             "group": "Trust Fabric API",
             "pages": [
+              "api-reference/public/trust-fabric-stats",
               "api-reference/public/lender-registry",
               "api-reference/public/lender-routing",
               "api-reference/public/methodology-registry",
