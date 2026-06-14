@@ -1,0 +1,134 @@
+---
+title: "Set Merchant Acquisition Source"
+description: "Operator-only setter for a merchant's AcquisitionSource enum. Drives the activation-method mix in the platform-fee summary and feeds attribution rollups."
+---
+
+`PATCH /admin/merchants/:id/acquisition-source` sets (or clears) the
+`acquisitionSource` field on a `MerchantV2` record. The value drives the
+`activationMethodMix` rollup surfaced by
+[`GET /admin/monetization/platform-fee-summary`](/api-reference/admin/monetization/platform-fee-summary)
+and feeds downstream attribution (Impact, Awin, referral payouts, agentic-affiliate
+intake).
+
+<Note>
+This endpoint requires:
+
+- **JWT** with `role = SUPER_ADMIN`
+- **`IpAllowlistGuard`** — caller IP must be in the operator allowlist
+- **`GeoBlockGuard`** — caller geo must be permitted
+
+Calls that miss any of the three return `403`. Missing or invalid JWT returns `401`.
+</Note>
+
+## PATCH /admin/merchants/:id/acquisition-source
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, `role = SUPER_ADMIN` |
+| IP allowlist | Caller IP in `ADMIN_IP_ALLOWLIST` |
+| Geo | Country in `ADMIN_GEO_ALLOWLIST` |
+
+Obtain a SUPER_ADMIN JWT via `POST /merchant/admin/login` — see
+[Authentication](/authentication).
+
+### Path parameters
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string (ObjectId) | Yes | `MerchantV2._id` of the target merchant. |
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source` | enum string | No | One of `IMPACT`, `AWIN`, `REFERRAL`, `AGENTIC_AFFILIATE_INTAKE`, `OTHER`, `UNKNOWN`. Omit or send `{}` to clear the field (sets `acquisitionSource` to `null`). |
+
+### Example — set
+
+```bash
+curl -X PATCH "https://apiv3.droplinked.com/admin/merchants/6794172fefa4eb734620b00c/acquisition-source" \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"source":"IMPACT"}'
+```
+
+### Example — clear
+
+```bash
+curl -X PATCH "https://apiv3.droplinked.com/admin/merchants/6794172fefa4eb734620b00c/acquisition-source" \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+### Response — 200 OK
+
+```json
+{
+  "statusCode": 200,
+  "message": null,
+  "data": {
+    "merchantId": "6794172fefa4eb734620b00c",
+    "acquisitionSource": "IMPACT"
+  }
+}
+```
+
+When cleared:
+
+```json
+{
+  "statusCode": 200,
+  "message": null,
+  "data": {
+    "merchantId": "6794172fefa4eb734620b00c",
+    "acquisitionSource": null
+  }
+}
+```
+
+### Fields
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `statusCode` | integer | No | Always `200` on success. |
+| `message` | string | Yes | Operator-facing message; `null` on success. |
+| `data.merchantId` | string (ObjectId) | No | Echoed `:id` path param. |
+| `data.acquisitionSource` | enum string | Yes | The new value, or `null` if cleared. |
+
+### Errors
+
+| Status | Body | When |
+|--------|------|------|
+| `400` | `{ "statusCode": 400, "status": "failed", "data": { "message": "source must be one of the following values: IMPACT, AWIN, REFERRAL, AGENTIC_AFFILIATE_INTAKE, OTHER, UNKNOWN, " } }` | `source` is present but not in the enum |
+| `401` | `{ "statusCode": 401, "status": "failed", "data": { "message": "Unauthorized" } }` | Missing or invalid JWT |
+| `403` | `{ "statusCode": 403, "status": "failed", "data": { "message": "Forbidden" } }` | JWT valid but not SUPER_ADMIN, or IP / geo guard failed |
+| `500` | `{ "statusCode": 500, "status": "failed", "data": { "message": "...No record was found for an update..." } }` | `:id` does not match any `MerchantV2` record |
+
+### Notes
+
+- **Operator-only.** This is an operator-driven attribution backfill — no merchant or
+  partner surface invokes it. The setter is intentionally stateless beyond the field
+  write (no audit log entry surfaced in the response; the underlying admin actor
+  audit captures the call).
+- **Enum semantics.**
+  - `IMPACT` — sourced via the Impact.com partner network (Flatlay account).
+  - `AWIN` — sourced via the Awin partner network.
+  - `REFERRAL` — operator-driven referral, no partner network.
+  - `AGENTIC_AFFILIATE_INTAKE` — sourced via the agentic-affiliate intake flow (chat / MCP).
+  - `OTHER` — sourced through a named channel that doesn't map to the above.
+  - `UNKNOWN` — sourced through an unknown channel (default for backfilled legacy merchants).
+- **Clearing.** Omitting `source` (or sending `{}` / `null`) clears the field rather
+  than rejecting the request. Use clearing to roll back an incorrect attribution.
+- **Effect on rollups.** The next
+  [`GET /admin/monetization/platform-fee-summary`](/api-reference/admin/monetization/platform-fee-summary)
+  call recomputes `activationMethodMix` from the live store, so changes appear
+  immediately on the next read.
+
+## Related
+
+- [Platform Fee Summary](/api-reference/admin/monetization/platform-fee-summary) — `activationMethodMix` is keyed off this field.
+- [x402 Earnings](/api-reference/admin/monetization/x402-earnings) — per-merchant x402 rollup.
+- [Aggregate Provisioner](/api-reference/admin/aggregate-provisioner) — bulk merchant onboarding (sets `acquisitionSource` at create time).

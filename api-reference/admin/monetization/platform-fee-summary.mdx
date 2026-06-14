@@ -1,0 +1,106 @@
+---
+title: "Platform Fee Summary"
+description: "Admin read-only revenue rollup — MRR / ARR / trailing 30d / trailing 365d / activation-method mix. ADMIN comps excluded from $ totals, surfaced in the mix array. Fail-open semantics."
+---
+
+`GET /admin/monetization/platform-fee-summary` returns a network-wide rollup of
+platform-fee revenue (subscription + x402 + capital-markets, where enabled) plus a
+shop-activation method breakdown. The endpoint is the data source for the operator
+**Pillar 5 revenue dashboard**.
+
+<Note>
+This endpoint requires:
+
+- **JWT** with `role = SUPER_ADMIN`
+- **`IpAllowlistGuard`** — caller IP must be in the operator allowlist
+- **`GeoBlockGuard`** — caller geo must be permitted
+
+Calls that miss any of the three return `403`. Missing or invalid JWT returns `401`.
+</Note>
+
+## GET /admin/monetization/platform-fee-summary
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, `role = SUPER_ADMIN` |
+| IP allowlist | Caller IP in `ADMIN_IP_ALLOWLIST` |
+| Geo | Country in `ADMIN_GEO_ALLOWLIST` |
+
+Obtain a SUPER_ADMIN JWT via `POST /merchant/admin/login` — see
+[Authentication](/authentication).
+
+### Query parameters
+
+None. The window is fixed (trailing 30 / 365 days, snapshot at `asOf`).
+
+### Example
+
+```bash
+curl "https://apiv3.droplinked.com/admin/monetization/platform-fee-summary" \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>"
+```
+
+### Response — 200 OK
+
+```json
+{
+  "mrrUsdCents": 0,
+  "arrUsdCents": 0,
+  "revenue30dUsdCents": 0,
+  "revenue365dUsdCents": 0,
+  "activationMethodMix": [
+    { "method": "CARD", "count": 32 },
+    { "method": "ADMIN", "count": 1 }
+  ],
+  "asOf": "2026-06-14T22:48:37.389Z"
+}
+```
+
+### Fields
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `mrrUsdCents` | integer | No | Monthly recurring revenue (active subscriptions, normalized to monthly), USD cents. ADMIN-activated shops excluded. |
+| `arrUsdCents` | integer | No | Annualized recurring revenue = `mrrUsdCents * 12`. ADMIN excluded. |
+| `revenue30dUsdCents` | integer | No | Settled platform-fee revenue in trailing 30 days, USD cents. ADMIN excluded. |
+| `revenue365dUsdCents` | integer | No | Settled platform-fee revenue in trailing 365 days, USD cents. ADMIN excluded. |
+| `activationMethodMix` | array | No | Activation method breakdown for shops in the trailing 365d window. Empty array if no activations. |
+| `activationMethodMix[].method` | string | No | One of `CARD`, `ADMIN`, `REFERRAL`, `IMPACT`, `AWIN`, `AGENTIC_AFFILIATE_INTAKE`, `OTHER`, `UNKNOWN`. |
+| `activationMethodMix[].count` | integer | No | Shop count for the method. |
+| `asOf` | ISO-8601 string | No | Snapshot timestamp (server clock, UTC). |
+
+### Errors
+
+| Status | Body | When |
+|--------|------|------|
+| `401` | `{ "statusCode": 401, "status": "failed", "data": { "message": "Unauthorized" } }` | Missing or invalid JWT |
+| `403` | `{ "statusCode": 403, "status": "failed", "data": { "message": "Forbidden" } }` | JWT valid but not SUPER_ADMIN, or IP / geo guard failed |
+| `5xx` | `{ "statusCode": 500, "status": "failed", ... }` | Hard backend failure — see Notes below for the fail-open contract |
+
+### Notes
+
+- **ADMIN-comp policy.** Shops activated via the SUPER_ADMIN console (method = `ADMIN`)
+  are comp / waived and never contribute to `mrrUsdCents`, `arrUsdCents`,
+  `revenue30dUsdCents`, or `revenue365dUsdCents`. They DO appear in
+  `activationMethodMix` so operators can see the comp count.
+- **Fail-open semantics.** If a constituent rollup query fails (subscription store,
+  x402 settlement log, capital-markets fee aggregator), the endpoint returns `0` for
+  that constituent (and `[]` for `activationMethodMix` if the activation source
+  rollup fails) rather than propagating the error. The endpoint still returns
+  `200 OK` with the partial snapshot. Inspect server logs / Sentry for the
+  underlying failure.
+- **Snapshot, not realtime.** `asOf` reflects the server clock when the rollup ran.
+  Constituent stores are read sequentially; values are coherent within a single
+  request but may drift between consecutive calls.
+- **Currency.** All monetary fields are USD cents, integer. FX-conversion uses the
+  same snapshot table as the unified-transaction projection (see
+  [Network Health KPIs — GMV](/api-reference/admin/kpi-dashboard#get-admin-dashboard-gmv)).
+
+## Related
+
+- [x402 Earnings](/api-reference/admin/monetization/x402-earnings) — per-merchant x402 settlement rollup.
+- [Capital Markets Fees](/api-reference/admin/monetization/capital-markets-fees) — Capital Markets marketplace fee schedule preview.
+- [Set Merchant Acquisition Source](/api-reference/admin/monetization/merchant-acquisition-source) — operator-only setter for the activation-source enum surfaced in `activationMethodMix`.
+- [Network Health KPIs](/api-reference/admin/kpi-dashboard) — GMV / orders / refund-rate companions.
