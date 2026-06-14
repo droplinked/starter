@@ -1,0 +1,137 @@
+---
+title: "Platform fees revenue rollup (admin)"
+description: "Per-PSP / per-merchant / per-day rollup of platform fees + droplinked revenue from the canonical unified_transactions collection. SUPER_ADMIN only."
+---
+
+`GET /admin/monetization/platform-fees` returns a **revenue rollup** of every droplinked-monetized transaction in the requested window, aggregated by PSP / merchant / day. Operators use it to answer: "how much is droplinked actually earning, and from which surfaces?"
+
+<Note>
+P1 of the Monetization Pillar. This endpoint is the operator's primary visibility into droplinked revenue across the trust + commerce stack. The merchant-facing billing history endpoint (P2) ships separately so the read paths stay cleanly scoped per audience.
+</Note>
+
+## When to use this
+
+- The operator wants a real-time snapshot of droplinked revenue across all PSPs
+- A finance review needs the gross / fees / net split per merchant or per PSP
+- An ops investigation needs to confirm the fee_breakdown projector is healthy (`degraded: false`)
+
+## Authentication
+
+`JwtAuthGuard` + `SuperAdminGuard`. A non-admin JWT returns `403`.
+
+## Request
+
+```
+GET /admin/monetization/platform-fees?from=ISO&to=ISO&groupBy=psp|merchant|day
+```
+
+| Param | Type | In | Notes |
+|---|---|---|---|
+| `from` | ISO-8601 string | query, optional | Window start (inclusive). Default: 30 days ago (UTC now − 30d). |
+| `to` | ISO-8601 string | query, optional | Window end (exclusive). Default: UTC now. |
+| `groupBy` | enum | query, optional | `psp` (default) \| `merchant` \| `day`. |
+
+### Curl example
+
+```bash
+curl -s "https://apiv3.droplinked.com/admin/monetization/platform-fees?from=2026-06-01&to=2026-06-30&groupBy=psp" \
+  -H "Authorization: Bearer $ADMIN_JWT" | jq .
+```
+
+## Response (200)
+
+```json
+{
+  "windowStart": "2026-06-01T00:00:00.000Z",
+  "windowEnd": "2026-06-30T00:00:00.000Z",
+  "groupBy": "psp",
+  "totals": {
+    "grossUsd": 12480.50,
+    "feesUsd": 624.03,
+    "droplinkedRevenueUsd": 124.81,
+    "merchantNetUsd": 11856.47,
+    "txCount": 312
+  },
+  "rows": [
+    {
+      "key": "stripe",
+      "label": "Stripe",
+      "grossUsd": 9800.00,
+      "feesUsd": 490.00,
+      "droplinkedRevenueUsd": 98.00,
+      "merchantNetUsd": 9310.00,
+      "txCount": 244
+    },
+    {
+      "key": "paypal",
+      "label": "Paypal",
+      "grossUsd": 2680.50,
+      "feesUsd": 134.03,
+      "droplinkedRevenueUsd": 26.81,
+      "merchantNetUsd": 2546.47,
+      "txCount": 68
+    }
+  ],
+  "partialErrors": [],
+  "degraded": false
+}
+```
+
+### Field reference
+
+| Field | Type | Notes |
+|---|---|---|
+| `windowStart` / `windowEnd` | ISO-8601 string | Effective window (defaults filled in if not supplied). |
+| `groupBy` | enum | Echoes the request's groupBy. |
+| `totals.grossUsd` | number | Sum of `amount_usd_equivalent` across rows in the window. |
+| `totals.feesUsd` | number | Sum of `amount_fees_usd` (PSP + MoR + droplinked combined). |
+| `totals.droplinkedRevenueUsd` | number | Sum of `feeBreakdown.droplinked_gmv_fee_usd + droplinked_funding_fee_usd + droplinked_saas_fee_usd`. **This is droplinked's actual revenue slice** — distinct from the wider fees pool. |
+| `totals.merchantNetUsd` | number | Sum of `amount_net_usd` (net to merchant after all fees). |
+| `totals.txCount` | int | Completed-transaction count in the window. |
+| `rows[]` | array | Per-slice rollup. Sorted by `droplinkedRevenueUsd` desc except when `groupBy=day` (chronological). |
+| `rows[].key` | string | Group key — PSP name / merchant_id hex / `YYYY-MM-DD`. |
+| `rows[].label` | string | Display label for the row. |
+| `partialErrors[]` | array | Rows that could not be processed (e.g. malformed `fee_breakdown`). Each entry: `{ slice: string, error: string }`. |
+| `degraded` | boolean | `true` iff `partialErrors.length > 0`. UI surfaces show a "partial data" pill when set. |
+
+## Money fields are decimal USD (NOT cents)
+
+Unlike the abandoned-cart list endpoint (which serializes integer minor units), this endpoint returns all USD values as **decimals**. This matches the canonical `unified_transactions` collection's persisted shape — the projector's contract (`ProjectionInputDto`) is explicit: "decimal, NOT minor units (canonical schema convention)."
+
+Clients pass values straight into `Intl.NumberFormat({ style: 'currency', currency: 'USD' })` without dividing by 100.
+
+## Fail-open posture
+
+A row with a malformed `fee_breakdown` is **NOT** a 500. The service emits a `partialErrors` entry naming the offending row's PSP transaction id; the response still ships the rollup across the rows that succeeded. `degraded: true` lets the UI render a visible "showing partial data" badge.
+
+This matches the broader [Stripe Head of Platform fail-open backbone discipline](/guides/security/supply-chain) — never crash a read path on a single bad row. UI consumers should always check `degraded` and surface it to the operator.
+
+## Group-by behaviors
+
+| `groupBy` | What rows look like |
+|---|---|
+| `psp` | One row per PSP (`stripe`, `paypal`, `telr`, `bonum`, `paymob`). Most-monetizing PSP first. Excludes Coinbase (sunset). |
+| `merchant` | One row per `merchant_id` (hex). Most-monetizing merchant first. Use the SUPER_ADMIN merchant directory to resolve hex IDs to display names. |
+| `day` | One row per `YYYY-MM-DD` (UTC) in the window. Chronological order — read as a time series. |
+
+## Error responses
+
+| Status | When |
+|---|---|
+| `400` | Malformed `from` / `to` (not ISO-8601). |
+| `401` | Missing / invalid JWT. |
+| `403` | Caller is not a SUPER_ADMIN. |
+
+## Architecture notes
+
+- Reads canonical `unified_transactions` collection via Mongoose connection — no new schema introduced (every field already projected at PSP-webhook landing time).
+- Sums use **banker's rounding to 2 decimals** (Stripe Billing Head of Product discipline).
+- `completed` status only — `pending` / `failed` / `chargeback` / `refunded` rows excluded. Refund + chargeback rollups will surface as separate slices in P2 follow-ups (Stripe Billing convention: refund / chargeback paths are first-class, never an exception path).
+- Coinbase is excluded from the providers enum per the [Coinbase sunset](https://github.com/droplinked/.github/blob/main/CODEOWNERS) memo.
+
+## Related
+
+- [Abandoned cart recovery (public)](/api-reference/public/abandoned-cart-recovery) — sister fees mechanic on the recovery side
+- [Order lifecycle](/guides/order-lifecycle) — chokepoint that flips a row to `completed`
+- [KPI dashboard (admin)](/api-reference/admin/kpi-dashboard) — sibling operator-visibility surface
+- [PSP health (admin)](/api-reference/admin/psp-health) — sibling per-PSP operator surface
