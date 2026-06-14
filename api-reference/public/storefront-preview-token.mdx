@@ -1,0 +1,121 @@
+---
+title: "Mint storefront preview token"
+description: "Short-lived signed token for previewing your storefront draft in the Template Designer iframe. Merchant-scoped, 10-minute TTL, HMAC-SHA-256 verified."
+---
+
+`POST /v2/storefront/preview-token` mints a short-lived signed token that the **Template Designer Live Preview iframe** uses to render the merchant's draft storefront. The token is bound to a specific shop and expires after 10 minutes.
+
+<Note>
+Closes Phase 3 of DEV-AUDIT #199. The Template Designer Live Preview surface in the shop-builder dashboard calls this endpoint, embeds the returned `previewUrl` into an iframe, and the storefront verifier (separate ticket) HMAC-checks the token before rendering the draft.
+</Note>
+
+## When to use this
+
+- The Template Designer's "Live Preview" CTA — mint a token, embed `previewUrl` into the iframe `src`
+- Any merchant-facing tool that needs a time-bounded preview link to a draft storefront
+- **Do NOT** use this for production publishing — published storefronts don't need a token
+
+## Authentication
+
+Merchant JWT (`MerchantOnlyJwtGuard`). The endpoint also asserts `req.user.shopId === body.shopId` at the controller layer — a merchant can only mint preview tokens for **their own** shop. Cross-shop mint attempts return `403`.
+
+## Request
+
+```
+POST /v2/storefront/preview-token
+```
+
+Body:
+
+| Field | Type | Notes |
+|---|---|---|
+| `shopId` | string | The shop's Mongo `_id`. MUST equal `req.user.shopId`. |
+
+### Curl example
+
+```bash
+curl -s -X POST "https://apiv3.droplinked.com/v2/storefront/preview-token" \
+  -H "Authorization: Bearer $MERCHANT_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"shopId":"66c0fe34a9f1b1d3e1c2b001"}' | jq .
+```
+
+## Response (200)
+
+```json
+{
+  "previewToken": "eyJzaG9wSWQiOiI2NmMwZmUzNGE5ZjFiMWQzZTFjMmIwMDEiLCJleHBpcmVzQXQiOiIyMDI2LTA2LTE0VDEyOjM0OjU2LjAwMFoiLCJraW5kIjoic3RvcmVmcm9udC1wcmV2aWV3In0.a1b2c3d4e5f6...",
+  "expiresAt": "2026-06-14T12:34:56.000Z",
+  "previewUrl": "https://droplinked.io/demo-shop/_preview?token=eyJzaG9wSWQiOiI2NmMw..."
+}
+```
+
+### Field reference
+
+| Field | Type | Notes |
+|---|---|---|
+| `previewToken` | string | Signed token in format `<payload-b64url>.<sig-b64url>` (see Token format below). |
+| `expiresAt` | ISO-8601 string | 10 minutes from mint. |
+| `previewUrl` | string | Full URL with token embedded — drop straight into iframe `src`. Uses `droplinked.io` (NOT `.com`) per storefront URL discipline. |
+
+## Token format
+
+`<payload-b64url>.<sig-b64url>` where:
+
+- `payload` — UTF-8 JSON `{ shopId: string, expiresAt: ISO-8601 string, kind: "storefront-preview" }` then base64url-encoded
+- `sig` — HMAC-SHA-256 of the payload bytes under `PREVIEW_TOKEN_SECRET` (or `JWT_SECRET` fallback for dev), then base64url-encoded
+
+The two parts are joined with a `.` separator. Shopfront verifier:
+
+```ts
+import { createHmac } from 'crypto'
+
+function verifyPreviewToken(token: string, secret: string): { shopId: string; expiresAt: Date } | null {
+  const [payloadB64, sigB64] = token.split('.')
+  if (!payloadB64 || !sigB64) return null
+
+  const expectedSig = createHmac('sha256', secret)
+    .update(payloadB64)
+    .digest('base64url')
+  if (sigB64 !== expectedSig) return null
+
+  const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'))
+  if (payload.kind !== 'storefront-preview') return null
+  const expiresAt = new Date(payload.expiresAt)
+  if (Number.isNaN(expiresAt.getTime()) || expiresAt < new Date()) return null
+
+  return { shopId: payload.shopId, expiresAt }
+}
+```
+
+## Why HMAC over JWT
+
+The shopfront verifier is a single shared-secret check at the storefront edge. HMAC avoids:
+
+- JWKS round-trips (no key fetch from a JWKS endpoint at request time)
+- Asymmetric key rotation surface (no private/public key pair, no kid)
+- Edge-cache invalidation on key rotation
+- The full jose library dependency at the storefront edge
+
+The fixed-shape payload (`{shopId, expiresAt, kind}`) is also stricter than typical JWT claim taxonomy — `iss`/`aud`/`jti`/`sub` buy nothing for a 10-minute single-purpose token. If we ever need rotation, audience-narrowing, or a kid, the swap is one file behind `PreviewTokenService.mint` — the controller response shape does not change.
+
+## TTL + rate limiting
+
+- **TTL**: 10 minutes from mint. Hard-coded constant `PREVIEW_TOKEN_TTL_MS` in the service.
+- **Rate limit**: not applied at v1. The cross-shop guard limits abuse blast radius to "self-DoS your own preview." Revisit if cross-merchant abuse signal appears.
+- **Single chokepoint**: all minting goes through `PreviewTokenService.mint` so audit-log + rotation hooks can be added in one place.
+
+## Error responses
+
+| Status | When |
+|---|---|
+| `400` | Malformed `shopId` (not a valid Mongo ObjectId). |
+| `401` | Missing / invalid JWT. |
+| `403` | Cross-shop mint attempt (`req.user.shopId !== body.shopId`). |
+| `500` | No `PREVIEW_TOKEN_SECRET` or `JWT_SECRET` configured (server misconfiguration). |
+
+## Related
+
+- [Get abandoned cart details](/api-reference/public/abandoned-cart-details) — sibling merchant-scoped surface
+- [Platform fees revenue rollup (admin)](/api-reference/admin/monetization-platform-fees) — sibling admin operator surface
+- [Trust fabric stats](/api-reference/public/trust-fabric-stats) — sibling public read surface
