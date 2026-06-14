@@ -144,6 +144,7 @@
               "api-reference/public/checkout-intent-resolver",
               "api-reference/public/discounts-validate",
               "api-reference/public/redeem-validation",
+              "api-reference/public/storefront-preview-token",
               "api-reference/public/abandoned-cart-recovery",
               "api-reference/public/shopify-webhook-ingest"
             ]
