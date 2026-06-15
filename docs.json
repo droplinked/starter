@@ -166,7 +166,14 @@
             "group": "Merchant API",
             "pages": [
               "api-reference/public/abandoned-carts-merchant",
-              "api-reference/public/abandoned-cart-details"
+              "api-reference/public/abandoned-cart-details",
+              {
+                "group": "Monetization",
+                "pages": [
+                  "api-reference/public/monetization/billing-invoices",
+                  "api-reference/public/monetization/x402-earnings"
+                ]
+              }
             ]
           },
           {

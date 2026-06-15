@@ -1,0 +1,118 @@
+---
+title: "Billing Invoices (Merchant)"
+description: "Trailing 1-year billing history for the authenticated merchant. Paid subscription invoices + platform fees retained. Fail-open semantics."
+---
+
+`GET /v2/merchant/billing/invoices` returns the authenticated merchant's billing
+history for the **trailing 365 days**: per-invoice rows plus a totals envelope
+(paid amount, platform fees retained, invoice count). This endpoint is the
+data source for the merchant **Billing History** page in the dashboard.
+
+<Note>
+This endpoint requires:
+
+- **Merchant JWT** — any authenticated merchant role (`OWNER`, `MEMBER`, `PRODUCER`)
+
+The merchant scope is **derived from the JWT `sub` claim**. There is no
+`merchantId` query parameter. If a client passes one anyway it is silently
+ignored — the response is always scoped to the JWT-bound merchant.
+</Note>
+
+## GET /v2/merchant/billing/invoices
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, any authenticated merchant role |
+| Scope | `merchantId` derived from JWT `sub` — **not** from query / body |
+
+Obtain a merchant JWT via `POST /merchant/admin/login` — see
+[Authentication](/authentication). SUPER_ADMIN tokens work too (they are merchant
+JWTs with an extra role); the response is scoped to the SUPER_ADMIN's own
+merchant record, not to the platform.
+
+### Query parameters
+
+None. The window is fixed at trailing 365 days.
+
+### Example
+
+```bash
+curl "https://apiv3.droplinked.com/v2/merchant/billing/invoices" \
+  -H "Authorization: Bearer <MERCHANT_JWT>"
+```
+
+### Response — 200 OK
+
+```json
+{
+  "windowStart": "2025-06-14T23:08:50.155Z",
+  "windowEnd": "2026-06-14T23:08:50.155Z",
+  "totals": {
+    "paidUsd": 0,
+    "platformFeesRetainedUsd": 0,
+    "invoiceCount": 0
+  },
+  "invoices": []
+}
+```
+
+### Fields
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `windowStart` | ISO-8601 string | No | Start of the rolling window (`windowEnd − 365 days`, server clock, UTC). |
+| `windowEnd` | ISO-8601 string | No | End of the rolling window (request timestamp, server clock, UTC). |
+| `totals` | object | No | Window-aggregate envelope. |
+| `totals.paidUsd` | number | No | Sum of paid invoice amounts in the window. **USD major units** (dollars, not cents). |
+| `totals.platformFeesRetainedUsd` | number | No | Sum of platform-fee portion retained by Droplinked across the window. **USD major units**. |
+| `totals.invoiceCount` | integer | No | Count of `invoices[]` returned in the window. |
+| `invoices` | array | No | One entry per paid invoice in the window, newest first. Empty array for merchants with no paid invoices in the trailing 365d. |
+| `invoices[].invoiceId` | string | No | Invoice store `_id`. |
+| `invoices[].issuedAt` | ISO-8601 string | No | Invoice issuance timestamp (UTC). |
+| `invoices[].paidAt` | ISO-8601 string | Yes | Payment-settled timestamp. `null` for unpaid rows (only `PAID` invoices are returned today). |
+| `invoices[].paidUsd` | number | No | Invoice amount paid, USD major units. |
+| `invoices[].platformFeeUsd` | number | No | Platform-fee portion of `paidUsd` retained by Droplinked. |
+| `invoices[].planId` | string | Yes | Subscription plan id at the time of the invoice. `null` for one-off charges. |
+| `invoices[].invoicePdfUrl` | string | Yes | Signed CloudFront URL for the rendered PDF. `null` for legacy rows that pre-date PDF rendering. |
+
+### Errors
+
+| Status | Body | When |
+|--------|------|------|
+| `401` | `{ "statusCode": 401, "status": "failed", "data": { "message": "Unauthorized" } }` | Missing or invalid JWT |
+| `5xx` | `{ "statusCode": 500, "status": "failed", ... }` | Hard backend failure — see Notes below for the fail-open contract |
+
+### Notes
+
+- **Trailing 365-day window.** `windowStart` is computed as `now − 365d` on every
+  call. The window is rolling, not anchored — two calls a day apart return
+  slightly different `windowStart` / `windowEnd` values, and an invoice issued
+  exactly 365d ago may drop out of one call's window and back into the next.
+- **Auth scope.** The endpoint reads `merchantId` from the JWT `sub` claim
+  only. Any `?merchantId=` (or body `merchantId`) is silently ignored. A
+  merchant cannot read another merchant's invoices through this endpoint —
+  even with a syntactically valid query parameter pointing at the target.
+- **Fail-open semantics.** If the underlying invoice store throws, the
+  endpoint returns the empty-state envelope (`invoices: []`, `totals.*: 0`)
+  with `200 OK` rather than propagating the error. Inspect server logs /
+  Sentry for the underlying failure. Merchants never see a partial
+  billing-history page error in the dashboard.
+- **Currency.** All monetary fields are **USD major units** (dollars), not
+  cents. Renders straight into
+  `Intl.NumberFormat({ style: 'currency', currency: 'USD' })` without
+  dividing by 100. This contract diverges from the
+  [admin x402-earnings rollup](/api-reference/admin/monetization/x402-earnings)
+  (USD cents, integer) intentionally — merchant-facing endpoints serve
+  pre-formatted human values; admin rollups serve aggregation-safe integer
+  cents.
+- **Only PAID invoices.** Today the endpoint returns rows where
+  `status === 'PAID'`. Pending / void / refunded invoices are out of scope
+  for v1 and tracked for a future revision.
+
+## Related
+
+- [x402 Earnings (Merchant)](/api-reference/public/monetization/x402-earnings) — companion merchant-facing rollup of x402 settlement events.
+- [Platform Fee Summary (Admin)](/api-reference/admin/monetization/platform-fee-summary) — network-wide MRR / ARR / 30d / 365d rollup that aggregates the per-merchant billing surfaced here.
+- [x402 Earnings (Admin)](/api-reference/admin/monetization/x402-earnings) — admin-side per-merchant x402 settlement rollup.
