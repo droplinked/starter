@@ -216,7 +216,8 @@
               "agentic/connect-your-store",
               "agentic/connect-shopify",
               "agentic/connect-other-platforms",
-              "agentic/storefront-mcp-discovery"
+              "agentic/storefront-mcp-discovery",
+              "agentic/merchant-discovery-rules"
             ]
           }
         ]
