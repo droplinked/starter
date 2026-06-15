@@ -225,6 +225,7 @@
               "agentic/inventory-mcp",
               "agentic/mcp-server",
               "agentic/lender-trinity-mcp-tools",
+              "agentic/lender-product-catalog",
               "agentic/underwriting-mcp-tools",
               "agentic/acp-feed",
               "agentic/connect-your-store",
