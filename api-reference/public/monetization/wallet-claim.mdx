@@ -1,0 +1,131 @@
+---
+title: "Register Settlement Wallet (Merchant)"
+description: "Register the wallet address droplinked should route x402 micro-payment settlements to. Idempotent on (merchantId, network, lowercased wallet). EIP-55 mixed-case dedup. Optional primary-flag semantics."
+---
+
+`POST /v2/merchant/wallet/claim` registers a settlement wallet for the
+authenticated merchant. When `X402_ENABLED` flips on at the platform, every
+settlement event for the merchant routes to the **primary** wallet on the
+event's chain. Without a registered wallet, settlements still land in the
+ledger but cannot be paid out.
+
+<Note>
+Live on dev as of 2026-06-14; PROD ETA after next GTFU. Shipped via PR
+[#2103](https://github.com/droplinked/droplinked-backend/pull/2103) (Phase 5.4.7).
+EIP-191 signed-message ownership verification is deferred to Phase 5.4.8 — for
+now the claim records the address and emits an audit event without proving
+custody.
+</Note>
+
+## POST /v2/merchant/wallet/claim
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, any authenticated merchant role |
+| Scope | `merchantId` derived from JWT `sub` — **not** from query / body |
+
+Obtain a merchant JWT via `POST /merchant/admin/login` — see
+[Authentication](/authentication). Any `merchantId` passed in the body is
+silently ignored — the response is always scoped to the JWT-bound merchant.
+
+### Request body
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `walletAddress` | string | Yes | — | EVM wallet address, `0x` + 40 hex chars. Accepts any case; persisted as the caller submitted, deduped on lowercase. |
+| `network` | string | No | `base` | Settlement network. MVP supports `base` only; other values reject with `400`. |
+| `label` | string | No | — | Operator-facing label (e.g. `Mainnet Treasury`). Max 64 chars. |
+| `isPrimary` | boolean | No | see below | When `true`, marks this wallet as the merchant's primary settlement target on `network`. The prior primary on the same `(merchantId, network)` is cleared in the same write. |
+
+**Default-primary rule.** If `isPrimary` is omitted **and** the merchant has
+no prior wallet on this `network`, the new row is persisted as primary.
+Single-wallet merchants do not need to set the flag explicitly.
+
+### Example
+
+```bash
+curl -X POST "https://apiv3.droplinked.com/v2/merchant/wallet/claim" \
+  -H "Authorization: Bearer <MERCHANT_JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "walletAddress": "0xB2721aD4F1c4dD8fE45F3F3c8e4F8c8c5d5f1eA9",
+    "network": "base",
+    "label": "Mainnet Treasury",
+    "isPrimary": true
+  }'
+```
+
+### Response — 200 OK
+
+```json
+{
+  "claimed": true,
+  "wallet": {
+    "walletAddress": "0xB2721aD4F1c4dD8fE45F3F3c8e4F8c8c5d5f1eA9",
+    "network": "base",
+    "label": "Mainnet Treasury",
+    "isPrimary": true,
+    "claimedAt": "2026-06-14T17:30:00.000Z",
+    "lastVerifiedAt": "2026-06-14T17:30:00.000Z"
+  }
+}
+```
+
+### Fields
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `claimed` | boolean | No | `true` on a successful write. `false` only on the fail-open audit path (see Notes) — the DB row was still written. |
+| `wallet` | object | No | The persisted wallet record. |
+| `wallet.walletAddress` | string | No | The address as the caller submitted it (case preserved). |
+| `wallet.network` | string | No | Echoed network. `base` in MVP. |
+| `wallet.label` | string | Yes | Echoed label. `null` when none was supplied. |
+| `wallet.isPrimary` | boolean | No | Whether this wallet is the merchant's primary settlement target on `network`. |
+| `wallet.claimedAt` | ISO-8601 string | No | Original claim timestamp (UTC). Unchanged across idempotent re-claims. |
+| `wallet.lastVerifiedAt` | ISO-8601 string | No | Most-recent claim-call timestamp (UTC). Refreshed on every re-claim. |
+
+### Errors
+
+| Status | Body | When |
+|--------|------|------|
+| `400` | `{ "statusCode": 400, "status": "failed", "data": { "message": "walletAddress must match the EVM 0x+40-hex shape" } }` | `walletAddress` fails the `^0x[a-fA-F0-9]{40}$` shape check, or `network` is anything other than `base`, or `label` exceeds 64 chars. |
+| `401` | `{ "statusCode": 401, "status": "failed", "data": { "message": "Unauthorized" } }` | Missing or invalid JWT. |
+| `5xx` | `{ "statusCode": 500, "status": "failed", ... }` | DB write failure — see Notes below. |
+
+### Notes
+
+- **Idempotency.** The dedup key is `merchantId:network:walletAddress.toLowerCase()`
+  and is enforced by a unique index on `merchant_wallet_claims`. Re-claiming
+  the same address (in any case) updates `lastVerifiedAt` and leaves
+  `claimedAt` untouched. The response shape is identical between first claim
+  and re-claim — the caller does not need to branch on a `created` flag.
+- **EIP-55 mixed-case dedup.** EVM addresses are canonically case-insensitive
+  but EIP-55 encodes a checksum in the casing. Two requests with the same
+  underlying address in different casings (`0xB272…eA9` vs `0xb272…ea9`)
+  dedupe to a single row. The originally-claimed casing is persisted; the
+  lowercased form is internal to the dedup index.
+- **Primary-flag invariant.** A partial unique index enforces **at most one
+  primary wallet per `(merchantId, network)`**. The service clears the prior
+  primary in the same write boundary as the upsert, so the constraint is
+  satisfied atomically. Demoting a primary requires re-claiming a different
+  wallet with `isPrimary: true` — there is no direct "demote" RPC.
+- **Auth scope.** The endpoint reads `merchantId` from the JWT `sub` claim
+  only. A merchant cannot register a wallet against another merchant's
+  scope, even with a `merchantId` field in the body.
+- **Fail-open on audit-only.** The DB write is the source of truth. If the
+  downstream `PlatformAuditEvent` emit fails, the endpoint still returns
+  `200` with `{ claimed: false, reason: "audit_only" }` — the wallet IS
+  registered, only the audit-trail side-effect missed. Real DB write
+  failures propagate as `5xx` so the merchant knows whether their wallet
+  was registered.
+- **No payment-path impact.** This endpoint does not touch
+  `checkout-intent`, `resolve-payment-intent`, `gateProvider`, or any
+  settlement-writer surface. PSP backbone is untouched.
+
+## Related
+
+- [List registered wallets](/api-reference/public/monetization/wallet-list) — companion read of every wallet a merchant has registered.
+- [Deregister wallet](/api-reference/public/monetization/wallet-deregister) — companion delete, idempotent on the dedup key.
+- [x402 Earnings (Merchant)](/api-reference/public/monetization/x402-earnings) — per-merchant rollup of settlement events that route to the primary wallet.

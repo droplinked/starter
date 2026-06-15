@@ -1,0 +1,115 @@
+---
+title: "Deregister Settlement Wallet (Merchant)"
+description: "Remove a previously-registered settlement wallet for the authenticated merchant. Idempotent: deregistering a never-claimed wallet returns 200 with deregistered: false."
+---
+
+`DELETE /v2/merchant/wallet/:walletAddress?network=base` removes a previously
+registered settlement wallet from the merchant's claim list. After
+deregistration, settlements that would have routed to this address no longer
+do — set a new primary via
+[`POST /v2/merchant/wallet/claim`](/api-reference/public/monetization/wallet-claim)
+before settling fresh revenue.
+
+<Note>
+Live on dev as of 2026-06-14; PROD ETA after next GTFU. Shipped via PR
+[#2103](https://github.com/droplinked/droplinked-backend/pull/2103) (Phase 5.4.7).
+</Note>
+
+## DELETE /v2/merchant/wallet/:walletAddress
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, any authenticated merchant role |
+| Scope | `merchantId` derived from JWT `sub` — **not** from URL / query |
+
+Obtain a merchant JWT via `POST /merchant/admin/login` — see
+[Authentication](/authentication).
+
+### Path parameters
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `walletAddress` | string | Yes | EVM address to deregister, `0x` + 40 hex chars. Case-insensitive — `0xB272…` and `0xb272…` match the same row via EIP-55 dedup. |
+
+### Query parameters
+
+| Param | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `network` | string | No | `base` | Settlement network. MVP supports `base` only. |
+
+### Example
+
+```bash
+curl -X DELETE \
+  "https://apiv3.droplinked.com/v2/merchant/wallet/0xB2721aD4F1c4dD8fE45F3F3c8e4F8c8c5d5f1eA9?network=base" \
+  -H "Authorization: Bearer <MERCHANT_JWT>"
+```
+
+### Response — 200 OK (wallet existed)
+
+```json
+{
+  "deregistered": true,
+  "walletAddress": "0xB2721aD4F1c4dD8fE45F3F3c8e4F8c8c5d5f1eA9",
+  "network": "base"
+}
+```
+
+### Response — 200 OK (wallet never claimed)
+
+```json
+{
+  "deregistered": false,
+  "walletAddress": "0xB2721aD4F1c4dD8fE45F3F3c8e4F8c8c5d5f1eA9",
+  "network": "base"
+}
+```
+
+### Fields
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `deregistered` | boolean | No | `true` when a row was actually removed. `false` when the address was not registered for this `(merchantId, network)` — the call still returns `200` (see Notes). |
+| `walletAddress` | string | No | Echoed input address. |
+| `network` | string | No | Echoed network. |
+
+### Errors
+
+| Status | Body | When |
+|--------|------|------|
+| `400` | `{ "statusCode": 400, "status": "failed", "data": { "message": "walletAddress must match the EVM 0x+40-hex shape" } }` | `walletAddress` fails the `^0x[a-fA-F0-9]{40}$` shape check, or `network` is anything other than `base`. |
+| `401` | `{ "statusCode": 401, "status": "failed", "data": { "message": "Unauthorized" } }` | Missing or invalid JWT. |
+| `5xx` | `{ "statusCode": 500, "status": "failed", ... }` | DB delete failure. |
+
+### Notes
+
+- **Idempotent on the dedup key.** Deregistering a wallet that was never
+  claimed (or has already been removed) returns `200` with
+  `deregistered: false`. Clients can safely retry without checking
+  membership first. This mirrors the `POST` idempotency contract — the
+  pair forms a clean upsert / delete API.
+- **Mixed-case lookup.** Path-parameter casing is normalized to lowercase
+  before lookup, so `0xB272…eA9` and `0xb272…ea9` resolve to the same row.
+- **Primary-flag side-effect.** Deregistering the current primary leaves
+  the merchant with no primary on that network. Settlement routing falls
+  back to the merchant's account-level settlement target (if configured)
+  or the platform escrow until a new primary is claimed.
+- **No `404` for unknown rows.** Choice is deliberate: the dedup key is
+  the natural identity of the resource, and "not present" is a valid
+  terminal state of `DELETE` for that identity. Returning `404` would
+  force every client to add a pre-check; instead the response itself
+  carries the membership signal via `deregistered`.
+- **Auth scope.** A merchant cannot deregister another merchant's wallet
+  even if they know the address — the `merchantId:network:wallet`
+  composite is the lookup key and `merchantId` always comes from the JWT.
+- **Audit trail.** Every deregister emits a `PlatformAuditEvent`
+  (`OPERATOR_ACTION`, subjectType `MERCHANT_WALLET_CLAIM`) for the
+  compliance trail, including the no-op cases where `deregistered: false`.
+
+## Related
+
+- [Register Settlement Wallet](/api-reference/public/monetization/wallet-claim) — `POST` counterpart that creates / re-verifies a wallet entry.
+- [List Registered Wallets](/api-reference/public/monetization/wallet-list) — `GET` counterpart for the current set of registered wallets.
+- [x402 Earnings (Merchant)](/api-reference/public/monetization/x402-earnings) — per-merchant rollup of settlement events affected by deregistration.
