@@ -1,0 +1,103 @@
+---
+title: "List Registered Wallets (Merchant)"
+description: "List every settlement wallet the authenticated merchant has registered across all networks. Cache-Control: private, max-age=30."
+---
+
+`GET /v2/merchant/wallet/registered` returns the list of settlement wallets
+the authenticated merchant has registered via
+[`POST /v2/merchant/wallet/claim`](/api-reference/public/monetization/wallet-claim).
+This endpoint backs the merchant **Wallets** panel in the dashboard.
+
+<Note>
+Live on dev as of 2026-06-14; PROD ETA after next GTFU. Shipped via PR
+[#2103](https://github.com/droplinked/droplinked-backend/pull/2103) (Phase 5.4.7).
+</Note>
+
+## GET /v2/merchant/wallet/registered
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, any authenticated merchant role |
+| Scope | `merchantId` derived from JWT `sub` — **not** from query / body |
+
+Obtain a merchant JWT via `POST /merchant/admin/login` — see
+[Authentication](/authentication). Any `?merchantId=` query parameter is
+silently ignored.
+
+### Query parameters
+
+None. The response is always the full list for the JWT-bound merchant
+across all networks.
+
+### Example
+
+```bash
+curl "https://apiv3.droplinked.com/v2/merchant/wallet/registered" \
+  -H "Authorization: Bearer <MERCHANT_JWT>"
+```
+
+### Response — 200 OK
+
+```json
+{
+  "wallets": [
+    {
+      "walletAddress": "0xB2721aD4F1c4dD8fE45F3F3c8e4F8c8c5d5f1eA9",
+      "network": "base",
+      "label": "Mainnet Treasury",
+      "isPrimary": true,
+      "claimedAt": "2026-06-14T17:30:00.000Z",
+      "lastVerifiedAt": "2026-06-14T17:31:00.000Z"
+    }
+  ],
+  "asOf": "2026-06-14T17:31:05.220Z"
+}
+```
+
+### Fields
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `wallets` | array | No | One entry per registered wallet for the merchant, across all networks. Empty array for merchants who have never claimed a wallet. |
+| `wallets[].walletAddress` | string | No | The address as the merchant originally submitted it (EIP-55 case preserved). |
+| `wallets[].network` | string | No | Settlement network (`base` in MVP). |
+| `wallets[].label` | string | Yes | Operator-supplied label. `null` when none was supplied. |
+| `wallets[].isPrimary` | boolean | No | Whether this row is the primary settlement target on `network`. At most one per `(merchantId, network)`. |
+| `wallets[].claimedAt` | ISO-8601 string | No | Original claim timestamp (UTC). |
+| `wallets[].lastVerifiedAt` | ISO-8601 string | No | Most-recent claim-call timestamp (UTC). Refreshed on every re-claim. |
+| `asOf` | ISO-8601 string | No | Snapshot timestamp (server clock, UTC). |
+
+### Errors
+
+| Status | Body | When |
+|--------|------|------|
+| `401` | `{ "statusCode": 401, "status": "failed", "data": { "message": "Unauthorized" } }` | Missing or invalid JWT |
+| `5xx` | `{ "statusCode": 500, "status": "failed", ... }` | Hard backend failure — see Notes below |
+
+### Notes
+
+- **Caching.** The response carries `Cache-Control: private, max-age=30`.
+  Clients should expect up to a 30s lag after a claim / deregister before
+  the change is visible if the response was cached by an intermediate.
+- **Auth scope.** The endpoint reads `merchantId` from the JWT `sub` claim
+  only. Any `?merchantId=` query parameter is silently ignored. A merchant
+  cannot read another merchant's wallets through this endpoint.
+- **Ordering.** Rows are sorted by `claimedAt` descending — most-recently
+  claimed first. Primary status does not affect order; check `isPrimary`
+  to identify the routed-to wallet.
+- **Fail-open semantics.** If the underlying read throws, the endpoint
+  returns the empty-state envelope (`wallets: []`) with `200 OK` rather
+  than propagating the error. Inspect server logs / Sentry for the
+  underlying failure. Merchants never see a partial Wallets-panel error
+  in the dashboard.
+- **Across networks.** The list is **not** filtered by network. A merchant
+  registered on `base` today and a future second network tomorrow will
+  see both rows here; clients filter client-side as needed.
+
+## Related
+
+- [Register Settlement Wallet](/api-reference/public/monetization/wallet-claim) — `POST` counterpart that creates / re-verifies an entry in this list.
+- [Deregister Wallet](/api-reference/public/monetization/wallet-deregister) — removes a row from this list.
+- [x402 Earnings (Merchant)](/api-reference/public/monetization/x402-earnings) — per-merchant rollup of settlement events that route to the primary wallet.

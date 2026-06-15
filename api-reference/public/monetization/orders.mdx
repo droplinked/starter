@@ -1,0 +1,239 @@
+---
+title: "Merchant Orders + Attestation JOIN (Merchant)"
+description: "Per-merchant OrderV2 rows JOINed with Schema C repayment_history_attestations + server-computed KPI envelope. Pillar 2 Trust Fabric × Pillar 4 MCP dual-purpose. Per-section fail-open."
+---
+
+`GET /v2/merchant/orders` returns the authenticated merchant's recent OrderV2
+rows, JOINed against the **Schema C** `repayment_history_attestations`
+collection for each row's attestation block, plus a server-computed KPI
+envelope and pagination. This endpoint is the data source for the merchant
+**Orders V2** page (Designer spec § 9) and the corresponding MCP
+`get_merchant_orders` tool (Pillar 4).
+
+<Note>
+Live on dev as of 2026-06-14; PROD ETA after next GTFU. Shipped via PR
+[#2104](https://github.com/droplinked/droplinked-backend/pull/2104). Pillar 2
+Trust Fabric (Schema C JOIN) × Pillar 4 MCP (server-computed KPIs) dual-purpose
+surface — keep the read path scoped to the merchant rather than forking a
+separate MCP-only endpoint.
+</Note>
+
+## GET /v2/merchant/orders
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, any authenticated merchant role |
+| Scope | `shopId` derived from JWT `shopId` claim — **not** from query / body |
+
+Obtain a merchant JWT via `POST /merchant/admin/login` — see
+[Authentication](/authentication). Any `?merchantId=` / `?shopId=` query
+parameter is silently dropped (OWASP A01:2021 IDOR mitigation; mirrors
+`MerchantInventoryAttestationsController` and `MerchantX402EarningsController`).
+
+### Query parameters
+
+| Param | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `page` | integer | No | `1` | 1-indexed page number. |
+| `limit` | integer | No | `20` | Rows per page. Capped at `400`. |
+| `startDate` | ISO-8601 string | No | — | Filter to orders with `createdAt >= startDate`. Omit for no lower bound. |
+| `endDate` | ISO-8601 string | No | — | Filter to orders with `createdAt <= endDate`. Omit for no upper bound. |
+| `status` | enum | No | — | FE bucket filter. One of `SETTLED` / `PENDING` / `REFUNDED` / `DISPUTED`. Unknown values silently dropped. See Notes for the 8→4 mapping. |
+| `psp` | string | No | — | Filter by PSP provider (e.g. `stripe`, `paypal`, `telr`). Unknown values silently dropped. Applied in-memory post-Prisma. |
+| `windowDays` | integer | No | `90` | Trailing window in days when `startDate` / `endDate` are omitted. Clamped to `1..365`. |
+
+### Example
+
+```bash
+curl "https://apiv3.droplinked.com/v2/merchant/orders?page=1&limit=20" \
+  -H "Authorization: Bearer <MERCHANT_JWT>"
+```
+
+With filters:
+
+```bash
+curl "https://apiv3.droplinked.com/v2/merchant/orders?page=1&limit=50&status=SETTLED&psp=stripe&startDate=2026-01-01T00:00:00Z&endDate=2026-06-14T23:59:59Z" \
+  -H "Authorization: Bearer <MERCHANT_JWT>"
+```
+
+### Response — 200 OK
+
+```json
+{
+  "rows": [
+    {
+      "orderId": "6657a1b2c3d4e5f60718293a",
+      "orderNumber": "ORD-001",
+      "customerEmail": "buyer@example.com",
+      "items": 2,
+      "grossUsdCents": 5000,
+      "netUsdCents": 4500,
+      "psp": "stripe",
+      "status": "SETTLED",
+      "attestation": {
+        "uid": "0xUID1",
+        "status": "MINTED",
+        "rolledUpAt": "2026-06-13T00:00:00.000Z",
+        "lenderId": "lender-A",
+        "chain": "base",
+        "schemaUid": "0xSCHEMAC"
+      },
+      "settledAt": "2026-06-12T00:00:00.000Z",
+      "createdAt": "2026-06-10T00:00:00.000Z"
+    }
+  ],
+  "kpis": {
+    "totalOrdersInWindow": 4,
+    "settledRevenueUsdCents": 30000,
+    "avgOrderValueUsdCents": 15000,
+    "attestationCoveragePctBps": 2500
+  },
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1,
+    "totalCount": 4
+  },
+  "windowDays": 90,
+  "asOf": "2026-06-14T17:40:00.000Z"
+}
+```
+
+### Fields
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `rows` | array | No | One entry per OrderV2 row matching the filters. |
+| `rows[].orderId` | string | No | OrderV2 `_id`. |
+| `rows[].orderNumber` | string | No | Human-readable order number (e.g. `ORD-001`). |
+| `rows[].customerEmail` | string | Yes | Buyer email. `null` for guest orders that captured no email. |
+| `rows[].items` | integer | No | Total item count across the order's line items. |
+| `rows[].grossUsdCents` | integer | No | Gross order amount in **USD cents**, integer. |
+| `rows[].netUsdCents` | integer | No | Net to the merchant after platform fees + PSP fees, **USD cents**. |
+| `rows[].psp` | string | No | PSP provider that authorized the transaction (e.g. `stripe`, `paypal`, `telr`, `bonum`, `paymob`). |
+| `rows[].status` | enum | No | FE bucket: `SETTLED` / `PENDING` / `REFUNDED` / `DISPUTED`. See Notes for the 8→4 collapse. |
+| `rows[].attestation` | object | No | Per-row Schema C attestation block. Always present — empty / pending blocks fill the missing-coverage case (see Schema C JOIN section). |
+| `rows[].attestation.uid` | string | Yes | EAS attestation UID. `null` when no attestation exists for this order. |
+| `rows[].attestation.status` | enum | No | `MINTED` / `PENDING` / `FAILED` / `NOT_APPLICABLE`. |
+| `rows[].attestation.rolledUpAt` | ISO-8601 string | Yes | When the attestation was rolled into the on-chain registry. `null` for `PENDING` / `NOT_APPLICABLE`. |
+| `rows[].attestation.lenderId` | string | Yes | LenderRegistry id this attestation rolls up to. `null` for `NOT_APPLICABLE`. |
+| `rows[].attestation.chain` | string | Yes | Chain the UID is on (`base` for Schema C on Base mainnet). `null` for `NOT_APPLICABLE`. |
+| `rows[].attestation.schemaUid` | string | Yes | Schema UID — Schema C (`0x090a...f24c`) for `repayment_history_attestations`. `null` for `NOT_APPLICABLE`. |
+| `rows[].settledAt` | ISO-8601 string | Yes | Settlement timestamp (UTC). `null` for non-settled buckets. |
+| `rows[].createdAt` | ISO-8601 string | No | Order-creation timestamp (UTC). |
+| `kpis` | object | No | Window-aggregate envelope, computed server-side. |
+| `kpis.totalOrdersInWindow` | integer | No | Count of orders across the entire window (not just the current page). |
+| `kpis.settledRevenueUsdCents` | integer | No | Sum of `grossUsdCents` for SETTLED rows across the entire window. **USD cents**. |
+| `kpis.avgOrderValueUsdCents` | integer | No | `settledRevenueUsdCents / count(SETTLED rows)`, integer cents. `0` when no SETTLED rows. |
+| `kpis.attestationCoveragePctBps` | integer | No | Schema C attestation coverage as **basis points** (0..10000). `2500` = 25.00%. Integer wire so no float drift. See KPI envelope section. |
+| `pagination` | object | No | Pagination envelope. |
+| `pagination.page` | integer | No | Echoed `page` query param. |
+| `pagination.limit` | integer | No | Effective `limit` (after the 400-cap). |
+| `pagination.totalPages` | integer | No | `ceil(totalCount / limit)`. |
+| `pagination.totalCount` | integer | No | Total order rows matching the filter (across pages). Equal to `kpis.totalOrdersInWindow`. |
+| `windowDays` | integer | No | The effective window size in days (post-clamp). |
+| `asOf` | ISO-8601 string | No | Snapshot timestamp (server clock, UTC). |
+
+### Errors
+
+| Status | Body | When |
+|--------|------|------|
+| `400` | `{ "statusCode": 400, "status": "failed", "data": { "message": "startDate must be a valid ISO-8601 date" } }` | `startDate` / `endDate` fail ISO-8601 parsing. Unknown enum values for `status` / `psp` are silently dropped, not rejected. |
+| `401` | `{ "statusCode": 401, "status": "failed", "data": { "message": "Unauthorized" } }` | Missing or invalid JWT. |
+| `5xx` | (does not occur for read-path failures — see fail-open section) | The endpoint never returns `5xx` for downstream read-path failures; it degrades per-section. Real `5xx` would be a process-level fault. |
+
+### Schema C JOIN
+
+Each `rows[].attestation` block comes from a JOIN against the Schema C
+`repayment_history_attestations` collection — the on-chain rollup of order
+repayment history that backs the Trust Fabric. Implementation details:
+
+- **Single bulk query.** The JOIN is a single `$in` query against the
+  sparse `orderId` index on `repayment_history_attestations`. No N+1; the
+  service collects every `orderId` from the Prisma fetch first, then
+  issues one Schema C read for the page.
+- **Newest-wins.** If multiple Schema C rows reference the same `orderId`
+  (re-mint flows), the most recently `rolledUpAt` row is returned. The
+  collection retains history; the JOIN reads the latest.
+- **Schema UID.** Every returned block carries the Schema C UID
+  (`0xSCHEMAC` placeholder above; the production value is registered on
+  Base mainnet — see the
+  [EAS Schema v2 shipped 2026-06-11](/concepts/trust-fabric) note in the
+  trust-fabric concept page). Clients can use this to disambiguate from
+  Schemas A / B / D in a future mixed-schema view.
+- **Missing coverage.** Orders with no Schema C row land
+  `attestation.status: "NOT_APPLICABLE"` (orders that don't qualify, e.g.
+  refunded-before-settlement) or `"PENDING"` (qualifying orders not yet
+  rolled up). Rows are **never** dropped from `rows[]` because of a
+  missing attestation — coverage is signaled via the per-row `status`
+  field and aggregated into `kpis.attestationCoveragePctBps`.
+
+### KPI envelope
+
+The KPI envelope is computed **server-side** so the FE never recomputes
+totals from the visible page (which would understate the window). All
+amounts are USD cents to keep aggregation float-safe; `attestationCoveragePctBps`
+is basis points (0..10000) for the same reason — `25.00%` ships as `2500`,
+no `0.25` floats on the wire.
+
+- `totalOrdersInWindow` — order rows matching the filter across the full
+  window (not just the visible page).
+- `settledRevenueUsdCents` — `Σ grossUsdCents` for rows whose FE bucket is
+  `SETTLED`. Refunded / disputed rows are excluded.
+- `avgOrderValueUsdCents` — `settledRevenueUsdCents / count(SETTLED rows)`,
+  integer division. `0` when no SETTLED rows in window.
+- `attestationCoveragePctBps` — `floor(10000 × count(attestation.status === "MINTED") / totalOrdersInWindow)`.
+  Clamped to `0..10000`. `0` when the window is empty.
+
+### Per-section fail-open
+
+The endpoint follows the Stripe Reliability + Shopify Platform fail-open
+discipline established by PR #1975 + #2042 — **partial failures degrade
+per-section, never propagate as `5xx`**:
+
+| Section | Healthy | Failure mode |
+|---------|---------|--------------|
+| Prisma OrderV2 read | populated `rows[]` | empty `rows: []`, empty `kpis` envelope, `200 OK`. Sentry-tagged. |
+| Schema C JOIN | populated `attestation` blocks | `rows[]` is kept with `attestation.status: "PENDING"` / `"NOT_APPLICABLE"`. Rows are **never** dropped due to JOIN failure — the merchant must still see their own orders. Sentry-tagged. |
+| KPI compute | populated `kpis` | rows kept, `kpis` returns the zero-envelope `EMPTY_KPIS` shape (`totalOrdersInWindow: 0`, `settledRevenueUsdCents: 0`, `avgOrderValueUsdCents: 0`, `attestationCoveragePctBps: 0`). Sentry-tagged. |
+
+The merchant never sees a partial-Orders-page error in the dashboard.
+
+### Notes
+
+- **8→4 status mapping.** The Prisma `OrderStatus` enum has 8 values
+  (`CREATED`, `CONFIRMED`, `PROCESSING`, `SHIPPED`, `DELIVERED`,
+  `REFUNDED`, `CANCELLED`, `DISPUTED`); the FE bucket has 4
+  (`SETTLED` / `PENDING` / `REFUNDED` / `DISPUTED`). Mapping is
+  centralized in `MerchantOrdersService.mapStatusBucket()`:
+    - `DELIVERED` + `SHIPPED` + `PROCESSING` + `CONFIRMED` → `SETTLED`
+    - `REFUNDED` + `CANCELLED` → `REFUNDED`
+    - `DISPUTED` → `DISPUTED`
+    - `CREATED` and unmapped → `PENDING` (excluded from `SETTLED` revenue;
+      included in `totalOrdersInWindow`).
+- **Caching.** The response carries `Cache-Control: private, max-age=60`.
+  Clients may see up to a 60s lag for fresh order events through CDN
+  caches.
+- **PSP filter is in-memory.** Prisma's Mongo provider does not
+  efficiently filter on a composite-type `payment.provider` field, so
+  the PSP filter is applied in-memory after the Prisma fetch. Pagination
+  math is over the filtered set.
+- **Auth scope.** `shopId` from `req.user.shopId` only. Any
+  `?merchantId=` / `?shopId=` query parameter is silently dropped. A
+  merchant cannot read another merchant's orders through this endpoint.
+- **Currency.** All monetary fields are **USD cents, integer** — same
+  contract as
+  [x402 Earnings (Merchant)](/api-reference/public/monetization/x402-earnings).
+  Divide by `100` for major-unit display.
+- **MCP twin.** The same data feeds the `get_merchant_orders` MCP tool
+  (Pillar 4). The wire shape is identical so a single OpenAPI schema
+  generates both clients.
+
+## Related
+
+- [x402 Earnings (Merchant)](/api-reference/public/monetization/x402-earnings) — companion merchant-facing rollup of x402 settlement events.
+- [Billing Invoices (Merchant)](/api-reference/public/monetization/billing-invoices) — companion merchant-facing billing history (trailing 365 days).
+- [Brand Attestation Lifecycle](/guides/trust-fabric/brand-attestation-lifecycle) — context on the Schema C → repayment-history → LenderRegistry attestation chain.
+- [Register Settlement Wallet](/api-reference/public/monetization/wallet-claim) — register where x402 micro-payments derived from these orders should route.

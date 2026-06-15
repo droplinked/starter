@@ -171,7 +171,11 @@
                 "group": "Monetization",
                 "pages": [
                   "api-reference/public/monetization/billing-invoices",
-                  "api-reference/public/monetization/x402-earnings"
+                  "api-reference/public/monetization/x402-earnings",
+                  "api-reference/public/monetization/wallet-claim",
+                  "api-reference/public/monetization/wallet-list",
+                  "api-reference/public/monetization/wallet-deregister",
+                  "api-reference/public/monetization/orders"
                 ]
               }
             ]
