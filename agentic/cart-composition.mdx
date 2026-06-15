@@ -1,0 +1,153 @@
+---
+title: Cart Composition for Agents
+description: "Build a multi-line Droplinked cart across turns using `start_checkout` plus the four cart-mutation tools (add line, update quantity, remove line, apply coupon)."
+---
+
+`start_checkout` was the original "find ⇨ buy" path: an agent calls it once with a SKU,
+gets back a hosted Droplinked checkout URL, and hands the buyer off to pay. That works for
+single-SKU intent ("buy this thing") but not for **multi-turn agentic composition**, where
+the agent (or buyer) wants to *try* a cart configuration before paying.
+
+The four **cart-mutation tools** close that loop:
+
+| Tool | What it does |
+|---|---|
+| `cart_add_line` | Add another SKU to an existing cart |
+| `cart_update_line_quantity` | Change the quantity of a SKU already in the cart |
+| `cart_remove_line` | Remove a SKU from the cart |
+| `cart_apply_coupon` | Apply a merchant-issued coupon code |
+
+All four expect the **encrypted `cartId`** returned by `start_checkout` — pass it back
+verbatim; it's already obfuscated by the backend's `DecryptCartIdPipe`.
+
+---
+
+## Canonical multi-line composition flow
+
+```text
+1. search_products({ query: "blue sneaker size 10" })       → [skuA, skuB, …]
+2. start_checkout({ shopId, skuId: skuA, quantity: 1, … })  → { cartId, checkoutUrl }
+3. cart_add_line({ cartId, skuId: skuB, quantity: 2 })       → updated cart
+4. cart_update_line_quantity({ cartId, skuId: skuA, quantity: 3 })
+                                                              → bumped cart total
+5. cart_apply_coupon({ cartId, code: "WELCOME10" })          → discount applied
+6. Buyer (or agent) navigates to `checkoutUrl` and pays
+```
+
+Each step returns the updated `cart` envelope so the agent can show the running subtotal,
+line list, and discount before commit. There is no separate "preview" call — every mutation
+is the preview.
+
+---
+
+## Tool reference
+
+### `cart_add_line`
+
+```json
+{
+  "cartId": "ENC:...",
+  "skuId":  "65ab12cd34ef567890123456",
+  "quantity": 2
+}
+```
+
+Idempotent on (`cartId`, `skuId`): calling twice with the same SKU bumps the quantity on
+the existing line rather than creating a duplicate. Defaults `quantity` to `1` if omitted.
+
+**Backs**: `POST /v2/carts/:cartId/products`
+
+### `cart_update_line_quantity`
+
+```json
+{
+  "cartId":   "ENC:...",
+  "skuId":    "65ab12cd34ef567890123456",
+  "quantity": 5
+}
+```
+
+Sets the line to the specified quantity. **Passing `quantity: 0` removes the line** — same
+effect as calling `cart_remove_line` but in a single call, which is convenient when the
+agent is decrementing.
+
+**Backs**: `PATCH /v2/carts/:cartId/products/:skuId`
+
+### `cart_remove_line`
+
+```json
+{
+  "cartId": "ENC:...",
+  "skuId":  "65ab12cd34ef567890123456"
+}
+```
+
+Removes the line entirely. The returned cart shows the updated lines + total. Removing the
+last line leaves the cart empty but still usable — the buyer can continue browsing and the
+agent can add new lines.
+
+**Backs**: `DELETE /v2/carts/:cartId/products/:skuId`
+
+### `cart_apply_coupon`
+
+```json
+{
+  "cartId": "ENC:...",
+  "code":   "SAVE20"
+}
+```
+
+Validates the coupon at the merchant level, computes the discount, and returns the updated
+cart with `discount` + `totalAmount` fields. An invalid or expired code surfaces as a
+structured error envelope:
+
+```json
+{
+  "ok": false,
+  "action": "cart_apply_coupon",
+  "error": "backend …/coupon → 400: {\"message\":\"INVALID_COUPON\",…}"
+}
+```
+
+**Backs**: `POST /v2/carts/:cartId/coupon`
+
+---
+
+## Error envelope
+
+All four tools follow the same envelope shape so agents can branch on JSON instead of
+catching exceptions:
+
+```json
+// Happy path
+{ "ok": true,  "action": "<tool_name>", "cart": { …updated cart… } }
+
+// Failure (backend error, validation error, network error)
+{ "ok": false, "action": "<tool_name>", "error": "…human-readable message…" }
+```
+
+The `error` string includes the upstream HTTP status code so agents can distinguish 4xx
+(intent error — invalid SKU, expired coupon) from 5xx (transient — retry).
+
+---
+
+## When NOT to use the cart-mutation tools
+
+- **Agent only knows the buyer wants one SKU**: use `start_checkout` alone. The mutation
+  tools are pure overhead for single-SKU intent.
+- **Agent is composing for an *unauthenticated* buyer**: there is no "guest cart" — the
+  cart belongs to the email passed to `start_checkout`. Mutations apply to that cart.
+- **Agent wants to express discount programmatically**: the only discount surface is the
+  coupon code. There is no `cart_apply_discount_pct` or similar — merchants own their
+  promo logic via coupons.
+
+---
+
+## Related
+
+- [Inventory MCP](/agentic/inventory-mcp) — full tool inventory
+- [MCP Server](/agentic/mcp-server) — installation and environment reference
+- [Storefront MCP discovery](/agentic/storefront-mcp-discovery) — the `search_products`
+  / `get_product` family that precedes `start_checkout`
+- [ACP feed](/agentic/acp-feed) — the bulk-discovery feed agents can crawl before
+  cart-composing
