@@ -1,0 +1,123 @@
+---
+title: "EAS Schemas (Trust Fabric) — Overview"
+description: "On-chain reference for Droplinked's 4-axis trust fabric. Schemas A/B/C/D, registered on Base mainnet, anchor every verifiable claim the platform makes about brands, credit, repayment, and peer trust."
+---
+
+Droplinked's trust fabric is published as **four [EAS](https://attest.org) schemas on Base mainnet**. Every verifiable claim — verified brand, lender underwriting verdict, append-only repayment record, peer trust — is anchored to one of these schemas. The records are public, the issuers are operator-registered, and the reconciler closes the loop on revocations and registry drift.
+
+If you only need aggregate counts (lenders, attestations, service providers), see [`/v2/trust-fabric/stats`](/api-reference/public/trust-fabric-stats). The pages in this group are the **on-chain reference** — UIDs, field tables, and copy-pasteable read examples in viem / ethers / Cast for verifiers that want to read EAS directly without going through Droplinked's API.
+
+## The 4 axes
+
+| Axis | Schema | Issued by | Subject | Revocable | Reference |
+|---|---|---|---|---|---|
+| **A** | `BrandAttestation` | Droplinked operator | Merchant brand slug | yes | [Schema A — Entity / Brand](/api-reference/public/eas-schemas/schema-a-entity) |
+| **B** | `CreditRiskAttestation` | Registered lender | Merchant | yes | [Schema B — Writer / Credit-Risk](/api-reference/public/eas-schemas/schema-b-writer) |
+| **C** | `RepaymentHistoryAttestation` | Registered lender | Merchant | **no** (append-only) | [Schema C — Reader / Repayment-History](/api-reference/public/eas-schemas/schema-c-reader) |
+| **D** | `CrossAttestation` | Any registered entity | Any registered entity | yes | [Schema D — Reconciler / Cross](/api-reference/public/eas-schemas/schema-d-reconciler) |
+
+## How the axes compose
+
+```
+                 ┌──────────────────────────────────────────────┐
+                 │              Droplinked operator             │
+                 │   (issues Schema A: brand identity / KYB)    │
+                 └────────────────────┬─────────────────────────┘
+                                      │ anchors
+                                      ▼
+        ┌────────────────────┐   ┌──────────────────┐   ┌────────────────────┐
+        │  LenderRegistry    │   │  Merchant entity │   │ServiceProviderReg. │
+        │ (Schema B/C gate)  │   │   (Schema A)     │   │   (Schema D gate)  │
+        └────────┬───────────┘   └─────────┬────────┘   └─────────┬──────────┘
+                 │ writes                  │ subject of           │ writes
+                 ▼                         ▼                      ▼
+   ┌─────────────────────────┐   ┌─────────────────────┐   ┌──────────────────────┐
+   │  Schema B  credit-risk  │   │  Order / event /    │   │  Schema D  peer      │
+   │  (lender → merchant)    │   │  settlement         │   │  cross-attestation   │
+   └──────────┬──────────────┘   └──────────┬──────────┘   └──────────┬───────────┘
+              │ amortizes                   │ evidence                │ scores
+              ▼                             ▼                         ▼
+        ┌──────────────────────────────────────────────────────────────────┐
+        │                Schema C  repayment-history                      │
+        │   (lender → merchant, append-only running rollup per lender)    │
+        └─────────────────────────────┬────────────────────────────────────┘
+                                      │ reconciled every 6h
+                                      ▼
+                          ┌───────────────────────┐
+                          │  Reconciler crons     │
+                          │ • mirror registry     │
+                          │   status onto B + D   │
+                          │ • flip EXPIRED        │
+                          │ • sync REVOKED        │
+                          └───────────────────────┘
+```
+
+Read the flow as: **A** anchors the entity → **B** is a lender's verdict on that entity → **C** is the append-only evidence of how that verdict performed → **D** is a peer cross-check by any registered party. The reconciler **never auto-revokes** — it only mirrors current registry state so verifiers can apply their own policy.
+
+## Network coverage
+
+| Network | Status | EAS contract | Explorer |
+|---|---|---|---|
+| **Base mainnet** | live (flipped 2026-06-14) | `0x4200000000000000000000000000000000000021` | [basescan.org](https://basescan.org/address/0x4200000000000000000000000000000000000021) |
+| **Base Sepolia** (testnet) | live (development) | `0x4200000000000000000000000000000000000021` | [sepolia.basescan.org](https://sepolia.basescan.org/address/0x4200000000000000000000000000000000000021) |
+
+EAS is a [predeploy on every OP-Stack chain](https://docs.attest.org/docs/quick--start/contracts) at the same address; Droplinked's schemas are registered separately per chain. The active chain is configured via `EAS_ACTIVE_CHAIN` (`base` in production) and every `/v2/attestations/*` response includes the chain in its envelope.
+
+## Schema UIDs (Base mainnet, registered 2026-06-14)
+
+| Schema | Mainnet UID | easscan |
+|---|---|---|
+| A — Brand | `0xf16f6f5c8da93edb3f700c7a5cf2f51bbe738eb1c275a7f5bc7657ef6e27e5a3` | [view](https://base.easscan.org/schema/view/0xf16f6f5c8da93edb3f700c7a5cf2f51bbe738eb1c275a7f5bc7657ef6e27e5a3) |
+| B — Credit-Risk | `0xbd652f94a034edea8635b1f87d05f2b33b23c0243430c2dae91469103921c7bd` | [view](https://base.easscan.org/schema/view/0xbd652f94a034edea8635b1f87d05f2b33b23c0243430c2dae91469103921c7bd) |
+| C — Repayment-History | `0x090a64afc751696ba228f82225f084f73949644921e286108c86d3ea4d37f24c` | [view](https://base.easscan.org/schema/view/0x090a64afc751696ba228f82225f084f73949644921e286108c86d3ea4d37f24c) |
+| D — Cross | `0xb076cf65e9547678fe0e0c5ff010b504e7133ffe03977dc5fad2598723e5554e` | [view](https://base.easscan.org/schema/view/0xb076cf65e9547678fe0e0c5ff010b504e7133ffe03977dc5fad2598723e5554e) |
+
+The same axes are also registered on **Base Sepolia** for development. Testnet UIDs differ from mainnet; resolve them at runtime via the `chain` field on any `/v2/attestations/*` response, or via the Droplinked-side admin registry (operator-only).
+
+<Note>
+Schema UIDs are **per-chain**. A Schema B mainnet UID is NOT valid on Sepolia and vice versa. Always pair the UID with the chain when constructing a verifier query.
+</Note>
+
+## Three ways to read
+
+For any schema, you have three independent paths to the same on-chain record:
+
+1. **Droplinked verifier API** — `GET /v2/attestations/<schema>/<subject>`. Returns the latest active attestation with the registry-mirror envelope (`lenderCurrentStatus`, `attestorCurrentStatus`). Best for hot-path reads where you already trust Droplinked's projection.
+2. **EAS contract directly** — call `getAttestation(uid)` on `0x4200…0021` via viem / ethers / Cast. Best for independent verification: you read the attestation bytes straight off chain.
+3. **EAS GraphQL indexer** — query `https://base.easscan.org/graphql` (or `https://base-sepolia.easscan.org/graphql` for testnet). Best for enumeration: "all Schema B attestations for this merchant", "all Schema D attestations issued by this lender".
+
+Each schema page below documents all three.
+
+## Issuer registries (who is authorized)
+
+A schema UID alone does not prove authority — the **issuing wallet must be currently registered + ACTIVE** in the matching registry. Verifiers SHOULD always cross-check:
+
+| Schema | Registry | Public lookup |
+|---|---|---|
+| A | Droplinked operator wallet | (hard-coded; published in each schema page) |
+| B, C | `LenderRegistry` | [`GET /v2/lenders/:lenderId`](/api-reference/public/lender-registry) |
+| D | `ServiceProviderRegistry` (for `service-provider` issuers) | (admin-only registry; status mirrored onto attestation) |
+
+The reconciler cron mirrors the **current** registry status onto every ACTIVE Schema B + Schema D row every 6 hours (`lenderCurrentStatus` / `attestorCurrentStatus`). A verifier reading the Droplinked API gets this mirror for free; a verifier reading EAS directly should re-check the issuer wallet against the registry.
+
+## Subject anchors (`subjectRootUid`)
+
+Schemas B, C, and D address subjects via a `subjectRootUid` (Schema D also has `issuerRootUid`). The current production scheme is a **labeled string**:
+
+```
+"merchant:<merchantId>"
+"lender:<lenderId>"
+"business-buyer:<businessBuyerId>"
+"service-provider:<serviceProviderId>"
+```
+
+A future schema-rotation will swap this to `keccak256(entityType || entityId)` bytes32 (already reflected as the persistent `subjectRootUid` field in the verifier API). When that rotation lands, the schema UID changes and legacy attestations remain valid against the legacy UID. Both forms will be queryable side-by-side during the transition window.
+
+## Next
+
+Continue to the per-schema reference pages for fields, ABI types, and copy-pasteable read examples:
+
+- [Schema A — Brand attestation](/api-reference/public/eas-schemas/schema-a-entity)
+- [Schema B — Credit-risk attestation](/api-reference/public/eas-schemas/schema-b-writer)
+- [Schema C — Repayment-history attestation](/api-reference/public/eas-schemas/schema-c-reader)
+- [Schema D — Cross / peer attestation](/api-reference/public/eas-schemas/schema-d-reconciler)

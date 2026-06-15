@@ -1,0 +1,262 @@
+---
+title: "Schema C — Repayment-history attestation"
+description: "On-chain reference for the append-only repayment-history schema. Per-event evidence powering merchant credit-tier upgrades and the new attestationCoveragePctBps field on /v2/merchant/orders."
+---
+
+Schema C is the **reader / repayment-history attestation** — a registered lender's append-only record of a merchant's settlement performance against credit lines that lender has issued. Every settlement event mints a new row; the latest row per `(merchantId, lenderId)` is the active view, and the chain preserves the full history.
+
+This is the per-order evidence schema. It powers the `attestationCoveragePctBps` field on [`/v2/merchant/orders`](/api-reference/public/monetization/orders) — the fraction of credit-leg-bearing orders that have a corresponding Schema C attestation, in basis points.
+
+| | |
+|---|---|
+| **Schema name** | `RepaymentHistoryAttestation` |
+| **EAS revocable** | **no** — append-only |
+| **Expiry semantics** | none |
+| **Issued by** | A wallet currently `ACTIVE` in [`LenderRegistry`](/api-reference/public/lender-registry) |
+| **Subject** | Merchant (`subjectRootUid`) |
+| **MCP tool** | [`verify_repayment_history`](/agentic/mcp-server) |
+| **Verifier API** | `GET /v2/attestations/repayment-history/:merchantId` |
+| **Composite read** | [`GET /v2/underwriting-signals/:merchantId`](/api-reference/public/underwriting-signals) |
+
+## Why append-only
+
+Schema C is registered as `revocable: false` on chain. Corrections are issued as a **new attestation with updated counts**; the chain preserves the full history; latest-by-`attestedAt` per `(merchantId, lenderId)` wins for read-time queries. The counters are monotonically non-decreasing — `settledOnTimeCount`, `lateCount`, `defaultCount`, `totalLinesUsdCents` all only ever go up.
+
+## Network & UIDs
+
+| Network | EAS contract | Schema UID | Explorer |
+|---|---|---|---|
+| Base mainnet | `0x4200000000000000000000000000000000000021` | `0x090a64afc751696ba228f82225f084f73949644921e286108c86d3ea4d37f24c` | [basescan](https://basescan.org/address/0x4200000000000000000000000000000000000021) · [easscan schema](https://base.easscan.org/schema/view/0x090a64afc751696ba228f82225f084f73949644921e286108c86d3ea4d37f24c) |
+| Base Sepolia | `0x4200000000000000000000000000000000000021` | resolve via `chain` field on `/v2/attestations/repayment-history/:merchantId` | [sepolia.basescan](https://sepolia.basescan.org/address/0x4200000000000000000000000000000000000021) |
+
+EAS registry version: **v1.4.0**.
+
+## Field reference
+
+ABI schema string:
+
+```
+string subjectRootUid, uint64 totalLinesUsdCents, uint32 settledOnTimeCount,
+uint32 lateCount, uint32 defaultCount, uint256 lastSettlementAt
+```
+
+| Field | Solidity type | Semantic | Mutability |
+|---|---|---|---|
+| `subjectRootUid` | `string` | Subject anchor. Production form: `"merchant:<merchantId>"`. | immutable per attestation |
+| `totalLinesUsdCents` | `uint64` | Running total credit drawn across the merchant-lender relationship. Monotonically non-decreasing. | snapshot — monotonic across the chain of attestations |
+| `settledOnTimeCount` | `uint32` | Running count of settlement events that settled within term. Monotonically non-decreasing. | snapshot — monotonic |
+| `lateCount` | `uint32` | Running count of settlements past `expectedRepaymentDate` but within the default cutoff (default 30d post-due). Monotonically non-decreasing. | snapshot — monotonic |
+| `defaultCount` | `uint32` | Running count of credit lines that defaulted (>30d past due or written off). Monotonically non-decreasing. | snapshot — monotonic |
+| `lastSettlementAt` | `uint256` | Unix seconds of the most recent settlement event captured by this row. Read consumers compute "freshest signal per lender" via `MAX(lastSettlementAt)`. | snapshot |
+
+EAS envelope fields:
+
+| Envelope field | Type | Semantic |
+|---|---|---|
+| `uid` | `bytes32` | Attestation UID. |
+| `schema` | `bytes32` | Schema UID (above). |
+| `attester` | `address` | Lender's on-chain signing wallet. |
+| `recipient` | `address` | Conventionally merchant wallet or `0x0`. |
+| `time` | `uint64` | Block-mined `attestedAt`. |
+| `expirationTime` | `uint64` | `0` (no expiry). |
+| `revocationTime` | `uint64` | Always `0` — Schema C is non-revocable. |
+| `revocable` | `bool` | `false`. |
+| `data` | `bytes` | ABI-encoded payload per the schema string above. |
+
+## Order-level evidence — `attestationCoveragePctBps`
+
+The merchant orders endpoint exposes a top-line coverage metric derived from Schema C:
+
+```json
+{
+  "summary": {
+    "attestationCoveragePctBps": 9650,
+    "creditLegBearingOrdersCount": 200,
+    "ordersWithSchemaCAttestationCount": 193
+  }
+}
+```
+
+`9650` bps = 96.50% of credit-leg-bearing orders have a matching Schema C attestation (via `orderId` cross-reference). A drop in coverage means the lender's settlement-event emitter is lagging or has stopped — it's a freshness probe for the merchant's underwriting signal stream.
+
+## Reading running totals: snapshot vs delta
+
+A single Schema C row is a **cumulative snapshot** as of `lastSettlementAt`. To compute the delta added by the most recent settlement, fetch the previous attestation for the same `(merchantId, lenderId)` and subtract counters. The Droplinked API's `verify_repayment_history` already does this aggregation:
+
+```json
+{
+  "merchantId": "6a0001a08692425bd9fd571b",
+  "perLender": [
+    {
+      "lenderId": "crediblex-uae",
+      "latest": {
+        "attestationUid": "0x…",
+        "totalLinesUsdCents": 125000000,
+        "settledOnTimeCount": 12,
+        "lateCount": 1,
+        "defaultCount": 0,
+        "lastSettlementAt": "2026-06-14T11:00:00Z"
+      }
+    }
+  ],
+  "aggregate": {
+    "totalLinesUsdCents": 125000000,
+    "settledOnTimeCount": 12,
+    "lateCount": 1,
+    "defaultCount": 0
+  }
+}
+```
+
+The aggregate sums latest-row counters across lenders for credit-tier upgrade decisions: T1→T2 requires 3+ settled-on-time; T2→T3 requires 10+ settled with 0 defaults in 24mo.
+
+## Read via Droplinked API
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/attestations/repayment-history/6a0001a08692425bd9fd571b | jq .
+```
+
+## Read via viem (TypeScript)
+
+```ts
+import { createPublicClient, http, parseAbi, decodeAbiParameters } from "viem";
+import { base } from "viem/chains";
+
+const EAS = "0x4200000000000000000000000000000000000021" as const;
+const SCHEMA_C = "0x090a64afc751696ba228f82225f084f73949644921e286108c86d3ea4d37f24c" as const;
+
+const client = createPublicClient({ chain: base, transport: http() });
+
+const easAbi = parseAbi([
+  "function getAttestation(bytes32 uid) view returns (tuple(bytes32 uid, bytes32 schema, uint64 time, uint64 expirationTime, uint64 revocationTime, bytes32 refUID, address recipient, address attester, bool revocable, bytes data))",
+]);
+
+const uid = "0x…"; // UID from /v2/attestations/repayment-history/:merchantId
+
+const att = await client.readContract({
+  address: EAS,
+  abi: easAbi,
+  functionName: "getAttestation",
+  args: [uid],
+});
+if (att.schema !== SCHEMA_C) throw new Error("not a Schema C attestation");
+
+const [
+  subjectRootUid,
+  totalLinesUsdCents,
+  settledOnTimeCount,
+  lateCount,
+  defaultCount,
+  lastSettlementAt,
+] = decodeAbiParameters(
+  [
+    { name: "subjectRootUid", type: "string" },
+    { name: "totalLinesUsdCents", type: "uint64" },
+    { name: "settledOnTimeCount", type: "uint32" },
+    { name: "lateCount", type: "uint32" },
+    { name: "defaultCount", type: "uint32" },
+    { name: "lastSettlementAt", type: "uint256" },
+  ],
+  att.data,
+);
+
+console.log({
+  subjectRootUid,
+  totalLinesUsdCents,
+  settledOnTimeCount,
+  lateCount,
+  defaultCount,
+  lastSettlementAt,
+});
+```
+
+## Read via ethers (TypeScript)
+
+```ts
+import { JsonRpcProvider, Contract, AbiCoder } from "ethers";
+
+const EAS = "0x4200000000000000000000000000000000000021";
+const SCHEMA_C = "0x090a64afc751696ba228f82225f084f73949644921e286108c86d3ea4d37f24c";
+
+const provider = new JsonRpcProvider("https://mainnet.base.org");
+const eas = new Contract(
+  EAS,
+  [
+    "function getAttestation(bytes32 uid) view returns (tuple(bytes32 uid, bytes32 schema, uint64 time, uint64 expirationTime, uint64 revocationTime, bytes32 refUID, address recipient, address attester, bool revocable, bytes data))",
+  ],
+  provider,
+);
+
+const uid = "0x…";
+const att = await eas.getAttestation(uid);
+if (att.schema.toLowerCase() !== SCHEMA_C) throw new Error("schema mismatch");
+
+const [subjectRootUid, totalLinesUsdCents, settledOnTimeCount, lateCount, defaultCount, lastSettlementAt] =
+  AbiCoder.defaultAbiCoder().decode(
+    ["string", "uint64", "uint32", "uint32", "uint32", "uint256"],
+    att.data,
+  );
+
+console.log({ subjectRootUid, totalLinesUsdCents, settledOnTimeCount, lateCount, defaultCount, lastSettlementAt });
+```
+
+## Read via Cast (Foundry)
+
+```bash
+cast call 0x4200000000000000000000000000000000000021 \
+  "getAttestation(bytes32)((bytes32,bytes32,uint64,uint64,uint64,bytes32,address,address,bool,bytes))" \
+  0x…UID… \
+  --rpc-url https://mainnet.base.org
+
+cast abi-decode \
+  "x(string,uint64,uint32,uint32,uint32,uint256)" \
+  0x…data-field…
+```
+
+## Indexer access (EAS GraphQL)
+
+- Base mainnet: [https://base.easscan.org/graphql](https://base.easscan.org/graphql)
+- Base Sepolia: [https://base-sepolia.easscan.org/graphql](https://base-sepolia.easscan.org/graphql)
+
+**All Schema C attestations a lender has emitted, newest first:**
+
+```graphql
+query LenderRepaymentBook($wallet: String!) {
+  attestations(
+    where: {
+      schemaId: { equals: "0x090a64afc751696ba228f82225f084f73949644921e286108c86d3ea4d37f24c" }
+      attester: { equals: $wallet }
+    }
+    orderBy: { time: desc }
+    take: 200
+  ) {
+    id
+    time
+    recipient
+    data
+  }
+}
+```
+
+**All Schema C attestations referencing a specific order** — the on-chain `orderId` is part of the off-chain mirror, not the EAS payload. Use `GET /v2/attestations/repayment-history/:merchantId` and filter client-side on `orderId`, or use the Droplinked-side admin lineage endpoint.
+
+## Trust assumptions
+
+A Schema C attestation is authoritative if and only if:
+
+1. The on-chain `schema` matches the mainnet UID above.
+2. The on-chain `attester` is `ACTIVE` in [`LenderRegistry`](/api-reference/public/lender-registry).
+3. `revocable == false` (sanity check — a Schema C row that claims `revocable == true` is malformed).
+4. Counters are **monotonically non-decreasing** relative to the prior attestation in the same `(merchantId, lenderId)` chain. A row that decreases any counter is either malformed or a write-bug; do not honor it. The Droplinked-side issuer enforces this off-chain monotonic guard before mint.
+
+<Note>
+Schema C does not have a `lenderCurrentStatus` mirror (Schema C is append-only history, so a status flip on a lender doesn't change a historical fact). To assess whether to consume a lender's Schema C stream **right now**, consult [`GET /v2/lenders/:lenderId`](/api-reference/public/lender-registry) directly.
+</Note>
+
+## Related
+
+- [Trust Fabric overview](/concepts/trust-fabric)
+- [Schemas overview](/api-reference/public/eas-schemas/overview)
+- [Schema B — Credit-risk attestation](/api-reference/public/eas-schemas/schema-b-writer)
+- [`/v2/merchant/orders` — `attestationCoveragePctBps`](/api-reference/public/monetization/orders)
+- [`/v2/underwriting-signals/:merchantId`](/api-reference/public/underwriting-signals)

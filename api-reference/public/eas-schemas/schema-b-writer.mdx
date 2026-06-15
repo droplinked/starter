@@ -1,0 +1,250 @@
+---
+title: "Schema B — Credit-risk attestation"
+description: "On-chain reference for the credit-risk schema. A registered lender's underwriting verdict on a merchant — credit tier, line ceiling, term, rate, methodology hash."
+---
+
+Schema B is the **writer attestation** — a registered lender's signed verdict on a merchant. Every approved lending application that mints on-chain mints a Schema B row, anchoring the line ceiling, term, rate, and methodology hash for downstream consumers (order credit-leg, attribution credit-leg, lender-agent quote enrichment).
+
+| | |
+|---|---|
+| **Schema name** | `CreditRiskAttestation` |
+| **EAS revocable** | yes |
+| **Expiry semantics** | required (`expiresAt` is mandatory; lender re-underwrites at expiry) |
+| **Issued by** | A wallet currently `ACTIVE` in [`LenderRegistry`](/api-reference/public/lender-registry) |
+| **Subject** | Merchant (`subjectRootUid`) |
+| **MCP tool** | [`verify_credit_risk`](/agentic/mcp-server) |
+| **Verifier API** | `GET /v2/attestations/credit-risk/:merchantId` |
+| **Composite read** | [`GET /v2/underwriting-signals/:merchantId`](/api-reference/public/underwriting-signals) |
+
+## Network & UIDs
+
+| Network | EAS contract | Schema UID | Explorer |
+|---|---|---|---|
+| Base mainnet | `0x4200000000000000000000000000000000000021` | `0xbd652f94a034edea8635b1f87d05f2b33b23c0243430c2dae91469103921c7bd` | [basescan](https://basescan.org/address/0x4200000000000000000000000000000000000021) · [easscan schema](https://base.easscan.org/schema/view/0xbd652f94a034edea8635b1f87d05f2b33b23c0243430c2dae91469103921c7bd) |
+| Base Sepolia | `0x4200000000000000000000000000000000000021` | resolve via `chain` field on `/v2/attestations/credit-risk/:merchantId` | [sepolia.basescan](https://sepolia.basescan.org/address/0x4200000000000000000000000000000000000021) |
+
+EAS registry version: **v1.4.0**.
+
+## Field reference
+
+ABI schema string:
+
+```
+string subjectRootUid, uint8 creditTier, uint64 maxCreditLineUsdCents,
+uint32 termDays, uint32 rateBps, bytes32 methodologyHash, uint256 expiresAt
+```
+
+| Field | Solidity type | Semantic | Mutability |
+|---|---|---|---|
+| `subjectRootUid` | `string` | Subject anchor. Production form: `"merchant:<merchantId>"`. Post-rotation: `keccak256(entityType\|\|entityId)` bytes32 (legacy + new coexist during transition). | immutable per attestation |
+| `creditTier` | `uint8` | Resolved credit tier at issuance. Encoded T0=0 / T1=1 / T2=2 / T3=3. Snapshot from `CreditTierMappingService` at mint time. | immutable per attestation |
+| `maxCreditLineUsdCents` | `uint64` | Maximum credit line in USD cents (`getLineCeilingUsd × 100`). | immutable per attestation |
+| `termDays` | `uint32` | Quoted repayment term in days. DTO layer enforces 1-1800 (5y) before mint. | immutable per attestation |
+| `rateBps` | `uint32` | Quoted APR in basis points (`850` = 8.50%). | immutable per attestation |
+| `methodologyHash` | `bytes32` | `keccak256` of the lender's published underwriting methodology document. Cross-references the [methodology registry](/api-reference/public/methodology-registry). | immutable per attestation |
+| `expiresAt` | `uint256` | Unix seconds. Required; a re-underwrite mints a new attestation. | immutable per attestation |
+
+EAS envelope fields:
+
+| Envelope field | Type | Semantic |
+|---|---|---|
+| `uid` | `bytes32` | Attestation UID. |
+| `schema` | `bytes32` | Schema UID (above). |
+| `attester` | `address` | Lender's on-chain signing wallet. Must be currently `ACTIVE` in `LenderRegistry`. |
+| `recipient` | `address` | Conventionally the merchant's wallet or `0x0` (subject identity is in `subjectRootUid`). |
+| `time` | `uint64` | Block-mined issuance time. |
+| `expirationTime` | `uint64` | Mirrors `expiresAt`. |
+| `revocationTime` | `uint64` | `0` if active. |
+| `revocable` | `bool` | `true`. |
+| `data` | `bytes` | ABI-encoded payload per the schema string above. |
+
+## Lender-registry mirror (`lenderCurrentStatus`)
+
+The reconciler sweeps every 6 hours and mirrors the **current** `LenderRegistry` status onto every ACTIVE Schema B row. A verifier reading the Droplinked API sees:
+
+```json
+{
+  "status": "ACTIVE",
+  "lenderCurrentStatus": "SUSPENDED",
+  "lenderCurrentStatusAt": "2026-06-14T01:00:00Z"
+}
+```
+
+The reconciler **never auto-revokes**. A Schema B attestation that's still on-chain ACTIVE but issued by a now-SUSPENDED lender is honored or not per verifier policy. The MCP `verify_credit_risk` tool and the verifier API both expose this mirror.
+
+## Read via Droplinked API
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/attestations/credit-risk/6a0001a08692425bd9fd571b | jq .
+```
+
+```json
+{
+  "found": true,
+  "chain": "base",
+  "attestations": [
+    {
+      "attestationUid": "0xab12…cd34",
+      "schemaUid": "0xbd65…c7bd",
+      "lenderId": "crediblex-uae",
+      "issuerWallet": "0x…",
+      "creditTier": "T2",
+      "maxCreditLineUsdCents": 25000000,
+      "termDays": 90,
+      "rateBps": 1250,
+      "methodologyHash": "0x…",
+      "issuedAt": "2026-06-14T12:00:00Z",
+      "expiresAt": "2026-12-14T12:00:00Z",
+      "status": "ACTIVE",
+      "lenderCurrentStatus": "ACTIVE",
+      "lenderCurrentStatusAt": "2026-06-14T18:00:00Z"
+    }
+  ]
+}
+```
+
+## Read via viem (TypeScript)
+
+```ts
+import { createPublicClient, http, parseAbi, decodeAbiParameters } from "viem";
+import { base } from "viem/chains";
+
+const EAS = "0x4200000000000000000000000000000000000021" as const;
+const SCHEMA_B = "0xbd652f94a034edea8635b1f87d05f2b33b23c0243430c2dae91469103921c7bd" as const;
+
+const client = createPublicClient({ chain: base, transport: http() });
+
+const easAbi = parseAbi([
+  "function getAttestation(bytes32 uid) view returns (tuple(bytes32 uid, bytes32 schema, uint64 time, uint64 expirationTime, uint64 revocationTime, bytes32 refUID, address recipient, address attester, bool revocable, bytes data))",
+]);
+
+const uid = "0x…"; // UID from /v2/attestations/credit-risk/:merchantId
+const att = await client.readContract({
+  address: EAS,
+  abi: easAbi,
+  functionName: "getAttestation",
+  args: [uid],
+});
+if (att.schema !== SCHEMA_B) throw new Error("not a Schema B attestation");
+
+const [
+  subjectRootUid,
+  creditTier,
+  maxCreditLineUsdCents,
+  termDays,
+  rateBps,
+  methodologyHash,
+  expiresAt,
+] = decodeAbiParameters(
+  [
+    { name: "subjectRootUid", type: "string" },
+    { name: "creditTier", type: "uint8" },
+    { name: "maxCreditLineUsdCents", type: "uint64" },
+    { name: "termDays", type: "uint32" },
+    { name: "rateBps", type: "uint32" },
+    { name: "methodologyHash", type: "bytes32" },
+    { name: "expiresAt", type: "uint256" },
+  ],
+  att.data,
+);
+
+const tierLabel = ["T0", "T1", "T2", "T3"][Number(creditTier)];
+const isActiveOnChain =
+  att.revocationTime === 0n && BigInt(Math.floor(Date.now() / 1000)) < expiresAt;
+
+console.log({ subjectRootUid, tier: tierLabel, maxCreditLineUsdCents, termDays, rateBps, isActiveOnChain });
+```
+
+## Read via ethers (TypeScript)
+
+```ts
+import { JsonRpcProvider, Contract, AbiCoder } from "ethers";
+
+const EAS = "0x4200000000000000000000000000000000000021";
+const SCHEMA_B = "0xbd652f94a034edea8635b1f87d05f2b33b23c0243430c2dae91469103921c7bd";
+
+const provider = new JsonRpcProvider("https://mainnet.base.org");
+const eas = new Contract(
+  EAS,
+  [
+    "function getAttestation(bytes32 uid) view returns (tuple(bytes32 uid, bytes32 schema, uint64 time, uint64 expirationTime, uint64 revocationTime, bytes32 refUID, address recipient, address attester, bool revocable, bytes data))",
+  ],
+  provider,
+);
+
+const uid = "0x…";
+const att = await eas.getAttestation(uid);
+if (att.schema.toLowerCase() !== SCHEMA_B) throw new Error("schema mismatch");
+
+const decoded = AbiCoder.defaultAbiCoder().decode(
+  ["string", "uint8", "uint64", "uint32", "uint32", "bytes32", "uint256"],
+  att.data,
+);
+
+const [subjectRootUid, creditTier, maxCreditLineUsdCents, termDays, rateBps, methodologyHash, expiresAt] = decoded;
+console.log({ subjectRootUid, creditTier, maxCreditLineUsdCents, termDays, rateBps, expiresAt });
+```
+
+## Read via Cast (Foundry)
+
+```bash
+cast call 0x4200000000000000000000000000000000000021 \
+  "getAttestation(bytes32)((bytes32,bytes32,uint64,uint64,uint64,bytes32,address,address,bool,bytes))" \
+  0xab12ffffffffffffffffffffffffffffffffffffffffffffffffffffffffcd34 \
+  --rpc-url https://mainnet.base.org
+
+# Decode the schema payload from the `data` field of the above:
+cast abi-decode \
+  "x(string,uint8,uint64,uint32,uint32,bytes32,uint256)" \
+  0x…
+```
+
+## Indexer access (EAS GraphQL)
+
+- Base mainnet: [https://base.easscan.org/graphql](https://base.easscan.org/graphql)
+- Base Sepolia: [https://base-sepolia.easscan.org/graphql](https://base-sepolia.easscan.org/graphql)
+
+**All Schema B attestations issued by a specific lender wallet, newest first:**
+
+```graphql
+query LenderBook($wallet: String!) {
+  attestations(
+    where: {
+      schemaId: { equals: "0xbd652f94a034edea8635b1f87d05f2b33b23c0243430c2dae91469103921c7bd" }
+      attester: { equals: $wallet }
+    }
+    orderBy: { time: desc }
+    take: 100
+  ) {
+    id
+    time
+    revocationTime
+    expirationTime
+    recipient
+    data
+  }
+}
+```
+
+**All Schema B attestations for a merchant** — there is no on-chain index on `subjectRootUid`; for scale, query the Droplinked API (`GET /v2/attestations/credit-risk/:merchantId`) which serves an indexed projection.
+
+## Trust assumptions
+
+A Schema B attestation is authoritative if and only if:
+
+1. The on-chain `schema` matches the mainnet UID above.
+2. The on-chain `attester` is currently `ACTIVE` in [`LenderRegistry`](/api-reference/public/lender-registry). Check via `GET /v2/lenders/:lenderId` or read the Droplinked-API envelope's `lenderCurrentStatus` mirror.
+3. `revocationTime == 0` AND `expirationTime > now`.
+4. The `methodologyHash` resolves to an `ACTIVE` row in the [methodology registry](/api-reference/public/methodology-registry) for that lender — the lender's published methodology document is the explanation surface for the verdict.
+
+<Note>
+A Schema B attestation issued by a lender that has since been **SUSPENDED** or **ARCHIVED** remains on-chain ACTIVE — the chain has no opinion on the lender's current standing. The Droplinked reconciler exposes the current registry status via `lenderCurrentStatus`. **Verifier-side policy** decides whether to honor it. The agentic PM shadow protocol is explicit: this is a verifier decision, not a reconciler decision.
+</Note>
+
+## Related
+
+- [Trust Fabric overview](/concepts/trust-fabric)
+- [Schemas overview](/api-reference/public/eas-schemas/overview)
+- [Lender Registry Lookup](/api-reference/public/lender-registry)
+- [Methodology Registry Lookup](/api-reference/public/methodology-registry)
+- [`/v2/underwriting-signals/:merchantId`](/api-reference/public/underwriting-signals) — composite Schema B + C read
