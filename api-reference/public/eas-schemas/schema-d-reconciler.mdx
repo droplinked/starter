@@ -1,0 +1,254 @@
+---
+title: "Schema D — Cross / peer attestation"
+description: "On-chain reference for the peer-trust schema. Any registered entity attests any other entity with a 0-100 trust score and short basis — the reconciler closes the loop on disputes by mirroring registry status onto the attestation envelope."
+---
+
+Schema D is the **reconciler / cross-attestation** — peer trust expressed on chain. Unlike Schemas A (operator-issued brand identity), B (lender-issued credit verdict), and C (lender-issued repayment history), Schema D is open to **any registered entity attesting any other registered entity** with a 0-100 trust score and a short free-text `basis`.
+
+This is the dispute-loop surface. When a merchant disputes a credit-risk verdict, when a service provider cross-attests inventory custody, when a business buyer attests a merchant's reliability — those are all Schema D rows. The reconciler closes the loop by mirroring **current** registry status onto every ACTIVE Schema D attestation every 6 hours, so verifiers can decide whether to honor an attestation issued by a party whose standing has since changed.
+
+| | |
+|---|---|
+| **Schema name** | `CrossAttestation` |
+| **EAS revocable** | yes |
+| **Expiry semantics** | none |
+| **Issued by** | Any registered `merchant` / `lender` / `business-buyer` / `service-provider` |
+| **Subject** | Any registered `merchant` / `lender` / `business-buyer` / `service-provider` |
+| **MCP tool** | [`verify_cross_attestation`](/agentic/mcp-server), [`get_trust_dossier`](/agentic/mcp-server) |
+| **Verifier API** | `GET /v2/attestations/cross/subject/:rootUid` and `GET /v2/attestations/cross/issuer/:rootUid` |
+
+## Network & UIDs
+
+| Network | EAS contract | Schema UID | Explorer |
+|---|---|---|---|
+| Base mainnet | `0x4200000000000000000000000000000000000021` | `0xb076cf65e9547678fe0e0c5ff010b504e7133ffe03977dc5fad2598723e5554e` | [basescan](https://basescan.org/address/0x4200000000000000000000000000000000000021) · [easscan schema](https://base.easscan.org/schema/view/0xb076cf65e9547678fe0e0c5ff010b504e7133ffe03977dc5fad2598723e5554e) |
+| Base Sepolia | `0x4200000000000000000000000000000000000021` | resolve via `chain` field on `/v2/attestations/cross/*` | [sepolia.basescan](https://sepolia.basescan.org/address/0x4200000000000000000000000000000000000021) |
+
+EAS registry version: **v1.4.0**.
+
+## Field reference
+
+ABI schema string:
+
+```
+string issuerRootUid, string subjectRootUid, uint8 trustScore, string basis, uint256 attestedAt
+```
+
+| Field | Solidity type | Semantic | Mutability |
+|---|---|---|---|
+| `issuerRootUid` | `string` | Attester anchor. Form: `"<entityType>:<entityId>"` where `entityType ∈ {merchant, lender, business-buyer, service-provider}`. | immutable per attestation |
+| `subjectRootUid` | `string` | Subject anchor. Same form as `issuerRootUid`. | immutable per attestation |
+| `trustScore` | `uint8` | 0-100. Semantically **not** canonicalized by Droplinked — a 70 from a lender and a 70 from a business-buyer are not directly comparable. Always combine with `basis` and `issuerEntityType` when consuming. | immutable per attestation |
+| `basis` | `string` | Free-text basis for the score. Capped at 512 bytes (~$0.08 mainnet gas). | immutable per attestation |
+| `attestedAt` | `uint256` | Unix seconds. Block-mined issuance time. | immutable |
+
+EAS envelope fields:
+
+| Envelope field | Type | Semantic |
+|---|---|---|
+| `uid` | `bytes32` | Attestation UID. |
+| `schema` | `bytes32` | Schema UID (above). |
+| `attester` | `address` | Issuer's on-chain signing wallet. For `service-provider` issuers this is the partner's operator wallet (currently `ACTIVE` in `ServiceProviderRegistry`). |
+| `recipient` | `address` | Subject's wallet or `0x0` (subject identity is in `subjectRootUid`). |
+| `time` | `uint64` | Mirrors `attestedAt`. |
+| `expirationTime` | `uint64` | `0` (no expiry). |
+| `revocationTime` | `uint64` | `0` if active. |
+| `revocable` | `bool` | `true`. |
+| `data` | `bytes` | ABI-encoded payload per the schema string above. |
+
+## Registry-status mirror (`attestorCurrentStatus`)
+
+The reconciler sweeps every 6 hours and mirrors the **current** issuer registry status onto every ACTIVE Schema D row. This is how Schema D closes the dispute loop:
+
+```json
+{
+  "status": "ACTIVE",
+  "attestorCurrentStatus": "SUSPENDED",
+  "attestorCurrentStatusAt": "2026-06-14T01:00:00Z"
+}
+```
+
+For `service-provider` issuers, this mirrors `ServiceProviderRegistry`. For other issuer types (merchant, lender, business-buyer), this remains `null` until those registry lookups are wired into the reconciler.
+
+The reconciler **never auto-revokes**. A Schema D attestation issued by a service provider that has since been **SUSPENDED** (e.g., contract terminated, custody dispute) is still on-chain ACTIVE — the chain has no opinion. Verifier policy decides whether to honor it. The MCP `get_trust_dossier` tool exposes the mirror in its envelope.
+
+## How Schema D closes the loop on disputes
+
+The 4-axis trust fabric is open on the inputs (lenders write B + C, operators write A) but the **resolution loop is also open**: a disputing party writes a Schema D attestation referencing the disputed record. Two patterns are observed in production:
+
+1. **Counter-attestation** — a merchant disputes a Schema B verdict by minting a Schema D row with `subjectRootUid = "lender:<lenderId>"`, `trustScore` low, and `basis` citing the disputed UID. Subsequent verifiers see both records and apply their own policy.
+2. **Service-provider attestation** — a WMS partner (e.g., Stor'd) cross-attests inventory custody. This is independent evidence feeding back into the lender's Schema B re-underwrite at next term. The `service-provider` issuer class is registered in `ServiceProviderRegistry`; the partner's signing wallet must be `ACTIVE` for the attestation to be honored.
+
+The reconciler doesn't take sides. It only ensures that **at read time**, a verifier sees the current registry standing of every party in the dispute graph.
+
+## Read via Droplinked API
+
+By subject — "what has anyone said about this entity":
+
+```bash
+curl -s "https://apiv3.droplinked.com/v2/attestations/cross/subject/merchant:6a0001a08692425bd9fd571b" | jq .
+```
+
+By issuer — "what has this entity said about anyone":
+
+```bash
+curl -s "https://apiv3.droplinked.com/v2/attestations/cross/issuer/lender:crediblex-uae" | jq .
+```
+
+```json
+{
+  "found": true,
+  "chain": "base",
+  "count": 2,
+  "attestations": [
+    {
+      "attestationUid": "0x…",
+      "schemaUid": "0xb076…554e",
+      "issuerEntityType": "service-provider",
+      "issuerEntityId": "stord-prod",
+      "issuerWallet": "0x…",
+      "subjectEntityType": "merchant",
+      "subjectEntityId": "6a0001a08692425bd9fd571b",
+      "trustScore": 88,
+      "basis": "12-month custody relationship, 0 inventory disputes, $4.2M of throughput",
+      "attestedAt": "2026-06-14T12:00:00Z",
+      "status": "ACTIVE",
+      "attestorCurrentStatus": "ACTIVE",
+      "attestorCurrentStatusAt": "2026-06-14T18:00:00Z"
+    }
+  ]
+}
+```
+
+## Read via viem (TypeScript)
+
+```ts
+import { createPublicClient, http, parseAbi, decodeAbiParameters } from "viem";
+import { base } from "viem/chains";
+
+const EAS = "0x4200000000000000000000000000000000000021" as const;
+const SCHEMA_D = "0xb076cf65e9547678fe0e0c5ff010b504e7133ffe03977dc5fad2598723e5554e" as const;
+
+const client = createPublicClient({ chain: base, transport: http() });
+
+const easAbi = parseAbi([
+  "function getAttestation(bytes32 uid) view returns (tuple(bytes32 uid, bytes32 schema, uint64 time, uint64 expirationTime, uint64 revocationTime, bytes32 refUID, address recipient, address attester, bool revocable, bytes data))",
+]);
+
+const uid = "0x…"; // UID from /v2/attestations/cross/*
+
+const att = await client.readContract({
+  address: EAS,
+  abi: easAbi,
+  functionName: "getAttestation",
+  args: [uid],
+});
+if (att.schema !== SCHEMA_D) throw new Error("not a Schema D attestation");
+
+const [issuerRootUid, subjectRootUid, trustScore, basis, attestedAt] =
+  decodeAbiParameters(
+    [
+      { name: "issuerRootUid", type: "string" },
+      { name: "subjectRootUid", type: "string" },
+      { name: "trustScore", type: "uint8" },
+      { name: "basis", type: "string" },
+      { name: "attestedAt", type: "uint256" },
+    ],
+    att.data,
+  );
+
+const isActive = att.revocationTime === 0n;
+console.log({ issuerRootUid, subjectRootUid, trustScore: Number(trustScore), basis, attestedAt, isActive });
+```
+
+## Read via ethers (TypeScript)
+
+```ts
+import { JsonRpcProvider, Contract, AbiCoder } from "ethers";
+
+const EAS = "0x4200000000000000000000000000000000000021";
+const SCHEMA_D = "0xb076cf65e9547678fe0e0c5ff010b504e7133ffe03977dc5fad2598723e5554e";
+
+const provider = new JsonRpcProvider("https://mainnet.base.org");
+const eas = new Contract(
+  EAS,
+  [
+    "function getAttestation(bytes32 uid) view returns (tuple(bytes32 uid, bytes32 schema, uint64 time, uint64 expirationTime, uint64 revocationTime, bytes32 refUID, address recipient, address attester, bool revocable, bytes data))",
+  ],
+  provider,
+);
+
+const uid = "0x…";
+const att = await eas.getAttestation(uid);
+if (att.schema.toLowerCase() !== SCHEMA_D) throw new Error("schema mismatch");
+
+const [issuerRootUid, subjectRootUid, trustScore, basis, attestedAt] =
+  AbiCoder.defaultAbiCoder().decode(
+    ["string", "string", "uint8", "string", "uint256"],
+    att.data,
+  );
+
+console.log({ issuerRootUid, subjectRootUid, trustScore, basis, attestedAt });
+```
+
+## Read via Cast (Foundry)
+
+```bash
+cast call 0x4200000000000000000000000000000000000021 \
+  "getAttestation(bytes32)((bytes32,bytes32,uint64,uint64,uint64,bytes32,address,address,bool,bytes))" \
+  0x…UID… \
+  --rpc-url https://mainnet.base.org
+
+cast abi-decode \
+  "x(string,string,uint8,string,uint256)" \
+  0x…data-field…
+```
+
+## Indexer access (EAS GraphQL)
+
+- Base mainnet: [https://base.easscan.org/graphql](https://base.easscan.org/graphql)
+- Base Sepolia: [https://base-sepolia.easscan.org/graphql](https://base-sepolia.easscan.org/graphql)
+
+**"All Schema D attestations issued BY this wallet"** — issuer-side enumeration:
+
+```graphql
+query IssuedBy($wallet: String!) {
+  attestations(
+    where: {
+      schemaId: { equals: "0xb076cf65e9547678fe0e0c5ff010b504e7133ffe03977dc5fad2598723e5554e" }
+      attester: { equals: $wallet }
+    }
+    orderBy: { time: desc }
+    take: 100
+  ) {
+    id
+    time
+    revocationTime
+    recipient
+    data
+  }
+}
+```
+
+**"All Schema D attestations targeting this subject"** — for fast subject-side enumeration with already-decoded fields, use the Droplinked API (`GET /v2/attestations/cross/subject/:rootUid`). EAS GraphQL has no native index on the encoded `subjectRootUid` string.
+
+## Trust assumptions
+
+A Schema D attestation is authoritative if and only if:
+
+1. The on-chain `schema` matches the mainnet UID above.
+2. The on-chain `attester` wallet maps to a currently `ACTIVE` registered entity. For `service-provider` issuers, check `ServiceProviderRegistry` (Droplinked-side admin lookup) — the verifier API exposes the mirror via `attestorCurrentStatus`.
+3. `revocationTime == 0`.
+4. The semantic interpretation of `trustScore` is the consumer's responsibility — Droplinked does **not** canonicalize a comparable scale across `issuerEntityType` classes. Always read `basis` and `issuerEntityType` together with the score.
+
+<Warning>
+For non-`service-provider` issuer classes (merchant, lender, business-buyer), the reconciler does not yet wire registry status into `attestorCurrentStatus`; it will return `null`. Cross-check the issuer directly against [`/v2/lenders/:lenderId`](/api-reference/public/lender-registry) (for lender issuers) or the merchant verifier path until those mirrors land.
+</Warning>
+
+## Related
+
+- [Trust Fabric overview](/concepts/trust-fabric)
+- [Schemas overview](/api-reference/public/eas-schemas/overview)
+- [Schema B — Credit-risk attestation](/api-reference/public/eas-schemas/schema-b-writer) (the most-disputed surface)
+- [Schema C — Repayment-history attestation](/api-reference/public/eas-schemas/schema-c-reader)
+- [`get_trust_dossier` MCP tool](/agentic/mcp-server) — multi-axis composite read

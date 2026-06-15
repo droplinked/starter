@@ -1,0 +1,235 @@
+---
+title: "Schema A — Brand attestation"
+description: "On-chain reference for the brand-attestation schema. Anchors a Droplinked-side brand slug to an operator-reviewed KYB record, with chain-of-custody from KYB approval to merchant-portal verifier."
+---
+
+Schema A is the **entity attestation** — Droplinked's on-chain receipt that a brand slug has been operator-reviewed and is who it says it is. It anchors the first axis of the [4-axis trust fabric](/api-reference/public/eas-schemas/overview): everything downstream (lender underwriting, peer cross-attestations) presumes the brand identity has been verified.
+
+| | |
+|---|---|
+| **Schema name** | `BrandAttestation` |
+| **EAS revocable** | yes |
+| **Expiry semantics** | none by default (revocation is the lifecycle event) |
+| **Issued by** | Droplinked operator wallet |
+| **Subject** | Merchant brand slug + shop id |
+| **MCP tool** | [`verify_brand_attestation`](/agentic/mcp-server) |
+| **Verifier API** | `GET /v2/attestations/brand/:slug` |
+| **Lifecycle guide** | [Brand attestation: request → mint → verify](/guides/trust-fabric/brand-attestation-lifecycle) |
+
+## Network & UIDs
+
+| Network | EAS contract | Schema UID | Explorer |
+|---|---|---|---|
+| Base mainnet | `0x4200000000000000000000000000000000000021` | `0xf16f6f5c8da93edb3f700c7a5cf2f51bbe738eb1c275a7f5bc7657ef6e27e5a3` | [basescan](https://basescan.org/address/0x4200000000000000000000000000000000000021) · [easscan schema](https://base.easscan.org/schema/view/0xf16f6f5c8da93edb3f700c7a5cf2f51bbe738eb1c275a7f5bc7657ef6e27e5a3) |
+| Base Sepolia | `0x4200000000000000000000000000000000000021` | resolve via `chain` field on `/v2/attestations/brand/:slug` | [sepolia.basescan](https://sepolia.basescan.org/address/0x4200000000000000000000000000000000000021) |
+
+EAS registry version: **v1.4.0** (EIP-712 typed-data attestations; revocation via `revoke(bytes32 uid)` direct call).
+
+## Field reference
+
+The on-chain payload is ABI-encoded against the schema string:
+
+```
+string brandName, uint256 verifiedSince, string kybCohort, string offchainProjectionId
+```
+
+| Field | Solidity type | Semantic | Mutability |
+|---|---|---|---|
+| `brandName` | `string` | Display name resolved at issuance time. Used by the public verifier surface and any human-readable consumer. | immutable per attestation; a rename re-issues |
+| `verifiedSince` | `uint256` | Unix seconds. First KYB-approval timestamp for this brand (snapshot — NOT the issuance time of THIS attestation). | immutable |
+| `kybCohort` | `string` | Snapshot of the `KybCohort` enum at issuance (e.g. `"GLOBAL_STANDARD"`, `"GCC_ENHANCED"`). Cohort drift is captured by re-issuance, not in-place mutation. | immutable per attestation |
+| `offchainProjectionId` | `string` | Mongo ObjectId of the underlying `KybRecord`. Allows a verifier with operator-side access to trace back to the supporting documentation; for public verifiers it is opaque. | immutable |
+
+EAS envelope fields (set by the contract, not by the schema):
+
+| Envelope field | Type | Semantic |
+|---|---|---|
+| `uid` | `bytes32` | The attestation UID. Globally unique per chain. Quote this from MCP / API output. |
+| `schema` | `bytes32` | Schema UID (see table above). |
+| `attester` | `address` | Droplinked operator signing wallet. Mainnet issuer wallet is published on the [trust-fabric overview](/concepts/trust-fabric). |
+| `recipient` | `address` | The shop's recipient wallet if configured; otherwise a deterministic `shopId`-derived address. |
+| `time` | `uint64` | Block-mined issuance time. |
+| `expirationTime` | `uint64` | `0` (no expiry). |
+| `revocationTime` | `uint64` | `0` if active; block time of `revoke()` otherwise. |
+| `revocable` | `bool` | `true`. |
+| `data` | `bytes` | ABI-encoded payload per the schema string above. |
+
+## Read via Droplinked API
+
+```bash
+curl -s https://apiv3.droplinked.com/v2/attestations/brand/my-shop-slug | jq .
+```
+
+```json
+{
+  "found": true,
+  "chain": "base",
+  "attestationUid": "0x9a3c…ee01",
+  "schemaUid": "0xf16f…e5a3",
+  "issuer": "0xD5F6FB7b6E71DD7F609b8442951444E5a5C76cce",
+  "recipient": "0x…",
+  "issuedAt": "2026-06-14T18:08:00Z",
+  "status": "ACTIVE",
+  "attestationData": {
+    "brandName": "My Shop",
+    "verifiedSince": "2026-03-02T00:00:00Z",
+    "kybCohort": "GLOBAL_STANDARD",
+    "offchainProjectionId": "65a3…ef01"
+  }
+}
+```
+
+## Read via viem (TypeScript)
+
+```ts
+import { createPublicClient, http, parseAbi, decodeAbiParameters } from "viem";
+import { base } from "viem/chains";
+
+const EAS = "0x4200000000000000000000000000000000000021" as const;
+const SCHEMA_A = "0xf16f6f5c8da93edb3f700c7a5cf2f51bbe738eb1c275a7f5bc7657ef6e27e5a3" as const;
+
+const client = createPublicClient({ chain: base, transport: http() });
+
+const easAbi = parseAbi([
+  "function getAttestation(bytes32 uid) view returns (tuple(bytes32 uid, bytes32 schema, uint64 time, uint64 expirationTime, uint64 revocationTime, bytes32 refUID, address recipient, address attester, bool revocable, bytes data))",
+]);
+
+const uid = "0x…"; // UID returned by /v2/attestations/brand/:slug
+
+const att = await client.readContract({
+  address: EAS,
+  abi: easAbi,
+  functionName: "getAttestation",
+  args: [uid],
+});
+
+// att.schema must equal SCHEMA_A; if not, this is a different schema's UID.
+if (att.schema !== SCHEMA_A) throw new Error("not a Schema A attestation");
+
+const [brandName, verifiedSince, kybCohort, offchainProjectionId] =
+  decodeAbiParameters(
+    [
+      { name: "brandName", type: "string" },
+      { name: "verifiedSince", type: "uint256" },
+      { name: "kybCohort", type: "string" },
+      { name: "offchainProjectionId", type: "string" },
+    ],
+    att.data,
+  );
+
+const isActive = att.revocationTime === 0n;
+console.log({ brandName, verifiedSince, kybCohort, offchainProjectionId, isActive });
+```
+
+## Read via ethers (TypeScript)
+
+```ts
+import { JsonRpcProvider, Contract, AbiCoder } from "ethers";
+
+const EAS = "0x4200000000000000000000000000000000000021";
+const SCHEMA_A = "0xf16f6f5c8da93edb3f700c7a5cf2f51bbe738eb1c275a7f5bc7657ef6e27e5a3";
+
+const provider = new JsonRpcProvider("https://mainnet.base.org");
+const eas = new Contract(
+  EAS,
+  [
+    "function getAttestation(bytes32 uid) view returns (tuple(bytes32 uid, bytes32 schema, uint64 time, uint64 expirationTime, uint64 revocationTime, bytes32 refUID, address recipient, address attester, bool revocable, bytes data))",
+  ],
+  provider,
+);
+
+const uid = "0x…";
+const att = await eas.getAttestation(uid);
+if (att.schema.toLowerCase() !== SCHEMA_A) throw new Error("schema mismatch");
+
+const [brandName, verifiedSince, kybCohort, offchainProjectionId] =
+  AbiCoder.defaultAbiCoder().decode(
+    ["string", "uint256", "string", "string"],
+    att.data,
+  );
+
+const isActive = att.revocationTime === 0n;
+console.log({ brandName, verifiedSince, kybCohort, offchainProjectionId, isActive });
+```
+
+## Read via Cast (Foundry)
+
+```bash
+# Replace UID with the value returned by /v2/attestations/brand/:slug.
+cast call 0x4200000000000000000000000000000000000021 \
+  "getAttestation(bytes32)((bytes32,bytes32,uint64,uint64,uint64,bytes32,address,address,bool,bytes))" \
+  0x9a3cffffffffffffffffffffffffffffffffffffffffffffffffffffffffee01 \
+  --rpc-url https://mainnet.base.org
+
+# Decode the `data` field (last element) as the schema payload:
+cast abi-decode \
+  "x(string,uint256,string,string)" \
+  0x…  # the `data` hex from the previous call
+```
+
+## Indexer access (EAS GraphQL)
+
+EAS publishes a public GraphQL indexer per chain. Use it to enumerate without RPC round-trips.
+
+- Base mainnet playground: [https://base.easscan.org/graphql](https://base.easscan.org/graphql)
+- Base Sepolia playground: [https://base-sepolia.easscan.org/graphql](https://base-sepolia.easscan.org/graphql)
+
+### Common queries
+
+**All Schema A attestations for a brand slug** — enumerate by attester (Droplinked operator) + schema, then resolve `data` client-side to filter by brandName. There is no on-chain index on brandName; for scale, use the Droplinked verifier API.
+
+```graphql
+query LatestForAttester {
+  attestations(
+    where: {
+      schemaId: { equals: "0xf16f6f5c8da93edb3f700c7a5cf2f51bbe738eb1c275a7f5bc7657ef6e27e5a3" }
+      attester: { equals: "0xD5F6FB7b6E71DD7F609b8442951444E5a5C76cce" }
+      revoked: { equals: false }
+    }
+    orderBy: { time: desc }
+    take: 50
+  ) {
+    id
+    time
+    recipient
+    revocationTime
+    data
+  }
+}
+```
+
+**Single attestation by UID**:
+
+```graphql
+query OneByUid {
+  attestation(where: { id: "0x9a3c…ee01" }) {
+    id
+    schemaId
+    attester
+    recipient
+    time
+    revocationTime
+    data
+  }
+}
+```
+
+## Trust assumptions
+
+A Schema A attestation is authoritative if and only if:
+
+1. The on-chain `attester` is the **Droplinked operator wallet**: `0xD5F6FB7b6E71DD7F609b8442951444E5a5C76cce` (Base mainnet).
+2. The on-chain `schema` matches the mainnet UID for Schema A (see top of page).
+3. `revocationTime == 0` AND `expirationTime == 0` (Schema A is issued without expiry by default).
+4. If issued via a future operator-wallet rotation, the wallet was the registered operator at issuance time — check the `time` field against the operator-rotation log.
+
+<Warning>
+KMS-backed signer rotation is queued (tracking: backend issue #1718). Until it ships, the mainnet issuer is the personal operator wallet listed above. After rotation, this page will be updated and the legacy wallet will remain valid for the historical window.
+</Warning>
+
+## Related
+
+- [Trust Fabric overview](/concepts/trust-fabric)
+- [Brand attestation lifecycle guide](/guides/trust-fabric/brand-attestation-lifecycle)
+- [Brand attestation request endpoint](/api-reference/public/brand-attestation-request)
+- [`/v2/trust-fabric/stats` — aggregate counts](/api-reference/public/trust-fabric-stats)

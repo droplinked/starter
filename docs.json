@@ -163,6 +163,16 @@
             ]
           },
           {
+            "group": "EAS Schemas (Trust Fabric)",
+            "pages": [
+              "api-reference/public/eas-schemas/overview",
+              "api-reference/public/eas-schemas/schema-a-entity",
+              "api-reference/public/eas-schemas/schema-b-writer",
+              "api-reference/public/eas-schemas/schema-c-reader",
+              "api-reference/public/eas-schemas/schema-d-reconciler"
+            ]
+          },
+          {
             "group": "Merchant API",
             "pages": [
               "api-reference/public/abandoned-carts-merchant",
