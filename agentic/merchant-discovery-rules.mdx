@@ -1,0 +1,153 @@
+---
+title: Merchant Discovery Rules
+description: "How agentic discovery commission is calculated and how KYB verification gates merchant visibility across MCP tools."
+---
+
+Two operator-locked decisions govern what agents see when they discover merchants and how
+commission is attributed when an agentic sale closes. This page documents both rules so
+agent developers and merchants can reason about incentives and visibility without surprises.
+
+---
+
+## How agentic discovery commission is calculated
+
+When an AI agent surfaces a Droplinked merchant product and the buyer completes a purchase,
+a **discovery commission** is deducted from the platform's 20% share and paid to the
+agent's affiliate-of-record. The commission rate scales with the merchant's monthly agentic
+GMV — rewarding high-volume merchants with a lower effective rate.
+
+### Commission rate table
+
+| Monthly agentic GMV (per merchant) | Discovery commission rate |
+|---|---|
+| Up to $10,000 | 5% |
+| $10,001 – $49,999 | Linear interpolation (see formula below) |
+| $50,000 and above | 3% |
+
+The rate applies to the merchant's trailing-30-day agentic GMV, computed at settlement time.
+
+### Linear interpolation formula
+
+For GMV between $10K and $50K, the rate interpolates linearly between 5% and 3%:
+
+```
+rate = 5% - ((GMV - 10_000) / (50_000 - 10_000)) * (5% - 3%)
+     = 5% - ((GMV - 10_000) / 40_000) * 2%
+```
+
+At $30K GMV this yields exactly 4%. At $10K it yields 5%; at $50K it yields 3%.
+
+### Kill-switch override
+
+Operators can override the computed rate platform-wide using the environment variable:
+
+```bash
+AGENTIC_DISCOVERY_COMMISSION_RATE=0.04   # fix at 4% regardless of GMV
+```
+
+When set, this value supersedes the tier table for all merchants. Remove the variable to
+restore the tiered formula.
+
+### Storyflo-mirror affiliate-of-record (Phase 2)
+
+In Phase 1, the discovering agent's platform identity is the affiliate-of-record and
+receives the commission. **Phase 2** (planned) will honour a referring affiliate: when a
+Storyflo-mirrored affiliate installs the agent that makes the sale, that affiliate earns
+the commission instead of the agent platform. This referral chain is not yet live —
+tracking in [droplinked-backend#2086](https://github.com/droplinked/droplinked-backend/issues/2086).
+
+### Tracking
+
+- Decision #2 in [droplinked-backend#2091](https://github.com/droplinked/droplinked-backend/issues/2091)
+- Implementation: [#2094](https://github.com/droplinked/droplinked-backend/issues/2094) (commission calculator) + [#2086](https://github.com/droplinked/droplinked-backend/issues/2086) (affiliate-of-record)
+
+---
+
+## How KYB verification gates visibility
+
+Droplinked uses the [Schema A attestation chain](/concepts/trust-fabric) as the canonical
+signal for KYB (Know Your Business) verification. A merchant is considered **verified**
+once their Schema A attestation chain is complete. Unverified merchants are not absent from
+the platform — they can still list products, process orders, and receive payouts — but they
+surface differently (or not at all) through the agentic discovery layer.
+
+### Visibility per MCP tool
+
+| Tool | Verified merchants | Unverified merchants |
+|---|---|---|
+| `searchMerchants` | Returned in results | Not returned — excluded at query time |
+| `getMerchantCatalogSummary` | Returns full catalog summary | Returns `null`; envelope carries `isError: true` |
+| `getMerchantDirectory` | Included; `verifiedTier: "full"` | Included; `verifiedTier: "directory_only"` |
+
+**`searchMerchants`** is the primary discovery surface for agents that need to find a
+merchant by name, category, or keyword. Only KYB-verified merchants appear here — so an
+unverified merchant is effectively invisible to an agent running a discovery search.
+
+**`getMerchantCatalogSummary`** is called after a merchant is already known to the agent
+(e.g. the agent has a shop slug). For an unverified merchant the envelope is:
+
+```json
+{
+  "isError": true,
+  "data": null,
+  "reason": "merchant_not_verified"
+}
+```
+
+**`getMerchantDirectory`** exposes both tiers so directory-style UIs can show the full
+platform roster. Agents should inspect `verifiedTier` before presenting a merchant as
+fully trust-attested:
+
+```json
+{
+  "merchants": [
+    { "shopSlug": "acme-store", "displayName": "Acme Store", "verifiedTier": "full" },
+    { "shopSlug": "new-shop",   "displayName": "New Shop",   "verifiedTier": "directory_only" }
+  ]
+}
+```
+
+### `verifiedTier` values
+
+| Value | Meaning |
+|---|---|
+| `"full"` | Schema A attestation chain complete — merchant is KYB-verified |
+| `"directory_only"` | Merchant is registered but Schema A chain is incomplete |
+
+### Schema A attestation requirement
+
+KYB verification is anchored to **EAS Schema A** on Base mainnet. Completion requires the
+full 4-step attestation chain:
+
+1. Entity registration (Schema A)
+2. Attestation issued by an authorised issuer wallet
+3. Issuer active in the `EasIssuer` registry at issuance time
+4. Attestation not revoked
+
+Agents can verify the chain independently using the `verify_lender` / trust-fabric tools or
+by reading Schema A UIDs directly from the Base mainnet EAS explorer.
+
+### Upsell path for merchants
+
+Merchants that want to appear in `searchMerchants` results need to complete KYB. From the
+Droplinked dashboard, navigate to **Settings → Verification** and follow the Schema A
+attestation flow. Once the chain is confirmed on-chain, the visibility change takes effect
+on the next platform index refresh (typically within minutes).
+
+### Tracking
+
+- Decision #4 in [droplinked-backend#2091](https://github.com/droplinked/droplinked-backend/issues/2091)
+- Implementation: [#2096](https://github.com/droplinked/droplinked-backend/issues/2096) (`searchMerchants` + `getMerchantCatalogSummary` gates) + [#2099](https://github.com/droplinked/droplinked-backend/issues/2099) (`getMerchantDirectory` + `verifiedTier` enum)
+
+---
+
+## Related
+
+- [Inventory MCP](/agentic/inventory-mcp) — full tool inventory, including `listMerchants`
+  and catalog discovery tools
+- [MCP Server](/agentic/mcp-server) — installation and environment reference
+- [Trust fabric](/concepts/trust-fabric) — Schema A / B / C / D EAS trust chain overview
+- [Connect your store](/agentic/connect-your-store) — onboard a merchant and start the
+  Schema A verification flow
+- [Lender Trinity MCP Tools](/agentic/lender-trinity-mcp-tools) — trust-fabric agent tools
+  that complement merchant discovery
