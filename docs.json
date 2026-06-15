@@ -221,7 +221,9 @@
               "agentic/connect-shopify",
               "agentic/connect-other-platforms",
               "agentic/storefront-mcp-discovery",
-              "agentic/merchant-discovery-rules"
+              "agentic/cart-composition",
+              "agentic/merchant-discovery-rules",
+              "agentic/x402-premium-feed"
             ]
           }
         ]

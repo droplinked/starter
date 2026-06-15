@@ -1,0 +1,142 @@
+---
+title: x402 Premium ACP Feed
+description: "How agents pay for premium Droplinked discovery feeds using the x402 HTTP micropayment protocol on Base mainnet (USDC)."
+---
+
+The standard ACP feed at `/feed/acp.json` is open and free — every catalog item Droplinked
+exposes to agentic shoppers lives there. The **premium** feed at `/feed/acp.premium.json`
+returns a richer, ranked, agent-tuned slice of the same inventory (higher refresh cadence,
+attribution-weighted ordering, more granular merchant signals) — and it is **gated by the
+x402 HTTP 402 micropayment protocol**.
+
+The price is intentionally **per-call** rather than per-subscription so an autonomous agent
+can pull the feed on demand without operating a Droplinked subscription.
+
+---
+
+## At a glance
+
+| | |
+|---|---|
+| **Endpoint** | `GET https://apiv3.droplinked.com/feed/acp.premium.json` |
+| **Protocol** | [x402](https://x402.org) — `402 Payment Required` per call |
+| **Settlement** | USDC on Base mainnet |
+| **Price per call** | $0.001 (1,000 atomic USDC units, 6 decimals) |
+| **Facilitator** | `https://x402.org/facilitator` (Coinbase canonical) |
+| **PayTo** | `0xB2721aD74B8E88F8c31f61c88c42b41468f5ba28` (Droplinked treasury) |
+| **Asset** | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (Circle USDC on Base) |
+
+---
+
+## The protocol in three round-trips
+
+```text
+1. Agent: GET /feed/acp.premium.json                       (no payment)
+   Droplinked: 402 Payment Required
+   Body: {
+     "scheme":   "exact",
+     "network":  "base",
+     "maxAmountRequired": "1000",
+     "asset":    "0x833589f…",
+     "payTo":    "0xB2721aD7…",
+     "resource": "https://apiv3.droplinked.com/feed/acp.premium.json",
+     "extra":    { "currency": "USDC" }
+   }
+
+2. Agent (off-protocol): signs a USDC transfer for 1,000 atomic units to `payTo`
+                          on Base mainnet, gets back a payment proof.
+
+3. Agent: GET /feed/acp.premium.json
+          Header: X-PAYMENT: <serialised proof>
+   Droplinked: facilitator verifies proof → 200 OK + JSON feed body
+```
+
+The first call always returns `402` — there is no API key authentication. Every authorised
+caller is identified by a signed payment proof.
+
+---
+
+## How agents typically integrate this
+
+Most agent SDKs that target Coinbase / Anthropic / OpenAI surfaces ship with x402 support
+out of the box. The pattern is:
+
+1. The agent has a **CDP (Coinbase Developer Platform) wallet** or another EIP-1559 wallet
+   with USDC on Base.
+2. The wallet is configured with a per-request signing budget (e.g. "spend up to $1 USDC
+   per minute on x402-gated endpoints").
+3. The agent's HTTP client transparently retries the second-round GET with the `X-PAYMENT`
+   header when it sees a 402, using cached proofs to avoid re-signing within a quote
+   window.
+
+If you're building an agent without SDK support, you can implement the full handshake by
+reading the [x402 protocol spec](https://x402.org).
+
+---
+
+## What's in the premium feed
+
+The premium feed body is shape-compatible with `/feed/acp.json` so agents that already
+consume the open feed can swap endpoints. The differences:
+
+- **Refresh cadence**: ~5 minutes (open feed is hourly)
+- **Ranking**: attribution-weighted — merchants with verified KYB (`verifiedTier: "full"`),
+  active EAS Schema A chain, and >$10K monthly agentic GMV bubble up
+- **Granular signals**: each catalog row carries `discoveryRank`, `verifiedTier`,
+  `monthlyAgenticGmvBucket`, and `lastSettledOrderAt`
+- **No throttling**: the open feed limits requests per IP; the premium feed has no
+  IP-based throttle since each call is paid
+
+---
+
+## Calibration window (current)
+
+The premium feed is **live on production** as of 2026-06-15 02:18Z. Per Droplinked operator
+decision `#2097`, on-chain USDC settlement against the treasury wallet starts firing once
+the trailing-30-day accrual log crosses **$1,000 USDC pending**. Until then, the protocol
+captures + verifies payments via the facilitator but routes the settlement event to the
+internal accrual log (`AffiliatePayoutAccrual`) rather than to an on-chain transfer.
+
+This is a deliberate ramp: the protocol gating is real (agents must sign and present
+proofs), but the settlement-to-treasury leg flips when the volume justifies on-chain gas.
+
+Operators can verify the current accrual state via the SuperAdmin dashboard at
+`https://admin.droplinked.com/monetization/x402-earnings`.
+
+---
+
+## Failure modes
+
+| HTTP status | Reason |
+|---|---|
+| `402` | First call — present a signed payment proof in `X-PAYMENT` and retry. |
+| `503` `X402_NOT_CONFIGURED` | Operator has not set `X402_FACILITATOR_URL`. Surface to operator, do not retry. |
+| `503` `X402_FACILITATOR_UNAVAILABLE` | Facilitator circuit breaker is OPEN. Retry with exponential backoff. |
+| `4xx` after `X-PAYMENT` | Payment proof rejected — re-sign with a fresh nonce. |
+| `200 OK` | Body is the premium feed JSON. |
+
+---
+
+## Why x402 (and not API keys)
+
+x402 was chosen over API keys for the same reason Droplinked is built on EAS attestations:
+**the buyer/agent identity is the cryptographic signature**, not a long-lived shared secret
+held by an account team. There's no key to rotate, no key to leak, no quota to provision.
+An agent operator pays for the calls they actually make, settles in USDC on-chain, and gets
+no recurring bill.
+
+The trade-off is that agent wallets need USDC on Base ($0.001 per call is trivial but
+non-zero), and the protocol is younger than HTTP Basic. Both gaps are being closed by the
+broader x402 ecosystem — Storyflo's `get_premium_briefing` MCP tool uses the exact same
+facilitator and settlement pattern as a reference integration.
+
+---
+
+## Related
+
+- [ACP feed](/agentic/acp-feed) — the open, unauthenticated version
+- [Storefront MCP discovery](/agentic/storefront-mcp-discovery) — tool-level discovery for
+  agents that don't want to ingest a bulk feed
+- [Merchant Discovery Rules](/agentic/merchant-discovery-rules) — how KYB verification
+  gates merchant visibility (which in turn drives premium-feed ranking)
+- [x402 protocol](https://x402.org) — external protocol spec
