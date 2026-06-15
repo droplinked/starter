@@ -1,6 +1,6 @@
 ---
 title: Cart Composition for Agents
-description: "Build a multi-line Droplinked cart across turns using `start_checkout` plus the four cart-mutation tools (add line, update quantity, remove line, apply coupon)."
+description: "Build a multi-line Droplinked cart across turns using `start_checkout` plus the four cart-mutation tools (cart.addLine, cart.updateLineQuantity, cart.removeLine, cart.applyDiscount)."
 ---
 
 `start_checkout` was the original "find ⇨ buy" path: an agent calls it once with a SKU,
@@ -12,10 +12,10 @@ The four **cart-mutation tools** close that loop:
 
 | Tool | What it does |
 |---|---|
-| `cart_add_line` | Add another SKU to an existing cart |
-| `cart_update_line_quantity` | Change the quantity of a SKU already in the cart |
-| `cart_remove_line` | Remove a SKU from the cart |
-| `cart_apply_coupon` | Apply a merchant-issued coupon code |
+| `cart.addLine` | Add another SKU to an existing cart |
+| `cart.updateLineQuantity` | Change the quantity of a SKU already in the cart |
+| `cart.removeLine` | Remove a SKU from the cart |
+| `cart.applyDiscount` | Apply a merchant-issued discount / coupon code |
 
 All four expect the **encrypted `cartId`** returned by `start_checkout` — pass it back
 verbatim; it's already obfuscated by the backend's `DecryptCartIdPipe`.
@@ -27,10 +27,10 @@ verbatim; it's already obfuscated by the backend's `DecryptCartIdPipe`.
 ```text
 1. search_products({ query: "blue sneaker size 10" })       → [skuA, skuB, …]
 2. start_checkout({ shopId, skuId: skuA, quantity: 1, … })  → { cartId, checkoutUrl }
-3. cart_add_line({ cartId, skuId: skuB, quantity: 2 })       → updated cart
-4. cart_update_line_quantity({ cartId, skuId: skuA, quantity: 3 })
+3. cart.addLine({ cartId, skuId: skuB, quantity: 2 })        → updated cart
+4. cart.updateLineQuantity({ cartId, skuId: skuA, quantity: 3 })
                                                               → bumped cart total
-5. cart_apply_coupon({ cartId, code: "WELCOME10" })          → discount applied
+5. cart.applyDiscount({ cartId, discountCode: "WELCOME10" }) → discount applied
 6. Buyer (or agent) navigates to `checkoutUrl` and pays
 ```
 
@@ -42,7 +42,7 @@ is the preview.
 
 ## Tool reference
 
-### `cart_add_line`
+### `cart.addLine`
 
 ```json
 {
@@ -53,11 +53,11 @@ is the preview.
 ```
 
 Idempotent on (`cartId`, `skuId`): calling twice with the same SKU bumps the quantity on
-the existing line rather than creating a duplicate. Defaults `quantity` to `1` if omitted.
+the existing line rather than creating a duplicate.
 
 **Backs**: `POST /v2/carts/:cartId/products`
 
-### `cart_update_line_quantity`
+### `cart.updateLineQuantity`
 
 ```json
 {
@@ -68,12 +68,12 @@ the existing line rather than creating a duplicate. Defaults `quantity` to `1` i
 ```
 
 Sets the line to the specified quantity. **Passing `quantity: 0` removes the line** — same
-effect as calling `cart_remove_line` but in a single call, which is convenient when the
+effect as calling `cart.removeLine` but in a single call, which is convenient when the
 agent is decrementing.
 
 **Backs**: `PATCH /v2/carts/:cartId/products/:skuId`
 
-### `cart_remove_line`
+### `cart.removeLine`
 
 ```json
 {
@@ -88,26 +88,21 @@ agent can add new lines.
 
 **Backs**: `DELETE /v2/carts/:cartId/products/:skuId`
 
-### `cart_apply_coupon`
+### `cart.applyDiscount`
 
 ```json
 {
-  "cartId": "ENC:...",
-  "code":   "SAVE20"
+  "cartId":       "ENC:...",
+  "discountCode": "SAVE20"
 }
 ```
 
-Validates the coupon at the merchant level, computes the discount, and returns the updated
-cart with `discount` + `totalAmount` fields. An invalid or expired code surfaces as a
-structured error envelope:
+Validates the discount code at the merchant level, computes the discount, and returns the
+updated cart with the discount amount + label resolved. The code is case-insensitive on
+the backend but is preserved on the MCP surface so agents can run idempotency checks
+against the exact value they sent.
 
-```json
-{
-  "ok": false,
-  "action": "cart_apply_coupon",
-  "error": "backend …/coupon → 400: {\"message\":\"INVALID_COUPON\",…}"
-}
-```
+An invalid or expired code surfaces as a structured error envelope.
 
 **Backs**: `POST /v2/carts/:cartId/coupon`
 
@@ -120,14 +115,14 @@ catching exceptions:
 
 ```json
 // Happy path
-{ "ok": true,  "action": "<tool_name>", "cart": { …updated cart… } }
+{ "status": "ok", "cartId": "ENC:...", "...": "..." }
 
 // Failure (backend error, validation error, network error)
-{ "ok": false, "action": "<tool_name>", "error": "…human-readable message…" }
+{ "status": "error", "reason": "<reason_enum>", "message": "…human-readable…" }
 ```
 
-The `error` string includes the upstream HTTP status code so agents can distinguish 4xx
-(intent error — invalid SKU, expired coupon) from 5xx (transient — retry).
+The structured `reason` enum lets agents branch programmatically (e.g.
+`reason: "INVALID_COUPON"` vs `reason: "BACKEND_5XX"`).
 
 ---
 
@@ -138,8 +133,8 @@ The `error` string includes the upstream HTTP status code so agents can distingu
 - **Agent is composing for an *unauthenticated* buyer**: there is no "guest cart" — the
   cart belongs to the email passed to `start_checkout`. Mutations apply to that cart.
 - **Agent wants to express discount programmatically**: the only discount surface is the
-  coupon code. There is no `cart_apply_discount_pct` or similar — merchants own their
-  promo logic via coupons.
+  discount code. There is no `cart.applyPercentageOff` or similar — merchants own their
+  promo logic via discount codes.
 
 ---
 
