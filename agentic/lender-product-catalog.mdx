@@ -1,0 +1,215 @@
+---
+title: Lender Product Catalog
+description: "The 6-product financial-instrument catalog lenders opt into, how routing matches merchants against it, and how Lender.excludedSectors[] applies a hard sector filter."
+---
+
+Droplinked's lender layer doesn't assume every lender does the same thing. Some do
+revenue-based finance, some do receivables, some do payables, some do invoice discounting,
+some run a Sharia-compliant interest-free variant. The **Lender Product Catalog** is the
+in-code list of the 6 financial-instrument types Droplinked currently supports; each lender
+opts in via `LenderProductOffering` rows that attach a product type to a
+`(lenderId, productType, jurisdiction)` triple, with their own yield band + ticket envelope.
+
+Routing then matches a merchant's funding request against the active offerings — pre-filtered
+by the lender's `excludedSectors[]` so a jewelry shop never sees a lender that has opted
+out of jewelry, even if the envelope would otherwise match.
+
+---
+
+## At a glance
+
+| | |
+|---|---|
+| **Base URL** | `https://apiv3.droplinked.com` |
+| **Catalog version** | `2026.06.15` (in-code, exposed via `versionAtWrite` on routing responses) |
+| **Product types** | 6 (RBF, INTEREST_FREE_RBF, RECEIVABLES, PAYABLES, LINE_OF_CREDIT, INVOICE_DISCOUNTING) |
+| **Storage** | `LenderProductOffering` Mongo schema, one row per `(lenderId, productType, jurisdiction)` |
+| **Sector filter** | `Lender.excludedSectors[]` free-string array (catalog suggests 9 common values) |
+| **Public endpoints** | 4 (`/v2/lender-product-catalog`, `/v2/lender-product-catalog/matches`, `/v2/lender-product-catalog/lender/:lenderId`, `/v2/lender-routing/recommend`) |
+| **Admin endpoints** | 4 (`POST/PATCH/DELETE /admin/lender-product-offerings`, `PATCH /admin/lenders/:lenderId/excluded-sectors`) |
+
+---
+
+## The 6 product types
+
+| Type | Display name | Typical lender yield (bps) | Typical ticket (USD) | Typical tenor (months) | Typical industries |
+|---|---|---|---|---|---|
+| `REVENUE_BASED_FINANCE` | Revenue-Based Finance | 1,500 – 2,500 | 500K – 2.7M | 6 – 12 | retail, e-commerce, marketplace, pos, payment-gateways |
+| `INTEREST_FREE_RBF` | Interest-Free Revenue-Based Finance | 900 – 1,200 | 68K – 270K | 3 – 6 | retail, e-commerce, marketplace, pos, payment-gateways |
+| `RECEIVABLES_FINANCE` | Receivables Finance | 1,800 – 2,500 | 545K – 2.7M | 12 | staffing, sales-agencies, security-services, advertising, logistics, it-services, professional-services, industrial-services, healthcare-services, training-providers |
+| `PAYABLES_FINANCE` | Payables Finance | 1,800 – 2,500 | 950K – 2.7M | 12 | manufacturing, trading, distribution |
+| `LINE_OF_CREDIT` | Line of Credit | 1,800 – 3,000 | 545K – 2.7M | 6 – 24 | retail, e-commerce, staffing, services, trading |
+| `INVOICE_DISCOUNTING` | Invoice Discounting | 1,800 – 2,500 | 100K – 2.7M | 1 – 4 | services, b2b, professional-services, logistics |
+
+These are the *catalog typicals* — defaults sourced from public UAE / GCC SME-credit market
+data. They are **not** what a given lender will offer; each lender's actual band is set on
+their `LenderProductOffering` rows and overrides the catalog typical at routing time.
+
+Yield is denominated in **basis points** (100 bps = 1%). Ticket envelopes are denominated in
+**USD** in the catalog, then translated per jurisdiction at the offering level (e.g. AED for
+CredibleX-UAE rows).
+
+---
+
+## For lenders: how to opt in
+
+A lender doesn't appear in any routing response until they have at least one
+`LenderProductOffering` row marked `status: 'ACTIVE'`. The opt-in flow:
+
+1. Lender (or their onboarding rep) browses `GET /v2/lender-product-catalog` to see the 6
+   product types and their typical bands.
+2. Lender picks the products they want to support and, per product, the jurisdictions they
+   want to lend into (often a single jurisdiction per lender; can be multi).
+3. Operator runs `POST /admin/lender-product-offerings` once per
+   `(lenderId, productType, jurisdiction)` triple with the lender's actual yield band +
+   envelope. The lender can override every catalog typical with their real numbers — and
+   the routing layer uses those numbers, not the catalog defaults.
+
+Example admin body for one offering:
+
+```json
+POST /admin/lender-product-offerings
+{
+  "lenderId": "crediblex-uae",
+  "productType": "REVENUE_BASED_FINANCE",
+  "jurisdiction": "AE",
+  "status": "ACTIVE",
+  "lenderYieldBpsMin": 1700,
+  "lenderYieldBpsMax": 2200,
+  "ticketMin": 2000000,
+  "ticketMax": 10000000,
+  "ticketCurrency": "AED",
+  "tenorMonthsMin": 6,
+  "tenorMonthsMax": 12,
+  "minMonthlyRevenue": 20000000,
+  "minMonthlyRevenueCurrency": "AED",
+  "supportedIndustries": ["retail", "e-commerce", "marketplace"]
+}
+```
+
+When `lenderYieldBpsMin`/`Max` are supplied they **override** the catalog typical. When omitted
+they fall through to the catalog default. Same applies to the ticket envelope and tenor.
+
+`status` flips between `ACTIVE` (visible to routing) and `PAUSED` (hidden, kept for audit).
+Deleting an offering is rare — operators prefer `PAUSED` so the lender can re-enable without
+re-onboarding.
+
+---
+
+## For merchants: how routing matches
+
+A merchant doesn't talk to the catalog directly. They request credit through the FE, which
+calls the lender-routing recommendation endpoint:
+
+```
+GET /v2/lender-routing/recommend
+  ?jurisdiction=AE
+  &productType=REVENUE_BASED_FINANCE
+  &monthlyRevenueAed=1500000
+  &requestedTicketAed=3000000
+  &merchantIndustry=e-commerce
+  &merchantSector=apparel
+```
+
+The routing service walks four filters in order:
+
+1. **Jurisdiction** — only lenders that have offerings in the merchant's jurisdiction.
+2. **Product** — only offerings whose `productType` matches the request (when supplied —
+   the `productType` filter is **opt-in**, legacy callers without it are unchanged).
+3. **Envelope** — only offerings where `monthlyRevenueAed >= minMonthlyRevenue` and
+   `requestedTicketAed` falls inside `[ticketMin, ticketMax]` and the merchant's
+   `merchantIndustry` is in `supportedIndustries` (or the offering's industry list is empty).
+4. **Sector** — any lender whose `Lender.excludedSectors[]` contains the merchant's
+   `merchantSector` is dropped, regardless of envelope match.
+
+The response carries a `matchingOfferings[]` list so the FE can render per-lender competitive
+quotes:
+
+```json
+{
+  "jurisdiction": "AE",
+  "productType": "REVENUE_BASED_FINANCE",
+  "versionAtWrite": "2026.06.15",
+  "count": 1,
+  "matchingOfferings": [
+    {
+      "lenderId": "crediblex-uae",
+      "displayName": "CredibleX (UAE)",
+      "productType": "REVENUE_BASED_FINANCE",
+      "lenderYieldBpsMin": 1700,
+      "lenderYieldBpsMax": 2200,
+      "ticketMin": 2000000,
+      "ticketMax": 10000000,
+      "ticketCurrency": "AED",
+      "tenorMonthsMin": 6,
+      "tenorMonthsMax": 12
+    }
+  ]
+}
+```
+
+The FE can then render "CredibleX competes on RBF at 17 – 22% yield, ticket AED 2Mn – 10Mn,
+tenor 6 – 12 months." If multiple lenders match, each one is its own row and the merchant
+picks.
+
+---
+
+## Excluded sectors
+
+`Lender.excludedSectors[]` is a free-string array on the lender document — a hard filter
+applied **after** envelope match. The catalog ships a list of 9 common sector strings as a
+UX hint so operators can pick from a consistent vocabulary, but lenders are free to add
+custom strings outside the suggested list.
+
+| Sector string | Note |
+|---|---|
+| `jewelry-and-bullion-trading` | Common high-value-goods AML carve-out |
+| `currency-exchange-and-money-transfer` | FATF-sensitive |
+| `unlicensed-financial-institutions` | Regulatory hard no |
+| `auction-houses-and-antique-dealers` | High-value-goods AML carve-out |
+| `trusts-or-fund-management` | Regulatory carve-out |
+| `gambling-casino-or-betting-related` | Common ESG / Sharia carve-out |
+| `charities-and-not-for-profit` | FATF terror-finance sensitive |
+| `arms-and-ammunition-trading` | Hard ESG carve-out |
+| `real-estate-development-and-brokerage` | Common large-ticket carve-out in MENA |
+
+The catalog list is *suggestion only*. Routing only checks string equality against
+`Lender.excludedSectors[]`; the source of truth is the lender's own array.
+
+Operators edit a lender's exclusions via `PATCH /admin/lenders/:lenderId/excluded-sectors`
+with the full replacement array — not a delta.
+
+---
+
+## CredibleX-UAE reference example
+
+CredibleX is the launch FSRA-licensed lender in jurisdiction AE. They are seeded on
+production with 4 ACTIVE offerings and 9 excluded sectors (all of the common 9 above),
+sourced from the [UAE Qualifying Business Terms 2026](https://www.crediblex.com/) public
+underwriting policy.
+
+| Product | Min monthly revenue | Ticket range | Tenor |
+|---|---|---|---|
+| `REVENUE_BASED_FINANCE` | AED 20M | AED 2M – 10M | 6 – 12 months |
+| `INTEREST_FREE_RBF` | AED 2M | AED 250K – 10M | 3 months |
+| `RECEIVABLES_FINANCE` | AED 15M | AED 2M – 10M | 12 months |
+| `PAYABLES_FINANCE` | AED 100M (trading) / AED 30M (manufacturing) | AED 3.5M – 10M | 12 months |
+
+A merchant in AE doing AED 1.5M / month in revenue, asking for AED 3M of RBF, will **not**
+match CredibleX's RBF offering (revenue floor is AED 20M). They will match the
+`INTEREST_FREE_RBF` offering (revenue floor AED 2M) — and the routing response will show
+that competitive line.
+
+---
+
+## Related
+
+- [Inventory MCP](/agentic/inventory-mcp) — catalog discovery for agents; mostly orthogonal
+  to lender routing but worth knowing
+- [Lender Trinity MCP Tools](/agentic/lender-trinity-mcp-tools) — `verify_lender` /
+  `recommend_lender` / `recommend_service_provider`; this catalog feeds the recommender
+- [Trust fabric](/concepts/trust-fabric) — Schema A / B / C / D EAS attestation chain
+  context; the `LenderRegistry` is the entity layer this catalog sits on top of
+- [Merchant Discovery Rules](/agentic/merchant-discovery-rules) — KYB visibility rules for
+  the discovery surface; same `verifiedTier` gate applies before a merchant can request
+  credit through the routing layer
