@@ -1,0 +1,83 @@
+---
+title: "Stream 2 — Inventory level"
+description: "Stock per SKU — quantity + available — projected from ProductSkuV2."
+---
+
+<Note>**BETA.** The inventory-level stream projects current stock per SKU from `ProductSkuV2` (joined to the merchant's products).</Note>
+
+The **inventory-level stream** is the per-SKU stock record: quantity and available, plus the
+warehouse external id when the SKU is synced from a 3PL. Rows are scoped to the products owned by
+the API key's merchant.
+
+## Endpoint
+
+```
+GET /v1/api/inventory-os/streams/inventory-level
+```
+
+**Query parameters:**
+
+| Param | Type | Notes |
+|---|---|---|
+| `limit` | int | 1–200, default 50 |
+| `cursor` | string | Opaque pagination token |
+| `since` | ISO-8601 | Optional; SKUs updated on or after this timestamp |
+
+## Row shape
+
+```json
+{
+  "skuId": "665fsku123…",
+  "productId": "665f8abc123…",
+  "type": "DIGITAL",
+  "inventoryQuantity": 150,
+  "inventoryAvailable": 142,
+  "warehouseExternalId": "stord-warehouse-atl-1",
+  "updatedAt": "2026-06-01T12:00:00.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `skuId` | `ProductSkuV2` id |
+| `productId` | Parent product (join key to the catalog stream) |
+| `inventoryQuantity` | Total stock (`inventory.quantity`) |
+| `inventoryAvailable` | Sellable stock (`inventory.available`) |
+| `warehouseExternalId` | 3PL/warehouse external id when synced from a fulfillment partner; `null` otherwise |
+
+## Response envelope
+
+```json
+{
+  "streamType": "inventory-level",
+  "merchantId": "65df8abc123…",
+  "data": [ /* rows */ ],
+  "count": 50,
+  "nextCursor": "NjY1ZnNrdTEyMw..."
+}
+```
+
+## curl
+
+```bash
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/inventory-level?limit=100" \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+## Lender-facing usage
+
+The lending underwriter uses this stream as a collateral-valuation input. Combined with the
+provenance stream (8) and PSP-confirmed settlement stream (7), 3PL-attested custody gets the
+underwriter materially off the lending rate. **Subscribe to webhooks** (vs polling) for active
+lender integrations.
+
+## Rate limits
+
+Mid-budget class — **500 reads/min/key**, up to **5 subscriptions/key**.
+
+## Related
+
+- [Catalog stream](/developers/inventory-os-api/streams/catalog) — product definitions referenced here via `productId`
+- [Sell-through stream](/developers/inventory-os-api/streams/sell-through) — sale events per merchant
+- [Provenance stream](/developers/inventory-os-api/streams/provenance) — onchain recording per product
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `inventory.changed` events

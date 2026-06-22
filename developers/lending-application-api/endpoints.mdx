@@ -1,0 +1,219 @@
+---
+title: "Lending Application API endpoints"
+description: "Create, patch, submit, withdraw, decide — request / response shapes, curl examples."
+---
+
+<Note>**BETA.** The whole surface returns `404` unless `LENDING_PLATFORM_ENABLED=true`. Merchant routes use the merchant JWT; admin routes require a JWT with the `SUPER_ADMIN` role.</Note>
+
+## Merchant-facing routes (`/lending-application`)
+
+All routes require the merchant JWT (`Authorization: Bearer <jwt>`) and are ownership-checked.
+Write routes marked **KYB-gated** require an approved KYB record.
+
+| Operation | Method + path | KYB-gated |
+|---|---|---|
+| Create draft | `POST /lending-application` | yes |
+| List my applications | `GET /lending-application?merchantId=…` | no |
+| Get application | `GET /lending-application/:id` | no |
+| Update application | `PATCH /lending-application/:id` | yes |
+| Submit application | `POST /lending-application/:id/submit` | yes |
+| Withdraw application | `POST /lending-application/:id/withdraw` | yes |
+| Get document checklist | `GET /lending-application/:id/checklist` | no |
+
+### Create draft
+
+```
+POST /lending-application
+```
+
+**Request** — `cohort` is optional; when omitted, the cohort is resolved server-side from the
+merchant's KYB record. An explicit override is for operator-driven / Cohort-C manual drafts.
+
+```json
+{ "cohort": "A_MOR_SHOPSADIQ_VIA_TELR" }
+```
+
+```bash
+curl -X POST https://apiv3.droplinked.com/lending-application \
+  -H "Authorization: Bearer <merchant-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+The created draft carries (among other fields) `cohort`, `tier`, and `status: "DRAFT"`.
+
+### Update application
+
+```
+PATCH /lending-application/:id
+```
+
+**Request** — all fields optional:
+
+| Field | Type | Notes |
+|---|---|---|
+| `requestedAmountUsd` | number | 1000 – 10,000,000 |
+| `requestedTermMonths` | int | 1 – 60 |
+| `purposeCode` | enum | `INVENTORY` \| `WORKING_CAPITAL` \| `EXPANSION` \| `EQUIPMENT` |
+| `selectedTier1Partner` | enum | `CredibleX` \| `CBI` \| `RAKBank` \| `Mbank` |
+| `selectedTier2Partner` | string | Free-form Tier-2 partner id |
+| `documentationCompleted` | object | Free-form per-document upload acknowledgement |
+
+```bash
+curl -X PATCH https://apiv3.droplinked.com/lending-application/665fapp... \
+  -H "Authorization: Bearer <merchant-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requestedAmountUsd": 50000,
+    "requestedTermMonths": 12,
+    "purposeCode": "INVENTORY",
+    "selectedTier1Partner": "CredibleX"
+  }'
+```
+
+### Submit / withdraw
+
+```bash
+# Submit (DRAFT → SUBMITTED). 422-class error if required documents are missing.
+curl -X POST https://apiv3.droplinked.com/lending-application/665fapp.../submit \
+  -H "Authorization: Bearer <merchant-jwt>"
+
+# Withdraw (→ WITHDRAWN). Optional reason.
+curl -X POST https://apiv3.droplinked.com/lending-application/665fapp.../withdraw \
+  -H "Authorization: Bearer <merchant-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "No longer needed" }'
+```
+
+### Get document checklist
+
+```
+GET /lending-application/:id/checklist
+```
+
+Returns the per-cohort checklist (with the CredibleX add-on applied when relevant):
+
+```json
+{
+  "cohort": "A_MOR_SHOPSADIQ_VIA_TELR",
+  "partner": "CredibleX",
+  "items": [
+    {
+      "key": "bank_statements_6m",
+      "label": "6 months of bank statements",
+      "description": "Statements covering the most recent 6 months from the bank account used for business deposits.",
+      "required": true,
+      "acceptedMimeTypes": ["application/pdf"],
+      "maxSizeMb": 25
+    },
+    {
+      "key": "tax_return_last",
+      "label": "Last tax return",
+      "description": "Most recent annual tax return for the business.",
+      "required": true,
+      "acceptedMimeTypes": ["application/pdf"],
+      "maxSizeMb": 20
+    },
+    {
+      "key": "adgm_stamped_certificate",
+      "label": "ADGM-stamped trade certificate",
+      "description": "Trade certificate carrying an ADGM apostille / stamp (UAE free-zone merchants).",
+      "required": true,
+      "acceptedMimeTypes": ["application/pdf", "image/png", "image/jpeg"],
+      "maxSizeMb": 10
+    }
+  ]
+}
+```
+
+Document completeness is validated against `documentationCompleted.items[]` (each item carries a
+`key` + `status`; an item counts as uploaded when `status === "UPLOADED"`).
+
+## Admin / lender routes (`/admin/lending-application`)
+
+All routes require a JWT with the `SUPER_ADMIN` role.
+
+| Operation | Method + path |
+|---|---|
+| Review queue | `GET /admin/lending-application?status=&tier=&cohort=&partner=&limit=` |
+| Get application | `GET /admin/lending-application/:id` |
+| Post decision | `POST /admin/lending-application/:id/decision` |
+| Credit-tier preview | `POST /admin/lending-application/credit-tier/preview` |
+| Upgrade eligibility | `GET /admin/lending-application/credit-tier/upgrade-eligibility/:merchantId?baseTier=` |
+
+### Review queue
+
+Defaults to `status=UNDER_REVIEW`, sorted by `submittedAt` ascending. `limit` is clamped to
+1–500 (default 100).
+
+```bash
+curl "https://apiv3.droplinked.com/admin/lending-application?status=SUBMITTED&tier=TIER_1_REFERRAL&partner=CredibleX" \
+  -H "Authorization: Bearer <super-admin-jwt>"
+```
+
+### Post decision
+
+```
+POST /admin/lending-application/:id/decision
+```
+
+**Request**:
+
+| Field | Required | Notes |
+|---|---|---|
+| `decision` | yes | `APPROVED` \| `REJECTED` \| `UNDER_REVIEW` |
+| `reason` | no | Free-text reason |
+| `partnerExternalRef` | no | The partner's external application reference (e.g. `cx_app_abc123`) |
+
+```bash
+curl -X POST https://apiv3.droplinked.com/admin/lending-application/665fapp.../decision \
+  -H "Authorization: Bearer <super-admin-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "decision": "APPROVED",
+    "reason": "Strong sell-through + onchain provenance coverage.",
+    "partnerExternalRef": "cx_app_abc123"
+  }'
+```
+
+### Credit-tier preview
+
+A pure dry-run over `CreditTierMappingService` — no application lookup, no persistence.
+
+```
+POST /admin/lending-application/credit-tier/preview
+```
+
+**Request**:
+
+| Field | Required | Notes |
+|---|---|---|
+| `cohort` | yes | A `KybCohort` value (drives the eligibility floor) |
+| `monthlyAvgRevenueUsd` | yes | ≥ 0 |
+| `verifiedCollateralUsd` | yes | ≥ 0 |
+| `operationalRisk` | yes | `LOW` \| `MEDIUM` \| `HIGH` |
+| `hardComplianceFlags` | no | e.g. `["OFAC_HIT"]` — hard flags force tier T0 |
+
+```bash
+curl -X POST https://apiv3.droplinked.com/admin/lending-application/credit-tier/preview \
+  -H "Authorization: Bearer <super-admin-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cohort": "A_CONNECT_STRIPE",
+    "monthlyAvgRevenueUsd": 8000,
+    "verifiedCollateralUsd": 31777,
+    "operationalRisk": "LOW"
+  }'
+```
+
+Returns the resolved credit envelope (`tier`, `ceilingUsd`, `reason`).
+
+## Errors
+
+Standard NestJS error responses apply: `401` (missing/invalid JWT), `403` (missing
+`SUPER_ADMIN` role on admin routes), `404` (`LENDING_PLATFORM_ENABLED` off, or application not
+found), and `422`-class for an incomplete document checklist on submit.
+
+<Card title="Related: KYB cohorts" icon="sitemap" href="/developers/kyb-cohorts">
+The 12 cohorts that drive the per-application doc checklist.
+</Card>

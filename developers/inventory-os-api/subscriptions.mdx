@@ -1,0 +1,172 @@
+---
+title: "Webhook subscriptions"
+description: "HMAC-signed JSON POSTs — register a webhook URL per stream, verify the signature, manage subscriptions."
+---
+
+<Note>**BETA.** Subscriptions are per-stream. Creating and deleting them requires the `inventory-os:subscriptions:write` scope; listing requires `inventory-os:subscriptions:read`.</Note>
+
+InventoryOS streams are best consumed via **webhooks**. Register a callback URL on a specific
+stream; when the stream's rows change for your merchant, we deliver an HMAC-SHA256-signed JSON
+POST to that URL.
+
+Subscriptions are **explicitly per-stream** — a partner that wants both `catalog` and
+`inventory-level` fanouts creates two subscriptions, one on each stream.
+
+## Endpoints
+
+| Operation | Endpoint | Scope |
+|---|---|---|
+| Create subscription | `POST /v1/api/inventory-os/streams/:streamType/subscribe` | `inventory-os:subscriptions:write` |
+| List subscriptions | `GET /v1/api/inventory-os/streams/:streamType/subscriptions` | `inventory-os:subscriptions:read` |
+| Delete subscription | `DELETE /v1/api/inventory-os/streams/:streamType/subscriptions/:id` | `inventory-os:subscriptions:write` |
+
+<Note>There is no update (`PATCH`) or get-by-id endpoint, and no DLQ/replay endpoint. **Rotation
+= delete + recreate** (a fresh `hmacSecret` is issued on every create).</Note>
+
+## Create a subscription
+
+```bash
+curl -X POST https://apiv3.droplinked.com/v1/api/inventory-os/streams/settlement/subscribe \
+  -H "x-droplinked-api-key: REPLACE_ME" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "webhookUrl": "https://example.com/webhooks/droplinked",
+    "events": ["settlement.changed"],
+    "description": "Lender ingestion: settlement changes for my shop"
+  }'
+```
+
+**Request body:**
+
+| Field | Required | Notes |
+|---|---|---|
+| `webhookUrl` | yes | HTTPS endpoint (plain HTTP is rejected). 8–2048 chars. |
+| `events` | no | Subset of the stream's event vocabulary. Defaults to all of the stream's events when omitted. |
+| `description` | no | Human-readable label (0–200 chars). |
+
+The response includes an `hmacSecret` (returned **once** — store it; you'll need it for
+signature verification). Treat it like a password.
+
+```json
+{
+  "id": "665f…",
+  "apiKeyId": "apk_…",
+  "merchantId": "65df8abc123…",
+  "streamType": "settlement",
+  "webhookUrl": "https://example.com/webhooks/droplinked",
+  "events": ["settlement.changed"],
+  "description": "Lender ingestion: settlement changes for my shop",
+  "status": "ACTIVE",
+  "failureCount": 0,
+  "hmacSecret": "GENERATED_ONCE_DO_NOT_LOSE"
+}
+```
+
+Each create counts against the per-stream subscription cap (e.g. 3 for `settlement`, 10 for
+`catalog`). Exceeding the cap returns a `409 Conflict` — delete an existing subscription first.
+
+## List subscriptions
+
+```bash
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/settlement/subscriptions?status=ACTIVE" \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+Optional `status` filter: `ACTIVE`, `PAUSED`, or `EXPIRED`. The `hmacSecret` is **never**
+re-surfaced on reads.
+
+```json
+{
+  "data": [
+    {
+      "id": "665f…",
+      "apiKeyId": "apk_…",
+      "merchantId": "65df8abc123…",
+      "streamType": "settlement",
+      "webhookUrl": "https://example.com/webhooks/droplinked",
+      "events": ["settlement.changed"],
+      "status": "ACTIVE",
+      "failureCount": 0
+    }
+  ],
+  "total": 1
+}
+```
+
+## Delete a subscription
+
+```bash
+curl -X DELETE https://apiv3.droplinked.com/v1/api/inventory-os/streams/settlement/subscriptions/665f... \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+```json
+{ "ok": true, "deletedId": "665f..." }
+```
+
+## Available events
+
+Each stream emits exactly one event — `<stream>.changed` — when an underlying row mutates for
+your merchant.
+
+| Stream | Event |
+|---|---|
+| `catalog` | `catalog.changed` |
+| `inventory-level` | `inventory.changed` |
+| `sell-through` | `sell-through.changed` |
+| `return-rate` | `return-rate.changed` |
+| `pricing` | `pricing.changed` |
+| `attribution` | `attribution.changed` |
+| `settlement` | `settlement.changed` |
+| `provenance` | `provenance.changed` |
+
+Subscribing to an event not in the target stream's vocabulary returns a `400 Bad Request`.
+
+## HMAC verification (Node.js)
+
+The signing secret (`hmacSecret`) is 32 random bytes, hex-encoded — the same shape as the
+affiliate webhook secret, so a shared HMAC verifier works across both surfaces. Verify the
+signature on every delivery; never trust a payload without verification.
+
+```ts
+import { createHmac, timingSafeEqual } from "node:crypto";
+import type { Request, Response } from "express";
+
+const HMAC_SECRET = process.env.DROPLINKED_WEBHOOK_SECRET!; // the hmacSecret from create
+
+export function verifySignature(req: Request): boolean {
+  const signature = req.header("X-Droplinked-Signature");
+  if (!signature) return false;
+
+  const rawBody = (req as Request & { rawBody?: string }).rawBody ?? "";
+  const expected = createHmac("sha256", HMAC_SECRET).update(rawBody).digest("hex");
+
+  const a = Buffer.from(expected, "hex");
+  const b = Buffer.from(signature, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+export function handleWebhook(req: Request, res: Response) {
+  if (!verifySignature(req)) {
+    return res.status(401).send("invalid signature");
+  }
+  // ...process the event idempotently
+  res.status(200).send("ok");
+}
+```
+
+<Note>Capture the **raw body** before any JSON parsing — most Node.js frameworks parse before
+the handler runs. In Express, register a `bodyParser.raw` for the webhook path or set
+`verify: (req, _, buf) => { req.rawBody = buf.toString("utf8"); }` on `bodyParser.json`.</Note>
+
+## Reliability
+
+Each subscription carries a `failureCount` and a `status` (`ACTIVE` / `PAUSED` / `EXPIRED`).
+Repeated delivery failures increment `failureCount`; persistently failing subscriptions move out
+of `ACTIVE`. Inspect a subscription's state via the list endpoint.
+
+## Related
+
+- [Getting started](/developers/getting-started) — auth, scopes, rate limits
+- [InventoryOS overview](/developers/inventory-os-api/overview) — the eight streams
+- [Settlement stream](/developers/inventory-os-api/streams/settlement) — the highest-value webhook surface for lenders

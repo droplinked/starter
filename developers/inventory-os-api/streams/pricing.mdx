@@ -1,0 +1,79 @@
+---
+title: "Stream 5 — Pricing"
+description: "List price, raw price, and royalty per SKU — projected from ProductSkuV2."
+---
+
+<Note>**BETA.** The pricing stream projects per-SKU pricing fields from `ProductSkuV2` (joined to the merchant's products).</Note>
+
+The **pricing stream** is the per-SKU price record: list price, raw price, and royalty percent.
+Rows are scoped to the products owned by the API key's merchant.
+
+## Endpoint
+
+```
+GET /v1/api/inventory-os/streams/pricing
+```
+
+**Query parameters:**
+
+| Param | Type | Notes |
+|---|---|---|
+| `limit` | int | 1–200, default 50 |
+| `cursor` | string | Opaque pagination token |
+| `since` | ISO-8601 | Optional; SKUs updated on or after this timestamp |
+
+## Row shape
+
+```json
+{
+  "skuId": "665fsku123…",
+  "productId": "665f8abc123…",
+  "listPriceUsd": 29.99,
+  "rawPriceUsd": 24.0,
+  "royaltyPercent": 10,
+  "updatedAt": "2026-06-01T12:00:00.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `skuId` | `ProductSkuV2` id |
+| `productId` | Parent product (join key to the catalog stream) |
+| `listPriceUsd` | List sell price (`price`) |
+| `rawPriceUsd` | Raw/base price (`rawPrice`); `null` when unset |
+| `royaltyPercent` | Royalty percentage on the SKU; `null` when unset |
+
+## Response envelope
+
+```json
+{
+  "streamType": "pricing",
+  "merchantId": "65df8abc123…",
+  "data": [ /* rows */ ],
+  "count": 50,
+  "nextCursor": "NjY1ZnNrdTEyMw..."
+}
+```
+
+## curl
+
+```bash
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/pricing?limit=200" \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+## Lender / margin usage
+
+Cross-referenced with the catalog stream (1) and the sell-through stream (3), the underwriter
+derives a gross-margin trend (`listPriceUsd` vs `rawPriceUsd`). Use `since` to pull only the
+SKUs that changed since the last sync.
+
+## Rate limits
+
+High-budget class — **1000 reads/min/key**, up to **10 subscriptions/key**.
+
+## Related
+
+- [Catalog stream](/developers/inventory-os-api/streams/catalog) — product reference via `productId`
+- [Inventory level stream](/developers/inventory-os-api/streams/inventory-level) — stock per SKU
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `pricing.changed` events

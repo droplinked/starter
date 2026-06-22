@@ -1,0 +1,107 @@
+---
+title: "Stream 1 — Catalog"
+description: "Product records — title, slug, type, status, tags — projected from ProductV2."
+---
+
+<Note>**BETA.** The catalog stream is the foundational stream — every other stream references products from here.</Note>
+
+The **catalog stream** projects the product record per product from `ProductV2`: title, slug,
+type, status, visibility, purchasability, tags, and Google product category. Rows are scoped to
+the shops owned by the API key's merchant.
+
+## Endpoint
+
+```
+GET /v1/api/inventory-os/streams/catalog
+```
+
+**Query parameters:**
+
+| Param | Type | Notes |
+|---|---|---|
+| `limit` | int | 1–200, default 50 |
+| `cursor` | string | Opaque pagination token from the previous response's `nextCursor` |
+| `since` | ISO-8601 | Optional; only products updated on or after this timestamp |
+
+<Note>There is no `shop_id` query parameter — rows are already scoped to the key's merchant
+(across all shops the merchant owns). Tenant isolation is enforced server-side regardless of
+query.</Note>
+
+## Row shape
+
+```json
+{
+  "id": "665f8abc123…",
+  "shopId": "65df8abc123…",
+  "title": "Limited Edition Drop Tee",
+  "slug": "limited-edition-drop-tee",
+  "type": "DIGITAL",
+  "status": "PUBLISHED",
+  "isVisible": true,
+  "isPurchasable": true,
+  "tags": ["apparel", "limited"],
+  "googleProductCategory": "Apparel & Accessories",
+  "updatedAt": "2026-06-01T12:00:00.000Z",
+  "createdAt": "2026-05-01T12:00:00.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | `ProductV2` id; the pagination cursor advances on this field |
+| `shopId` | Owning shop |
+| `type` / `status` | Product type and lifecycle status |
+| `isVisible` / `isPurchasable` | Storefront flags |
+| `googleProductCategory` | Feed taxonomy category |
+
+## Response envelope
+
+```json
+{
+  "streamType": "catalog",
+  "merchantId": "65df8abc123…",
+  "data": [ /* rows */ ],
+  "count": 50,
+  "nextCursor": "NjY1ZjhhYmMxMjM..."
+}
+```
+
+## curl
+
+```bash
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/catalog?limit=50" \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+## Snapshot
+
+For a cached point-in-time view of the first 200 rows (TTL controlled by
+`INVENTORY_OS_API_SNAPSHOT_CACHE_TTL_SEC`, default 300s):
+
+```bash
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/catalog/snapshot" \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+## Cursor pagination
+
+Pages return `nextCursor` until the stream is exhausted (`null`). Cursors are opaque — don't
+parse them. Use `since` for incremental syncs instead of walking the full feed each time.
+
+```bash
+# Walk forward by feeding nextCursor back as ?cursor= until it returns null.
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/catalog?limit=200&cursor=$NEXT" \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+## Rate limits
+
+Catalog reads are in the high-budget class — **1000 reads/min/key**. Use `since` + a larger
+`limit` for incremental syncs; full crawls should be hourly or less frequent.
+
+## Related
+
+- [Inventory level stream](/developers/inventory-os-api/streams/inventory-level) — stock per SKU
+- [Pricing stream](/developers/inventory-os-api/streams/pricing) — list price + royalty per SKU
+- [Provenance stream](/developers/inventory-os-api/streams/provenance) — onchain NFT recording per product
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — receive `catalog.changed` events

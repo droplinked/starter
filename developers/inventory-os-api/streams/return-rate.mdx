@@ -1,0 +1,79 @@
+---
+title: "Stream 4 — Return rate"
+description: "Refunded + cancelled orders — projected from OrderV2."
+---
+
+<Note>**BETA.** The return-rate stream projects refunded and cancelled orders from `OrderV2` (status in `REFUNDED`, `CANCELLED`).</Note>
+
+The **return-rate stream** emits the merchant's refunded and cancelled orders. Compute the return
+rate client-side by comparing this stream's volume against total order / sell-through volume.
+Rows are scoped to the shops owned by the API key's merchant.
+
+## Endpoint
+
+```
+GET /v1/api/inventory-os/streams/return-rate
+```
+
+**Query parameters:**
+
+| Param | Type | Notes |
+|---|---|---|
+| `limit` | int | 1–200, default 50 |
+| `cursor` | string | Opaque pagination token |
+| `since` | ISO-8601 | Optional; orders updated on or after this timestamp |
+
+## Row shape
+
+```json
+{
+  "id": "665ford123…",
+  "orderNumber": "DRP-100245",
+  "shopId": "65df8abc123…",
+  "status": "REFUNDED",
+  "orderDate": "2026-05-28T09:14:00.000Z",
+  "updatedAt": "2026-06-01T12:00:00.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | `OrderV2` id; pagination cursor advances on this field |
+| `orderNumber` | Human-readable order number |
+| `status` | `REFUNDED` or `CANCELLED` |
+| `orderDate` | When the order was originally placed |
+
+## Response envelope
+
+```json
+{
+  "streamType": "return-rate",
+  "merchantId": "65df8abc123…",
+  "data": [ /* rows */ ],
+  "count": 50,
+  "nextCursor": "NjY1Zm9yZDEyMw..."
+}
+```
+
+## curl
+
+```bash
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/return-rate?limit=200" \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+## Lender-facing usage
+
+Combined with Stream 3 (sell-through), the underwriter derives the net-revenue forecast and an
+LGD input. The return-rate stream isolates the refund/cancel numerator so a working-capital line
+can be priced against it.
+
+## Rate limits
+
+Mid-budget class — **500 reads/min/key**, up to **5 subscriptions/key**.
+
+## Related
+
+- [Sell-through stream](/developers/inventory-os-api/streams/sell-through) — sale events per merchant
+- [Settlement stream](/developers/inventory-os-api/streams/settlement) — order payment + financial detail
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `return-rate.changed` events

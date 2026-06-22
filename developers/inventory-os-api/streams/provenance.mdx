@@ -1,0 +1,91 @@
+---
+title: "Stream 8 — Provenance"
+description: "Onchain NFT recording per product — chain, contract, token, transaction — projected from ProductV2.nftRecording."
+---
+
+<Note>**BETA.** In v1 the provenance stream projects `ProductV2.nftRecording` rows. When the unified multi-chain attestation model lands, this method swaps out without changing the partner-facing shape.</Note>
+
+The **provenance stream** is the onchain recording per product: the chain, contract address,
+token id, and transaction hash for products that have been recorded onchain. Rows are scoped to
+the shops owned by the API key's merchant; only products that carry an `nftRecording` are
+returned.
+
+## Endpoint
+
+```
+GET /v1/api/inventory-os/streams/provenance
+```
+
+**Query parameters:**
+
+| Param | Type | Notes |
+|---|---|---|
+| `limit` | int | 1–200, default 50 |
+| `cursor` | string | Opaque pagination token |
+| `since` | ISO-8601 | Optional; products updated on or after this timestamp |
+
+## Row shape
+
+```json
+{
+  "productId": "665f8abc123…",
+  "title": "Limited Edition Drop Tee",
+  "chain": "base",
+  "contractAddress": "0xContractAddress…",
+  "tokenId": "42",
+  "txHash": "0xtxhash…",
+  "updatedAt": "2026-06-01T12:00:00.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `productId` | `ProductV2` id; pagination cursor advances on this field |
+| `title` | Product title |
+| `chain` | Chain the product was recorded on (`nftRecording.chain`); `null` if unset |
+| `contractAddress` | Onchain contract address; `null` if unset |
+| `tokenId` | Token id within the contract; `null` if unset |
+| `txHash` | Recording transaction hash; `null` if unset |
+
+## Response envelope
+
+```json
+{
+  "streamType": "provenance",
+  "merchantId": "65df8abc123…",
+  "data": [ /* rows */ ],
+  "count": 50,
+  "nextCursor": "NjY1ZjhhYmMxMjM..."
+}
+```
+
+## curl
+
+```bash
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/provenance?limit=200" \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+## Verification
+
+A recorded product can be independently verified onchain: look up the `contractAddress` +
+`tokenId` on the named `chain` — Droplinked does not need to be online for verification. This is
+the cryptographic-unforgeability property that gives this stream the highest trust weight in the
+lender signal hierarchy.
+
+## Lender-facing usage
+
+Combined with PSP-confirmed settlement (Stream 7) and inventory level (Stream 2), the onchain
+recording is the highest-trust collateral signal in the underwriting stack. Use `since` to pull
+only newly-recorded products.
+
+## Rate limits
+
+Low-budget class — **250 reads/min/key**, up to **3 subscriptions/key**.
+
+## Related
+
+- [Catalog stream](/developers/inventory-os-api/streams/catalog) — product reference via `productId`
+- [Inventory level stream](/developers/inventory-os-api/streams/inventory-level) — stock per SKU
+- [Settlement stream](/developers/inventory-os-api/streams/settlement) — pair with provenance for lender underwriting
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `provenance.changed` events
