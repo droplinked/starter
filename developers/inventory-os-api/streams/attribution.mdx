@@ -1,124 +1,82 @@
 ---
 title: "Stream 6 — Attribution"
-description: "Affiliate clicks, conversions, commission windows — real-time per event."
+description: "Affiliate attribution records — link token, agent, session — projected from AffiliateAttributionRecord."
 ---
 
-<Note>**BETA.** Attribution events are real-time and high-volume. Subscribe to webhooks for live feeds; use the REST endpoint for backfills and reconciliation only.</Note>
+<Note>**BETA.** The attribution stream projects affiliate attribution records from `AffiliateAttributionRecord` (joined to the merchant's products).</Note>
 
-The **attribution stream** is the affiliate-conversion record: every click, every conversion,
-the publisher who drove it, the commission rule that fired, and the settlement-eligible amount.
-Producers: the `/go/:linkToken` redirect, `affiliate-redirect/`, and the G1 `AffiliateProgramV2`
-write log. Consumers: G5 commission rules engine, G6 analytics, G7 review queue, G10 tier
-segmentation, and `affiliate-payout-settlement/`.
-
-## Shape
-
-```json
-{
-  "event_id": "evt_2qZf…",
-  "event_type": "conversion",
-  "link_token": "lnk_4xy…",
-  "publisher_id": "pub_a1b2c3…",
-  "program_id": "prog_2026spring",
-  "shop_id": "65df8abc123…",
-  "product_id": "shop-handle__product-handle",
-  "order_id": "ord_8j7…",
-  "click_at": "2026-05-31T18:22:11.000Z",
-  "converted_at": "2026-06-01T11:55:42.000Z",
-  "gmv": "129.00",
-  "currency": "USD",
-  "commission": {
-    "rule_id": "rule_5x",
-    "amount": "12.90",
-    "currency": "USD",
-    "status": "pending_review"
-  },
-  "attribution_window_days": 30,
-  "attestation_uid": null
-}
-```
-
-| Field | Meaning |
-|---|---|
-| `event_type` | `click` or `conversion` |
-| `publisher_id` | The publisher that drove the event |
-| `commission.status` | `pending_review` (G7), `approved`, `clawback`, `paid` |
-| `attribution_window_days` | Window applied by the matching commission rule |
-| `attestation_uid` | EAS attestation if high-value commission disputed (optional, Stream 8) |
+The **attribution stream** is the affiliate attribution record: the link token that drove the
+visit, the affiliate agent, the product, the session, and the attribution-window expiry. Rows are
+scoped to the products owned by the API key's merchant.
 
 ## Endpoint
 
 ```
-GET /developers/inventory/v1/streams/attribution
+GET /v1/api/inventory-os/streams/attribution
 ```
 
 **Query parameters:**
 
 | Param | Type | Notes |
 |---|---|---|
-| `publisher_id` | string | Optional |
-| `program_id` | string | Optional |
-| `event_type` | `click` \| `conversion` | Optional |
-| `converted_since` | ISO-8601 | Optional; only conversions after timestamp |
-| `commission_status` | string | Optional; filter by status |
-| `limit` | int | Max 200, default 50 |
+| `limit` | int | 1–200, default 50 |
 | `cursor` | string | Opaque pagination token |
+| `since` | ISO-8601 | Optional; records created on or after this timestamp |
+
+## Row shape
+
+```json
+{
+  "id": "665fattr123…",
+  "linkToken": "lnk_4xy…",
+  "agentId": "665fagt123…",
+  "productId": "665f8abc123…",
+  "sessionId": "sess_a1b2c3…",
+  "expiresAt": "2026-07-01T11:55:42.000Z",
+  "createdAt": "2026-06-01T11:55:42.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | `AffiliateAttributionRecord` id; pagination cursor advances on this field |
+| `linkToken` | The affiliate link token that produced the attribution |
+| `agentId` | The affiliate agent credited |
+| `productId` | The attributed product (join key to the catalog stream) |
+| `sessionId` | Visitor session |
+| `expiresAt` | Attribution-window expiry |
+
+## Response envelope
+
+```json
+{
+  "streamType": "attribution",
+  "merchantId": "65df8abc123…",
+  "data": [ /* rows */ ],
+  "count": 50,
+  "nextCursor": "NjY1ZmF0dHIxMjM..."
+}
+```
 
 ## curl
 
 ```bash
-curl "https://apiv3.droplinked.com/developers/inventory/v1/streams/attribution?event_type=conversion&converted_since=2026-05-31T00:00:00Z" \
-  -H "Authorization: Bearer ds_test_REPLACE_ME" \
-  -H "X-InventoryOS-Version: 2026-06-01"
-```
-
-## TypeScript SDK
-
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
-
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
-
-const page = await droplinked.inventory.attribution.list({
-  eventType: "conversion",
-  convertedSince: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  commissionStatus: "approved",
-  limit: 200,
-});
-
-const payoutTotal = page.data.reduce(
-  (acc, evt) => acc + Number(evt.commission.amount),
-  0
-);
-```
-
-## Cursor pagination
-
-```ts
-let cursor: string | undefined;
-do {
-  const page = await droplinked.inventory.attribution.list({ cursor, limit: 200 });
-  await ingestEvents(page.data);
-  cursor = page.next_cursor ?? undefined;
-} while (cursor);
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/attribution?since=2026-05-31T00:00:00.000Z&limit=200" \
+  -H "x-droplinked-api-key: REPLACE_ME"
 ```
 
 ## Affiliate-engine usage
 
-The attribution stream is the single source of truth for the affiliate-payout-settlement
-pipeline. Combined with the settlement stream (7), payouts can be auto-released only when
-PSP-confirmed and within the commission rule's attribution window. The KMS dual-approval
-PayoutComplianceGate consumes this stream + Stream 7.
+The attribution stream pairs with the sell-through stream (3, commission events) and the
+settlement stream (7, order payments) to reconcile which agent and link drove each settled sale.
+Use `since` to pull only the new attributions since the last sync.
 
 ## Rate limits
 
-Read class — 600 req/min/key. Conversion events are real-time; **subscribe** for live feeds
-and reserve REST polling for daily reconciliation.
+Low-budget class — **250 reads/min/key**, up to **3 subscriptions/key**.
 
 ## Related
 
-- [Settlement stream](/developers/inventory-os-api/streams/settlement) — PSP-confirmed revenue per `order_id`
-- [Return-rate stream](/developers/inventory-os-api/streams/return-rate) — clawback signal for review queue
-- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `attribution.click` + `attribution.conversion` events
+- [Sell-through stream](/developers/inventory-os-api/streams/sell-through) — commission events per merchant
+- [Settlement stream](/developers/inventory-os-api/streams/settlement) — order payment + financial detail
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `attribution.changed` events

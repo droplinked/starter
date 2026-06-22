@@ -1,142 +1,91 @@
 ---
 title: "Stream 8 — Provenance"
-description: "EAS on-chain attestations across Avalanche C-Chain and Base — Digital Product Passport (DPP) record per SKU."
+description: "Onchain NFT recording per product — chain, contract, token, transaction — projected from ProductV2.nftRecording."
 ---
 
-<Note>**BETA.** Provenance attestations are cryptographically anchored on-chain (Avalanche C-Chain primary + Base secondary). Once issued, an attestation UID is permanent — but the off-chain payload it references can be revoked or superseded.</Note>
+<Note>**BETA.** In v1 the provenance stream projects `ProductV2.nftRecording` rows. When the unified multi-chain attestation model lands, this method swaps out without changing the partner-facing shape.</Note>
 
-The **provenance stream** is the on-chain DPP record per SKU + per inventory delta. Producers:
-`multichain-attestation/` (EAS schema registration + attestation emit), `crawler/` (Crossmint
-dispatch). Consumers: ACP feed, LLMS.txt, the marketplace, the lending underwriter
-(highest-trust signal — 0-50 bps off rate), the compliance gate, and the buyer-side trust
-badge.
-
-## Shape
-
-```json
-{
-  "attestation_uid": "0xabc123ef456…",
-  "schema_uid": "0xschemAUID0987…",
-  "sku": "shop-handle__product-handle__variant-1",
-  "shop_id": "65df8abc123…",
-  "product_hash": "0x4f8a…",
-  "attester": "0xDeployerWalletAddress…",
-  "chain": "avalanche-c-chain",
-  "chain_id": 43114,
-  "block_number": 47891234,
-  "transaction_hash": "0xtxhash…",
-  "attested_at": "2026-06-01T12:00:00.000Z",
-  "valid_until": null,
-  "revoked": false,
-  "ipfs_cid": "bafybei…",
-  "mirror": {
-    "chain": "base",
-    "chain_id": 8453,
-    "attestation_uid": "0xmirrorUID…"
-  }
-}
-```
-
-| Field | Meaning |
-|---|---|
-| `attestation_uid` | EAS attestation UID (chain-scoped) |
-| `schema_uid` | EAS schema UID — the schema this attestation conforms to |
-| `product_hash` | SHA-256 of canonical product JSON (deterministic; from Stream 1) |
-| `chain` / `chain_id` | Primary attestation chain — Avalanche C-Chain or Base |
-| `valid_until` | Optional expiry; `null` = perpetual |
-| `revoked` | True if attester has revoked |
-| `ipfs_cid` | Off-chain payload (e.g. full DPP document) on IPFS |
-| `mirror` | Cross-chain mirror attestation (when issued) |
+The **provenance stream** is the onchain recording per product: the chain, contract address,
+token id, and transaction hash for products that have been recorded onchain. Rows are scoped to
+the shops owned by the API key's merchant; only products that carry an `nftRecording` are
+returned.
 
 ## Endpoint
 
 ```
-GET /developers/inventory/v1/streams/provenance
+GET /v1/api/inventory-os/streams/provenance
 ```
 
 **Query parameters:**
 
 | Param | Type | Notes |
 |---|---|---|
-| `shop_id` | string | Optional |
-| `sku` | string | Optional |
-| `chain` | `avalanche-c-chain` \| `base` | Optional |
-| `attested_since` | ISO-8601 | Optional |
-| `include_revoked` | bool | Default `false` |
-| `limit` | int | Max 200, default 50 |
+| `limit` | int | 1–200, default 50 |
 | `cursor` | string | Opaque pagination token |
+| `since` | ISO-8601 | Optional; products updated on or after this timestamp |
+
+## Row shape
+
+```json
+{
+  "productId": "665f8abc123…",
+  "title": "Limited Edition Drop Tee",
+  "chain": "base",
+  "contractAddress": "0xContractAddress…",
+  "tokenId": "42",
+  "txHash": "0xtxhash…",
+  "updatedAt": "2026-06-01T12:00:00.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `productId` | `ProductV2` id; pagination cursor advances on this field |
+| `title` | Product title |
+| `chain` | Chain the product was recorded on (`nftRecording.chain`); `null` if unset |
+| `contractAddress` | Onchain contract address; `null` if unset |
+| `tokenId` | Token id within the contract; `null` if unset |
+| `txHash` | Recording transaction hash; `null` if unset |
+
+## Response envelope
+
+```json
+{
+  "streamType": "provenance",
+  "merchantId": "65df8abc123…",
+  "data": [ /* rows */ ],
+  "count": 50,
+  "nextCursor": "NjY1ZjhhYmMxMjM..."
+}
+```
 
 ## curl
 
 ```bash
-curl "https://apiv3.droplinked.com/developers/inventory/v1/streams/provenance?shop_id=65df8abc123&chain=avalanche-c-chain" \
-  -H "Authorization: Bearer ds_test_REPLACE_ME" \
-  -H "X-InventoryOS-Version: 2026-06-01"
-```
-
-## TypeScript SDK
-
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
-
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
-
-const attestations = await droplinked.inventory.provenance.list({
-  shopId: "65df8abc123…",
-  chain: "avalanche-c-chain",
-  limit: 200,
-});
-
-const liveAttestations = attestations.data.filter((a) => !a.revoked);
-```
-
-## Cursor pagination
-
-```ts
-let cursor: string | undefined;
-do {
-  const page = await droplinked.inventory.provenance.list({ cursor, limit: 200 });
-  await indexAttestations(page.data);
-  cursor = page.next_cursor ?? undefined;
-} while (cursor);
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/provenance?limit=200" \
+  -H "x-droplinked-api-key: REPLACE_ME"
 ```
 
 ## Verification
 
-Provenance attestations can be independently verified on-chain. Look up the UID against the
-EAS contract on the named chain — Droplinked does not need to be online for verification.
-This is the cryptographic-unforgeability property that gives this stream the highest trust
-weight in the lender signal hierarchy.
-
-```ts
-import { ethers } from "ethers";
-
-const eas = new ethers.Contract(
-  "0xEASContractAddress",
-  ["function getAttestation(bytes32 uid) view returns (tuple(...))"],
-  new ethers.JsonRpcProvider("https://api.avax.network/ext/bc/C/rpc")
-);
-
-const onchain = await eas.getAttestation("0xabc123ef456…");
-```
+A recorded product can be independently verified onchain: look up the `contractAddress` +
+`tokenId` on the named `chain` — Droplinked does not need to be online for verification. This is
+the cryptographic-unforgeability property that gives this stream the highest trust weight in the
+lender signal hierarchy.
 
 ## Lender-facing usage
 
-The cryptographically-unforgeable property is what unlocks the 0-50 bps off the lending rate.
-Combined with PSP-confirmed settlement (Stream 7) and 3PL custody (Stream 2), the underwriter
-operates at investment-grade LGD. This is the data-fusion outcome the lending platform was
-designed around.
+Combined with PSP-confirmed settlement (Stream 7) and inventory level (Stream 2), the onchain
+recording is the highest-trust collateral signal in the underwriting stack. Use `since` to pull
+only newly-recorded products.
 
 ## Rate limits
 
-Read class — 600 req/min/key. Attestation emission is debounced (60s) per inventory delta;
-polling frequency should match that cadence.
+Low-budget class — **250 reads/min/key**, up to **3 subscriptions/key**.
 
 ## Related
 
-- [Catalog stream](/developers/inventory-os-api/streams/catalog) — `product_hash` source
-- [Inventory level stream](/developers/inventory-os-api/streams/inventory-level) — `delta` triggers attestation
-- [Settlement stream](/developers/inventory-os-api/streams/settlement) — pair with provenance for lender Tier-3 underwriting
-- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `provenance.attested` events
+- [Catalog stream](/developers/inventory-os-api/streams/catalog) — product reference via `productId`
+- [Inventory level stream](/developers/inventory-os-api/streams/inventory-level) — stock per SKU
+- [Settlement stream](/developers/inventory-os-api/streams/settlement) — pair with provenance for lender underwriting
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `provenance.changed` events

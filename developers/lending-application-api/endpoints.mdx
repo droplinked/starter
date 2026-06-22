@@ -1,380 +1,219 @@
 ---
 title: "Lending Application API endpoints"
-description: "Submit, patch, and decide — request / response shapes, curl + TypeScript examples."
+description: "Create, patch, submit, withdraw, decide — request / response shapes, curl examples."
 ---
 
-<Note>**BETA.** Endpoints below are the partner-facing surface of the lending application lifecycle. Merchant-facing endpoints (used by the dashboard) live under `/lending/*` and are documented in the merchant API reference.</Note>
+<Note>**BETA.** The whole surface returns `404` unless `LENDING_PLATFORM_ENABLED=true`. Merchant routes use the merchant JWT; admin routes require a JWT with the `SUPER_ADMIN` role.</Note>
 
-## Submit application
+## Merchant-facing routes (`/lending-application`)
 
-Create a `DRAFT` application or submit straight to `SUBMITTED` if the doc checklist is
-complete.
+All routes require the merchant JWT (`Authorization: Bearer <jwt>`) and are ownership-checked.
+Write routes marked **KYB-gated** require an approved KYB record.
+
+| Operation | Method + path | KYB-gated |
+|---|---|---|
+| Create draft | `POST /lending-application` | yes |
+| List my applications | `GET /lending-application?merchantId=…` | no |
+| Get application | `GET /lending-application/:id` | no |
+| Update application | `PATCH /lending-application/:id` | yes |
+| Submit application | `POST /lending-application/:id/submit` | yes |
+| Withdraw application | `POST /lending-application/:id/withdraw` | yes |
+| Get document checklist | `GET /lending-application/:id/checklist` | no |
+
+### Create draft
 
 ```
-POST /developers/lending/v1/applications
+POST /lending-application
 ```
 
-**Request**:
+**Request** — `cohort` is optional; when omitted, the cohort is resolved server-side from the
+merchant's KYB record. An explicit override is for operator-driven / Cohort-C manual drafts.
+
+```json
+{ "cohort": "A_MOR_SHOPSADIQ_VIA_TELR" }
+```
+
+```bash
+curl -X POST https://apiv3.droplinked.com/lending-application \
+  -H "Authorization: Bearer <merchant-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+The created draft carries (among other fields) `cohort`, `tier`, and `status: "DRAFT"`.
+
+### Update application
+
+```
+PATCH /lending-application/:id
+```
+
+**Request** — all fields optional:
+
+| Field | Type | Notes |
+|---|---|---|
+| `requestedAmountUsd` | number | 1000 – 10,000,000 |
+| `requestedTermMonths` | int | 1 – 60 |
+| `purposeCode` | enum | `INVENTORY` \| `WORKING_CAPITAL` \| `EXPANSION` \| `EQUIPMENT` |
+| `selectedTier1Partner` | enum | `CredibleX` \| `CBI` \| `RAKBank` \| `Mbank` |
+| `selectedTier2Partner` | string | Free-form Tier-2 partner id |
+| `documentationCompleted` | object | Free-form per-document upload acknowledgement |
+
+```bash
+curl -X PATCH https://apiv3.droplinked.com/lending-application/665fapp... \
+  -H "Authorization: Bearer <merchant-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requestedAmountUsd": 50000,
+    "requestedTermMonths": 12,
+    "purposeCode": "INVENTORY",
+    "selectedTier1Partner": "CredibleX"
+  }'
+```
+
+### Submit / withdraw
+
+```bash
+# Submit (DRAFT → SUBMITTED). 422-class error if required documents are missing.
+curl -X POST https://apiv3.droplinked.com/lending-application/665fapp.../submit \
+  -H "Authorization: Bearer <merchant-jwt>"
+
+# Withdraw (→ WITHDRAWN). Optional reason.
+curl -X POST https://apiv3.droplinked.com/lending-application/665fapp.../withdraw \
+  -H "Authorization: Bearer <merchant-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "No longer needed" }'
+```
+
+### Get document checklist
+
+```
+GET /lending-application/:id/checklist
+```
+
+Returns the per-cohort checklist (with the CredibleX add-on applied when relevant):
 
 ```json
 {
-  "merchant_id": "merch_2j8…",
-  "shop_id": "65df8abc123…",
-  "amount_requested": "50000.00",
-  "currency": "USD",
-  "term_months": 12,
-  "purpose": "inventory",
-  "submit": false,
-  "documents": [
-    { "type": "merchant_identity", "s3_key": "uploads/identity/abc.pdf" },
-    { "type": "psp_account_link", "psp": "stripe", "account_id": "acct_1Nxxxxx" }
+  "cohort": "A_MOR_SHOPSADIQ_VIA_TELR",
+  "partner": "CredibleX",
+  "items": [
+    {
+      "key": "bank_statements_6m",
+      "label": "6 months of bank statements",
+      "description": "Statements covering the most recent 6 months from the bank account used for business deposits.",
+      "required": true,
+      "acceptedMimeTypes": ["application/pdf"],
+      "maxSizeMb": 25
+    },
+    {
+      "key": "tax_return_last",
+      "label": "Last tax return",
+      "description": "Most recent annual tax return for the business.",
+      "required": true,
+      "acceptedMimeTypes": ["application/pdf"],
+      "maxSizeMb": 20
+    },
+    {
+      "key": "adgm_stamped_certificate",
+      "label": "ADGM-stamped trade certificate",
+      "description": "Trade certificate carrying an ADGM apostille / stamp (UAE free-zone merchants).",
+      "required": true,
+      "acceptedMimeTypes": ["application/pdf", "image/png", "image/jpeg"],
+      "maxSizeMb": 10
+    }
   ]
 }
 ```
 
-| Field | Required | Notes |
-|---|---|---|
-| `merchant_id` | yes | Droplinked merchant id |
-| `shop_id` | yes | Droplinked shop id |
-| `amount_requested` | yes | String to preserve decimal precision |
-| `term_months` | yes | 3, 6, 12, 18, 24 |
-| `purpose` | yes | `inventory` \| `marketing` \| `working_capital` \| `other` |
-| `submit` | no | `true` = transition to `SUBMITTED` if doc checklist complete; default `false` (stays `DRAFT`) |
-| `documents[]` | conditional | Required when `submit: true`; checklist derives from cohort |
+Document completeness is validated against `documentationCompleted.items[]` (each item carries a
+`key` + `status`; an item counts as uploaded when `status === "UPLOADED"`).
 
-**Response (`201 Created`)**:
+## Admin / lender routes (`/admin/lending-application`)
 
-```json
-{
-  "id": "lapp_2qZf…",
-  "state": "DRAFT",
-  "cohort": "A_MOR_SHOPSADIQ_VIA_TELR",
-  "mor_entity": "shopsadiq",
-  "tier": "Tier1_CredibleX",
-  "amount_requested": "50000.00",
-  "currency": "USD",
-  "term_months": 12,
-  "doc_checklist": {
-    "required": ["merchant_identity", "psp_account_link", "settlement_history_90d"],
-    "received": ["merchant_identity", "psp_account_link"],
-    "missing": ["settlement_history_90d"]
-  },
-  "inventory_os_signals": {
-    "gmv_90d": "184500.00",
-    "sell_through_velocity_score": 0.78,
-    "return_rate_30d": 0.038,
-    "attested_skus": 142
-  },
-  "created_at": "2026-06-01T12:00:00.000Z"
-}
-```
+All routes require a JWT with the `SUPER_ADMIN` role.
 
-### curl
+| Operation | Method + path |
+|---|---|
+| Review queue | `GET /admin/lending-application?status=&tier=&cohort=&partner=&limit=` |
+| Get application | `GET /admin/lending-application/:id` |
+| Post decision | `POST /admin/lending-application/:id/decision` |
+| Credit-tier preview | `POST /admin/lending-application/credit-tier/preview` |
+| Upgrade eligibility | `GET /admin/lending-application/credit-tier/upgrade-eligibility/:merchantId?baseTier=` |
+
+### Review queue
+
+Defaults to `status=UNDER_REVIEW`, sorted by `submittedAt` ascending. `limit` is clamped to
+1–500 (default 100).
 
 ```bash
-curl -X POST https://apiv3.droplinked.com/developers/lending/v1/applications \
-  -H "Authorization: Bearer ds_test_REPLACE_ME" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "merchant_id": "merch_2j8…",
-    "shop_id": "65df8abc123…",
-    "amount_requested": "50000.00",
-    "currency": "USD",
-    "term_months": 12,
-    "purpose": "inventory",
-    "submit": false
-  }'
+curl "https://apiv3.droplinked.com/admin/lending-application?status=SUBMITTED&tier=TIER_1_REFERRAL&partner=CredibleX" \
+  -H "Authorization: Bearer <super-admin-jwt>"
 ```
 
-### TypeScript
-
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
-
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
-
-const application = await droplinked.lending.applications.create({
-  merchantId: "merch_2j8…",
-  shopId: "65df8abc123…",
-  amountRequested: "50000.00",
-  currency: "USD",
-  termMonths: 12,
-  purpose: "inventory",
-  submit: false,
-});
-
-console.log(application.id, application.doc_checklist.missing);
-```
-
-## Patch application (upload docs, request submit)
-
-Move a `DRAFT` toward `SUBMITTED` by attaching documents, or transition once complete.
+### Post decision
 
 ```
-PATCH /developers/lending/v1/applications/{id}
+POST /admin/lending-application/:id/decision
 ```
 
 **Request**:
 
-```json
-{
-  "documents": [
-    { "type": "settlement_history_90d", "psp": "stripe", "auto_pull": true }
-  ],
-  "submit": true
-}
-```
-
-`auto_pull: true` tells the platform to pull the settlement-history document from the
-InventoryOS Stream 7 projection instead of requiring an upload. Available for PSP-linked
-documents only.
-
-**Response (`200 OK`)**:
-
-```json
-{
-  "id": "lapp_2qZf…",
-  "state": "SUBMITTED",
-  "doc_checklist": {
-    "required": ["merchant_identity", "psp_account_link", "settlement_history_90d"],
-    "received": ["merchant_identity", "psp_account_link", "settlement_history_90d"],
-    "missing": []
-  },
-  "submitted_at": "2026-06-01T12:05:00.000Z"
-}
-```
-
-### curl
-
-```bash
-curl -X PATCH https://apiv3.droplinked.com/developers/lending/v1/applications/lapp_2qZf... \
-  -H "Authorization: Bearer ds_test_REPLACE_ME" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "documents": [
-      { "type": "settlement_history_90d", "psp": "stripe", "auto_pull": true }
-    ],
-    "submit": true
-  }'
-```
-
-### TypeScript
-
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
-
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
-
-const submitted = await droplinked.lending.applications.update("lapp_2qZf...", {
-  documents: [{ type: "settlement_history_90d", psp: "stripe", autoPull: true }],
-  submit: true,
-});
-```
-
-## Read application
-
-```
-GET /developers/lending/v1/applications/{id}
-```
-
-Returns the application with refreshed `inventory_os_signals` on every read.
-
-### curl
-
-```bash
-curl https://apiv3.droplinked.com/developers/lending/v1/applications/lapp_2qZf... \
-  -H "Authorization: Bearer ds_test_REPLACE_ME"
-```
-
-### TypeScript
-
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
-
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
-
-const application = await droplinked.lending.applications.get("lapp_2qZf...");
-```
-
-## List applications
-
-```
-GET /developers/lending/v1/applications
-```
-
-Filter by state, cohort, tier, or referrer.
-
-| Param | Type | Notes |
+| Field | Required | Notes |
 |---|---|---|
-| `state` | string | Optional |
-| `cohort` | string | Optional |
-| `tier` | string | Optional (`Tier1_CredibleX`, `Tier2_USLFI`, `Tier3_Vault`) |
-| `referrer_id` | string | Optional; partner-scoped |
-| `submitted_since` | ISO-8601 | Optional |
-| `limit` | int | Max 200, default 50 |
-| `cursor` | string | Opaque pagination token |
-
-### curl
+| `decision` | yes | `APPROVED` \| `REJECTED` \| `UNDER_REVIEW` |
+| `reason` | no | Free-text reason |
+| `partnerExternalRef` | no | The partner's external application reference (e.g. `cx_app_abc123`) |
 
 ```bash
-curl "https://apiv3.droplinked.com/developers/lending/v1/applications?state=SUBMITTED&tier=Tier1_CredibleX" \
-  -H "Authorization: Bearer ds_test_REPLACE_ME"
-```
-
-### TypeScript
-
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
-
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
-
-const page = await droplinked.lending.applications.list({
-  state: "SUBMITTED",
-  tier: "Tier1_CredibleX",
-  limit: 50,
-});
-```
-
-## Post decision (lender only)
-
-Lender partners with `lending:decide` scope transition a `SUBMITTED` (or `UNDER_REVIEW`)
-application to `APPROVED` or `REJECTED`.
-
-```
-POST /developers/lending/v1/applications/{id}/decisions
-```
-
-**Request (approval)**:
-
-```json
-{
-  "decision": "APPROVED",
-  "approved_amount": "45000.00",
-  "approved_term_months": 12,
-  "apr": "0.149",
-  "disbursement_method": "usdc_to_wallet",
-  "wallet_address": "0xMerchantPayoutWallet…",
-  "notes": "Strong sell-through + DPP coverage; haircut on requested amount."
-}
-```
-
-**Request (rejection)**:
-
-```json
-{
-  "decision": "REJECTED",
-  "reason_code": "INSUFFICIENT_SELL_THROUGH_HISTORY",
-  "notes": "Less than 60 days of settlement history; resubmit at 90d."
-}
-```
-
-Valid `reason_code` values:
-
-| Code | Meaning |
-|---|---|
-| `INSUFFICIENT_SELL_THROUGH_HISTORY` | < 90 days of settlement data |
-| `LGD_EXCEEDS_TIER_LIMIT` | Risk model output above tier underwriting policy |
-| `KYB_INHERITANCE_GAP` | Cohort-required KYB source missing |
-| `RETURN_RATE_ELEVATED` | 30d return rate above shop-class threshold |
-| `JURISDICTIONAL_MISMATCH` | Tier cannot lend to merchant's jurisdiction |
-| `OTHER` | Free-text required in `notes` |
-
-**Response (`200 OK`)**:
-
-```json
-{
-  "id": "lapp_2qZf…",
-  "state": "APPROVED",
-  "decision": {
-    "decision": "APPROVED",
-    "approved_amount": "45000.00",
-    "approved_term_months": 12,
-    "apr": "0.149",
-    "decided_at": "2026-06-02T15:00:00.000Z",
-    "decided_by": "creblex_underwriter_4"
-  }
-}
-```
-
-### curl
-
-```bash
-curl -X POST https://apiv3.droplinked.com/developers/lending/v1/applications/lapp_2qZf.../decisions \
-  -H "Authorization: Bearer ds_test_REPLACE_ME" \
+curl -X POST https://apiv3.droplinked.com/admin/lending-application/665fapp.../decision \
+  -H "Authorization: Bearer <super-admin-jwt>" \
   -H "Content-Type: application/json" \
   -d '{
     "decision": "APPROVED",
-    "approved_amount": "45000.00",
-    "approved_term_months": 12,
-    "apr": "0.149",
-    "disbursement_method": "usdc_to_wallet",
-    "wallet_address": "0xMerchantPayoutWallet…"
+    "reason": "Strong sell-through + onchain provenance coverage.",
+    "partnerExternalRef": "cx_app_abc123"
   }'
 ```
 
-### TypeScript
+### Credit-tier preview
 
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
+A pure dry-run over `CreditTierMappingService` — no application lookup, no persistence.
 
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
-
-const decided = await droplinked.lending.applications.decide("lapp_2qZf...", {
-  decision: "APPROVED",
-  approvedAmount: "45000.00",
-  approvedTermMonths: 12,
-  apr: "0.149",
-  disbursementMethod: "usdc_to_wallet",
-  walletAddress: "0xMerchantPayoutWallet…",
-});
 ```
+POST /admin/lending-application/credit-tier/preview
+```
+
+**Request**:
+
+| Field | Required | Notes |
+|---|---|---|
+| `cohort` | yes | A `KybCohort` value (drives the eligibility floor) |
+| `monthlyAvgRevenueUsd` | yes | ≥ 0 |
+| `verifiedCollateralUsd` | yes | ≥ 0 |
+| `operationalRisk` | yes | `LOW` \| `MEDIUM` \| `HIGH` |
+| `hardComplianceFlags` | no | e.g. `["OFAC_HIT"]` — hard flags force tier T0 |
+
+```bash
+curl -X POST https://apiv3.droplinked.com/admin/lending-application/credit-tier/preview \
+  -H "Authorization: Bearer <super-admin-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cohort": "A_CONNECT_STRIPE",
+    "monthlyAvgRevenueUsd": 8000,
+    "verifiedCollateralUsd": 31777,
+    "operationalRisk": "LOW"
+  }'
+```
+
+Returns the resolved credit envelope (`tier`, `ceilingUsd`, `reason`).
 
 ## Errors
 
-Standard error envelope:
-
-```json
-{
-  "error": {
-    "code": "INVALID_STATE_TRANSITION",
-    "message": "Cannot decide on application in state DRAFT — submit first.",
-    "details": { "current_state": "DRAFT", "attempted_transition": "decision" }
-  }
-}
-```
-
-| Code | HTTP | Cause |
-|---|---|---|
-| `INVALID_STATE_TRANSITION` | 409 | State machine rejects the action |
-| `DOC_CHECKLIST_INCOMPLETE` | 422 | `submit: true` with missing docs |
-| `COHORT_MISMATCH` | 422 | Document doesn't match the cohort's expected sources |
-| `SCOPE_DENIED` | 403 | Key lacks `lending:decide` or `lending:submit` |
-| `RATE_LIMITED` | 429 | Beyond write-class quota |
-
-## Webhooks
-
-Application transitions emit webhook events to lender-partner subscriptions:
-
-| Event | When |
-|---|---|
-| `lending.application.submitted` | DRAFT → SUBMITTED |
-| `lending.application.under_review` | SUBMITTED → UNDER_REVIEW |
-| `lending.application.decided` | UNDER_REVIEW → APPROVED \| REJECTED |
-| `lending.application.disbursed` | APPROVED → DISBURSED |
-
-Subscribe via the InventoryOS webhook subscription endpoint (same HMAC verification, same DLQ
-semantics — see [Webhook subscriptions](/developers/inventory-os-api/subscriptions)).
+Standard NestJS error responses apply: `401` (missing/invalid JWT), `403` (missing
+`SUPER_ADMIN` role on admin routes), `404` (`LENDING_PLATFORM_ENABLED` off, or application not
+found), and `422`-class for an incomplete document checklist on submit.
 
 <Card title="Related: KYB cohorts" icon="sitemap" href="/developers/kyb-cohorts">
-The eleven cohorts that drive the per-application doc checklist.
+The 12 cohorts that drive the per-application doc checklist.
 </Card>

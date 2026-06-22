@@ -1,148 +1,145 @@
 ---
 title: "Webhook subscriptions"
-description: "HMAC-signed JSON envelopes — register a URL + stream filter, verify the signature, replay on failure."
+description: "HMAC-signed JSON POSTs — register a webhook URL per stream, verify the signature, manage subscriptions."
 ---
 
-<Note>**BETA.** Subscription manager is live in development; production rollout is gated on a 7-day soak. Subscribe via the `inventory:webhooks` scope.</Note>
+<Note>**BETA.** Subscriptions are per-stream. Creating and deleting them requires the `inventory-os:subscriptions:write` scope; listing requires `inventory-os:subscriptions:read`.</Note>
 
-InventoryOS streams are best consumed via **webhooks**. Register a callback URL with a stream
-filter; we deliver signed JSON envelopes, retry on failure with exponential backoff, and route
-final failures to a per-subscription dead-letter queue you can replay.
+InventoryOS streams are best consumed via **webhooks**. Register a callback URL on a specific
+stream; when the stream's rows change for your merchant, we deliver an HMAC-SHA256-signed JSON
+POST to that URL.
+
+Subscriptions are **explicitly per-stream** — a partner that wants both `catalog` and
+`inventory-level` fanouts creates two subscriptions, one on each stream.
 
 ## Endpoints
 
-| Operation | Endpoint |
-|---|---|
-| Create subscription | `POST /developers/inventory/v1/subscriptions` |
-| List subscriptions | `GET /developers/inventory/v1/subscriptions` |
-| Get subscription | `GET /developers/inventory/v1/subscriptions/{id}` |
-| Update subscription | `PATCH /developers/inventory/v1/subscriptions/{id}` |
-| Delete subscription | `DELETE /developers/inventory/v1/subscriptions/{id}` |
-| Replay DLQ messages | `POST /developers/inventory/v1/subscriptions/{id}/replay` |
+| Operation | Endpoint | Scope |
+|---|---|---|
+| Create subscription | `POST /v1/api/inventory-os/streams/:streamType/subscribe` | `inventory-os:subscriptions:write` |
+| List subscriptions | `GET /v1/api/inventory-os/streams/:streamType/subscriptions` | `inventory-os:subscriptions:read` |
+| Delete subscription | `DELETE /v1/api/inventory-os/streams/:streamType/subscriptions/:id` | `inventory-os:subscriptions:write` |
+
+<Note>There is no update (`PATCH`) or get-by-id endpoint, and no DLQ/replay endpoint. **Rotation
+= delete + recreate** (a fresh `hmacSecret` is issued on every create).</Note>
 
 ## Create a subscription
 
 ```bash
-curl -X POST https://apiv3.droplinked.com/developers/inventory/v1/subscriptions \
-  -H "Authorization: Bearer ds_test_REPLACE_ME" \
+curl -X POST https://apiv3.droplinked.com/v1/api/inventory-os/streams/settlement/subscribe \
+  -H "x-droplinked-api-key: REPLACE_ME" \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://example.com/webhooks/droplinked",
-    "events": ["settlement.settled", "settlement.refunded"],
-    "filters": { "shop_id": "65df8abc123…" },
-    "description": "Lender ingestion: settlement events for shop X"
+    "webhookUrl": "https://example.com/webhooks/droplinked",
+    "events": ["settlement.changed"],
+    "description": "Lender ingestion: settlement changes for my shop"
   }'
 ```
 
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
+**Request body:**
 
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
+| Field | Required | Notes |
+|---|---|---|
+| `webhookUrl` | yes | HTTPS endpoint (plain HTTP is rejected). 8–2048 chars. |
+| `events` | no | Subset of the stream's event vocabulary. Defaults to all of the stream's events when omitted. |
+| `description` | no | Human-readable label (0–200 chars). |
 
-const subscription = await droplinked.inventory.subscriptions.create({
-  url: "https://example.com/webhooks/droplinked",
-  events: ["settlement.settled", "settlement.refunded"],
-  filters: { shopId: "65df8abc123…" },
-  description: "Lender ingestion: settlement events for shop X",
-});
-
-console.log(subscription.id, subscription.signing_secret);
-```
-
-The response includes a `signing_secret` (returned once, store it — you'll need it for HMAC
-verification). Treat it like a password.
+The response includes an `hmacSecret` (returned **once** — store it; you'll need it for
+signature verification). Treat it like a password.
 
 ```json
 {
-  "id": "sub_2qZf…",
-  "url": "https://example.com/webhooks/droplinked",
-  "events": ["settlement.settled", "settlement.refunded"],
-  "signing_secret": "whsec_GENERATED_ONCE_DO_NOT_LOSE",
-  "status": "active",
-  "created_at": "2026-06-01T12:00:00.000Z"
+  "id": "665f…",
+  "apiKeyId": "apk_…",
+  "merchantId": "65df8abc123…",
+  "streamType": "settlement",
+  "webhookUrl": "https://example.com/webhooks/droplinked",
+  "events": ["settlement.changed"],
+  "description": "Lender ingestion: settlement changes for my shop",
+  "status": "ACTIVE",
+  "failureCount": 0,
+  "hmacSecret": "GENERATED_ONCE_DO_NOT_LOSE"
 }
+```
+
+Each create counts against the per-stream subscription cap (e.g. 3 for `settlement`, 10 for
+`catalog`). Exceeding the cap returns a `409 Conflict` — delete an existing subscription first.
+
+## List subscriptions
+
+```bash
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/settlement/subscriptions?status=ACTIVE" \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+Optional `status` filter: `ACTIVE`, `PAUSED`, or `EXPIRED`. The `hmacSecret` is **never**
+re-surfaced on reads.
+
+```json
+{
+  "data": [
+    {
+      "id": "665f…",
+      "apiKeyId": "apk_…",
+      "merchantId": "65df8abc123…",
+      "streamType": "settlement",
+      "webhookUrl": "https://example.com/webhooks/droplinked",
+      "events": ["settlement.changed"],
+      "status": "ACTIVE",
+      "failureCount": 0
+    }
+  ],
+  "total": 1
+}
+```
+
+## Delete a subscription
+
+```bash
+curl -X DELETE https://apiv3.droplinked.com/v1/api/inventory-os/streams/settlement/subscriptions/665f... \
+  -H "x-droplinked-api-key: REPLACE_ME"
+```
+
+```json
+{ "ok": true, "deletedId": "665f..." }
 ```
 
 ## Available events
 
-| Event | Stream | Emitted on |
-|---|---|---|
-| `catalog.updated` | 1 | SKU or variant mutation |
-| `inventory.observed` | 2 | Every stock observation (merchant + 3PL + cycle count) |
-| `sell-through.rolled-up` | 3 | Daily rollup written |
-| `return-rate.flagged` | 4 | SKU crosses `fraud_score` threshold (default 0.6) |
-| `pricing.updated` | 5 | Price or active promotion mutation |
-| `attribution.click` | 6 | Affiliate redirect served |
-| `attribution.conversion` | 6 | Affiliate conversion attributed |
-| `settlement.settled` | 7 | PSP webhook normalized + final state reached |
-| `settlement.refunded` | 7 | Refund processed |
-| `settlement.disputed` | 7 | Chargeback opened |
-| `provenance.attested` | 8 | EAS attestation issued |
-| `provenance.revoked` | 8 | EAS attestation revoked |
+Each stream emits exactly one event — `<stream>.changed` — when an underlying row mutates for
+your merchant.
 
-## Event envelope shape
+| Stream | Event |
+|---|---|
+| `catalog` | `catalog.changed` |
+| `inventory-level` | `inventory.changed` |
+| `sell-through` | `sell-through.changed` |
+| `return-rate` | `return-rate.changed` |
+| `pricing` | `pricing.changed` |
+| `attribution` | `attribution.changed` |
+| `settlement` | `settlement.changed` |
+| `provenance` | `provenance.changed` |
 
-Every delivery is a signed JSON envelope:
-
-```json
-{
-  "id": "evt_8z…",
-  "event": "settlement.settled",
-  "occurred_at": "2026-06-01T12:01:33.000Z",
-  "delivery_attempt": 1,
-  "subscription_id": "sub_2qZf…",
-  "data": {
-    "transaction_id": "utxn_4f8a9c…",
-    "psp": "stripe",
-    "shop_id": "65df8abc123…",
-    "net": "124.96",
-    "currency": "USD",
-    "status": "settled"
-  }
-}
-```
-
-Delivered with these headers:
-
-```
-X-Droplinked-Signature: t=1717200000,v1=4f8a9cb1c2d3e4f5…
-X-Droplinked-Event-Id: evt_8z…
-X-Droplinked-Event: settlement.settled
-X-Droplinked-Delivery-Attempt: 1
-Content-Type: application/json
-```
+Subscribing to an event not in the target stream's vocabulary returns a `400 Bad Request`.
 
 ## HMAC verification (Node.js)
 
-The signature is HMAC-SHA256 over `{timestamp}.{raw_body}` using your `signing_secret`. Verify
-on every delivery — **never** trust the envelope without verification.
+The signing secret (`hmacSecret`) is 32 random bytes, hex-encoded — the same shape as the
+affiliate webhook secret, so a shared HMAC verifier works across both surfaces. Verify the
+signature on every delivery; never trust a payload without verification.
 
 ```ts
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Request, Response } from "express";
 
-const SIGNING_SECRET = process.env.DROPLINKED_WEBHOOK_SECRET!; // whsec_…
+const HMAC_SECRET = process.env.DROPLINKED_WEBHOOK_SECRET!; // the hmacSecret from create
 
 export function verifySignature(req: Request): boolean {
-  const header = req.header("X-Droplinked-Signature");
-  if (!header) return false;
-
-  const parts = Object.fromEntries(
-    header.split(",").map((kv) => kv.split("=") as [string, string])
-  );
-  const timestamp = parts.t;
-  const signature = parts.v1;
-  if (!timestamp || !signature) return false;
-
-  // Reject events older than 5 minutes (defense against replay).
-  const ageSeconds = Math.floor(Date.now() / 1000) - Number(timestamp);
-  if (Number.isNaN(ageSeconds) || ageSeconds > 300) return false;
+  const signature = req.header("X-Droplinked-Signature");
+  if (!signature) return false;
 
   const rawBody = (req as Request & { rawBody?: string }).rawBody ?? "";
-  const signed = `${timestamp}.${rawBody}`;
-  const expected = createHmac("sha256", SIGNING_SECRET).update(signed).digest("hex");
+  const expected = createHmac("sha256", HMAC_SECRET).update(rawBody).digest("hex");
 
   const a = Buffer.from(expected, "hex");
   const b = Buffer.from(signature, "hex");
@@ -153,9 +150,7 @@ export function handleWebhook(req: Request, res: Response) {
   if (!verifySignature(req)) {
     return res.status(401).send("invalid signature");
   }
-
-  const event = req.body;
-  // ...process event idempotently, keyed on event.id
+  // ...process the event idempotently
   res.status(200).send("ok");
 }
 ```
@@ -164,54 +159,11 @@ export function handleWebhook(req: Request, res: Response) {
 the handler runs. In Express, register a `bodyParser.raw` for the webhook path or set
 `verify: (req, _, buf) => { req.rawBody = buf.toString("utf8"); }` on `bodyParser.json`.</Note>
 
-## Retry semantics
+## Reliability
 
-A delivery is considered successful if your endpoint returns **2xx within 10 seconds**. Any
-other response (including timeout) triggers retry with exponential backoff:
-
-| Attempt | Delay after previous |
-|---|---|
-| 1 | 0 (initial) |
-| 2 | 30 seconds |
-| 3 | 2 minutes |
-| 4 | 10 minutes |
-| 5 | 1 hour |
-| 6 | 6 hours |
-| 7 | 24 hours |
-
-After attempt 7 fails, the event lands in the subscription's **dead-letter queue** (DLQ).
-
-## DLQ + replay
-
-DLQ events are retained 14 days. List them and trigger replay individually or in bulk:
-
-```bash
-curl "https://apiv3.droplinked.com/developers/inventory/v1/subscriptions/sub_2qZf.../dlq" \
-  -H "Authorization: Bearer ds_test_REPLACE_ME"
-
-curl -X POST https://apiv3.droplinked.com/developers/inventory/v1/subscriptions/sub_2qZf.../replay \
-  -H "Authorization: Bearer ds_test_REPLACE_ME" \
-  -H "Content-Type: application/json" \
-  -d '{ "event_ids": ["evt_8z…", "evt_8a…"] }'
-```
-
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
-
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
-
-const dlq = await droplinked.inventory.subscriptions.dlq.list("sub_2qZf...");
-await droplinked.inventory.subscriptions.replay("sub_2qZf...", {
-  eventIds: dlq.data.map((e) => e.id),
-});
-```
-
-## Idempotency
-
-Every event has a stable `id`. Persist it on first successful processing and reject duplicate
-deliveries on retry — webhooks are at-least-once, not exactly-once.
+Each subscription carries a `failureCount` and a `status` (`ACTIVE` / `PAUSED` / `EXPIRED`).
+Repeated delivery failures increment `failureCount`; persistently failing subscriptions move out
+of `ACTIVE`. Inspect a subscription's state via the list endpoint.
 
 ## Related
 

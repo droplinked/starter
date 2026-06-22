@@ -1,132 +1,95 @@
 ---
 title: "Stream 7 — Settlement"
-description: "Cross-PSP normalized UnifiedTransaction projection — Stripe, PayPal, Bonum, Telr, Paymob, all in one shape."
+description: "Order payment + financial-detail projection — provider, status, amount — projected from OrderV2."
 ---
 
-<Note>**BETA — Critical stream for lenders.** Settlement is the canonical revenue signal for lending underwriting. The projection layer normalizes per-PSP webhook shapes (Stripe / PayPal / Bonum / Telr / Paymob) into one `UnifiedTransaction`. Cohort routing (Connect vs MoR-Direct vs MoR-via-Shopsadiq) is reflected in the record.</Note>
+<Note>**BETA — Critical stream for lenders.** Settlement is the canonical revenue signal for lending underwriting. In v1 the stream exposes the `OrderV2` payment + financial-detail shape directly; a normalized cross-PSP `UnifiedTransaction` projection is planned and will swap in without changing this partner-facing shape.</Note>
 
-The **settlement stream** is the canonical cross-PSP transaction record. Per-PSP webhook
-normalizers project each provider's native shape onto a `UnifiedTransaction` schema; the
-record carries enough context (cohort, MoR entity, master account) for the lending underwriter,
-the 1099-NEC export, the FX reconciler, and the KYB orchestrator to consume the same row.
-
-## Shape
-
-```json
-{
-  "transaction_id": "utxn_4f8a9c…",
-  "psp": "stripe",
-  "psp_transaction_id": "pi_3Tc7t0JYpy7bkFtu…",
-  "shop_id": "65df8abc123…",
-  "merchant_id": "merch_2j8…",
-  "cohort": "A_CONNECT_STRIPE",
-  "mor_entity": "merchant",
-  "master_account_ref": null,
-  "gross": "129.00",
-  "fees": "4.04",
-  "net": "124.96",
-  "currency": "USD",
-  "status": "settled",
-  "settled_at": "2026-06-01T12:01:33.000Z",
-  "raw_webhook_id": "rwhk_8z…",
-  "order_id": "ord_8j7…"
-}
-```
-
-| Field | Meaning |
-|---|---|
-| `psp` | `stripe` \| `paypal` \| `bonum` \| `telr` \| `paymob` |
-| `cohort` | KYB cohort designation (see [KYB cohorts](/developers/kyb-cohorts)) |
-| `mor_entity` | `merchant` \| `telr` \| `bonum` \| `shopsadiq` |
-| `master_account_ref` | For MoR cohorts, the master account the merchant rides under |
-| `gross` / `fees` / `net` | Normalized to merchant's settlement currency |
-| `status` | `pending` \| `processing` \| `settled` \| `refunded` \| `disputed` \| `failed` |
-| `raw_webhook_id` | Pointer to the raw PSP webhook in the replay ledger |
+The **settlement stream** projects per-order payment and financial detail from `OrderV2`: the
+order, its status, the payment provider and payment status, the USD amount, the currency, and the
+capture timestamp. The lending underwriter consumes a trailing window of these as the revenue
+signal. Rows are scoped to the shops owned by the API key's merchant.
 
 ## Endpoint
 
 ```
-GET /developers/inventory/v1/streams/settlement
+GET /v1/api/inventory-os/streams/settlement
 ```
 
 **Query parameters:**
 
 | Param | Type | Notes |
 |---|---|---|
-| `shop_id` | string | Optional |
-| `psp` | string | Optional; filter by PSP |
-| `cohort` | string | Optional; filter by KYB cohort |
-| `status` | string | Optional |
-| `settled_since` | ISO-8601 | Optional |
-| `limit` | int | Max 200, default 50 |
+| `limit` | int | 1–200, default 50 |
 | `cursor` | string | Opaque pagination token |
+| `since` | ISO-8601 | Optional; orders updated on or after this timestamp |
+
+## Row shape
+
+```json
+{
+  "orderId": "665ford123…",
+  "orderNumber": "DRP-100245",
+  "status": "COMPLETED",
+  "paymentProvider": "stripe",
+  "paymentStatus": "CAPTURED",
+  "amountUsd": 124.96,
+  "currency": "USD",
+  "capturedAt": "2026-06-01T12:01:33.000Z",
+  "updatedAt": "2026-06-01T12:01:33.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `orderId` | `OrderV2` id; pagination cursor advances on this field |
+| `orderNumber` | Human-readable order number |
+| `status` | Order status |
+| `paymentProvider` | PSP that processed the payment (`payment.provider`); `null` if unset |
+| `paymentStatus` | PSP-side payment status (`payment.status`); `null` if unset |
+| `amountUsd` | Order total in USD (`financialDetails.totalUsd`); `null` if unset |
+| `currency` | Settlement currency (`financialDetails.currency`); `null` if unset |
+| `capturedAt` | When the payment was captured (`payment.capturedAt`); `null` if unset |
+
+<Note>The v1 shape exposes the `OrderPayment` fields verbatim so partners can build against the
+surface today. The forthcoming `UnifiedTransaction` projection will normalize per-PSP shapes
+(Stripe / PayPal / Bonum / Telr / Paymob) and add cohort + MoR-entity context — without changing
+the field names a partner already reads.</Note>
+
+## Response envelope
+
+```json
+{
+  "streamType": "settlement",
+  "merchantId": "65df8abc123…",
+  "data": [ /* rows */ ],
+  "count": 50,
+  "nextCursor": "NjY1Zm9yZDEyMw..."
+}
+```
 
 ## curl
 
 ```bash
-curl "https://apiv3.droplinked.com/developers/inventory/v1/streams/settlement?shop_id=65df8abc123&status=settled" \
-  -H "Authorization: Bearer ds_test_REPLACE_ME" \
-  -H "X-InventoryOS-Version: 2026-06-01"
-```
-
-## TypeScript SDK
-
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
-
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
-
-const last30 = await droplinked.inventory.settlement.list({
-  shopId: "65df8abc123…",
-  status: "settled",
-  settledSince: new Date(Date.now() - 30 * 86400_000).toISOString(),
-  limit: 200,
-});
-
-const netRevenue = last30.data.reduce((acc, txn) => acc + Number(txn.net), 0);
-const byPsp = last30.data.reduce<Record<string, number>>((acc, txn) => {
-  acc[txn.psp] = (acc[txn.psp] ?? 0) + Number(txn.net);
-  return acc;
-}, {});
-```
-
-## Cursor pagination
-
-```ts
-let cursor: string | undefined;
-do {
-  const page = await droplinked.inventory.settlement.list({ cursor, limit: 200 });
-  await persistTransactions(page.data);
-  cursor = page.next_cursor ?? undefined;
-} while (cursor);
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/settlement?since=2026-05-01T00:00:00.000Z&limit=200" \
+  -H "x-droplinked-api-key: REPLACE_ME"
 ```
 
 ## Lender-facing usage
 
-This is **the** revenue signal for lending decisions. The underwriter consumes 30/60/90-day
-settlement windows; combined with provenance (Stream 8) and 3PL custody (Stream 2), the
-underwriter operates at LGD ~30-40% — competitive with bank working-capital lines.
-
-Cohort-aware reading: for MoR cohorts (`A_MOR_SHOPSADIQ_VIA_TELR`, `A_MOR_TELR_DIRECT`, etc.),
-the underwriter reads the sub-merchant slice of the master account via `master_account_ref` —
-the projection handles the per-PSP API filtering, you read a clean per-merchant row.
-
-## Raw webhook replay
-
-Every settlement row carries `raw_webhook_id`, pointing into the **raw webhook replay ledger**.
-If a projection bug requires reprocessing, the raw shape can be re-projected without losing
-the audit trail. The ledger is internal — partners don't need to consume it directly.
+This is **the** revenue signal for lending decisions. Aggregate `amountUsd` over 30/60/90-day
+windows client-side; combined with provenance (Stream 8) and inventory level (Stream 2), the
+underwriter prices a working-capital line against confirmed, captured revenue. Use `since` for
+incremental pulls and **subscribe to `settlement.changed`** for near-real-time integration.
 
 ## Rate limits
 
-Read class — 600 req/min/key. Settlement reads are usually batch (nightly reconciliation);
-**subscribe to `settlement.settled` webhook events** for real-time integration.
+Low-budget class — **250 reads/min/key**, up to **3 subscriptions/key**. Settlement reads are
+usually batch (nightly reconciliation); subscribe for real-time.
 
 ## Related
 
-- [KYB cohorts](/developers/kyb-cohorts) — cohort taxonomy + MoR entity routing
-- [Attribution stream](/developers/inventory-os-api/streams/attribution) — pair with settlement for affiliate payout gating
-- [Sell-through stream](/developers/inventory-os-api/streams/sell-through) — net-revenue cross-check
-- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `settlement.settled`, `settlement.refunded`, `settlement.disputed`
+- [Sell-through stream](/developers/inventory-os-api/streams/sell-through) — commission events cross-check
+- [Return-rate stream](/developers/inventory-os-api/streams/return-rate) — refunded + cancelled orders
+- [KYB cohorts](/developers/kyb-cohorts) — cohort + MoR routing context (planned for the UnifiedTransaction projection)
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `settlement.changed` events

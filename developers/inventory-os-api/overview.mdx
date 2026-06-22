@@ -3,7 +3,7 @@ title: InventoryOS overview
 description: "The headless inventory data layer — eight streams × five consumer surfaces, exposed via REST + webhook subscriptions."
 ---
 
-<Note>**BETA.** Stream shapes, cursor encoding, and webhook event names may change before GA. Pin a stream version (`X-InventoryOS-Version: 2026-06-01`) in production calls.</Note>
+<Note>**BETA.** Stream shapes, cursor encoding, and webhook event names may change before GA. The surface is gated by the `INVENTORY_OS_API_ENABLED` server flag.</Note>
 
 **InventoryOS** is Droplinked's headless inventory data layer. The same SKU + provenance +
 stock-level + sell-through record simultaneously serves five orthogonal consumer surfaces — a
@@ -17,28 +17,28 @@ deliveries, and stitch InventoryOS into your own systems.
 
 <CardGroup cols={2}>
   <Card title="1. Catalog" icon="box" href="/developers/inventory-os-api/streams/catalog">
-    SKUs, variants, titles, descriptions, media. Write-on-mutation, snapshot to feeds debounced 60s.
+    Product records — titles, slugs, type, status, tags. Sourced from `ProductV2`.
   </Card>
   <Card title="2. Inventory level" icon="warehouse" href="/developers/inventory-os-api/streams/inventory-level">
-    Real-time stock per SKU and location. Webhook on every observation, daily reconciliation snapshot.
+    Stock per SKU. Quantity + available, sourced from `ProductSkuV2`.
   </Card>
   <Card title="3. Sell-through" icon="chart-line" href="/developers/inventory-os-api/streams/sell-through">
-    Velocity per SKU, daily rollup, 90-day rolling window.
+    Per-sale commission events — sale amount, commission, status. Sourced from `CommissionEventV2`.
   </Card>
   <Card title="4. Return rate" icon="rotate-left" href="/developers/inventory-os-api/streams/return-rate">
-    Return rate + reasons + fraud signals per SKU. Daily rollup.
+    Refunded + cancelled orders, sourced from `OrderV2`.
   </Card>
   <Card title="5. Pricing" icon="tag" href="/developers/inventory-os-api/streams/pricing">
-    Current pricing, history, active promotions. Write-on-mutation.
+    List price, raw price, royalty per SKU. Sourced from `ProductSkuV2`.
   </Card>
   <Card title="6. Attribution" icon="link" href="/developers/inventory-os-api/streams/attribution">
-    Affiliate clicks, conversions, commission windows. Real-time per event.
+    Affiliate attribution records — link token, agent, session. Sourced from `AffiliateAttributionRecord`.
   </Card>
   <Card title="7. Settlement" icon="money-bill-transfer" href="/developers/inventory-os-api/streams/settlement">
-    Cross-PSP normalized UnifiedTransaction projection. Webhook-driven, real-time.
+    Order payment + financial detail projection. Sourced from `OrderV2`.
   </Card>
   <Card title="8. Provenance" icon="link-simple" href="/developers/inventory-os-api/streams/provenance">
-    EAS on-chain attestations (Avalanche C-Chain + Base). Per-product DPP record.
+    Onchain NFT recording per product (chain, contract, token, tx). Sourced from `ProductV2.nftRecording`.
   </Card>
 </CardGroup>
 
@@ -57,18 +57,19 @@ doesn't need settlement (7); an agentic buyer doesn't need return-rate (4).
 
 ## Why the data layer is multi-purpose
 
-The same canonical record powers multiple surfaces because the streams are produced once and
-**projected** into per-surface read models. A merchant updates a SKU once — the catalog stream
-(1) emits, which fans out to the ACP feed (surface D), the lending collateral catalog
-(surface A), the affiliate program builder (surface B), the 3PL partner sync (surface E), and
-the compliance audit trail (surface C). The integrator subscribes to streams; the projection
-handles fan-out.
+The same canonical record powers multiple surfaces because each stream is a per-surface read
+projection over the underlying merchant resources (`ProductV2`, `ProductSkuV2`, `OrderV2`,
+`CommissionEventV2`, `AffiliateAttributionRecord`). A merchant updates a SKU once — the catalog
+read model reflects it, and the same row underpins the ACP feed, the lending collateral catalog,
+the affiliate program builder, the 3PL partner sync, and the compliance audit trail.
 
 ## Auth + scopes (quick recap)
 
-- All endpoints require an `inventory:read` scoped API key (`ds_test_…` or `ds_live_…`).
-- Webhook subscriptions additionally require `inventory:webhooks`.
-- Send the key as `Authorization: Bearer ds_test_REPLACE_ME`.
+- All stream + subscription endpoints require an InventoryOS API key sent as
+  `x-droplinked-api-key: <key>`.
+- Read endpoints require the `inventory-os:streams:read` scope.
+- Listing subscriptions requires `inventory-os:subscriptions:read`; creating/deleting them
+  requires `inventory-os:subscriptions:write`.
 
 See [Getting started](/developers/getting-started) for full auth, scopes, rate limits, and
 cursor pagination.
@@ -76,26 +77,46 @@ cursor pagination.
 ## Base path
 
 ```
-https://apiv3.droplinked.com/developers/inventory/v1
+https://apiv3.droplinked.com/v1/api/inventory-os
 ```
 
-Every stream endpoint lives under `/streams/{name}`; webhook management under `/subscriptions`.
+Every stream read lives under `/streams/:streamType`; webhook subscriptions are managed under
+`/streams/:streamType/subscribe` and `/streams/:streamType/subscriptions`.
+
+## Endpoints
+
+| Operation | Method + path | Scope |
+|---|---|---|
+| Read a stream (paginated) | `GET /v1/api/inventory-os/streams/:streamType` | `inventory-os:streams:read` |
+| Cached snapshot (first 200 rows) | `GET /v1/api/inventory-os/streams/:streamType/snapshot` | `inventory-os:streams:read` |
+| Subscribe a webhook to a stream | `POST /v1/api/inventory-os/streams/:streamType/subscribe` | `inventory-os:subscriptions:write` |
+| List a key's subscriptions on a stream | `GET /v1/api/inventory-os/streams/:streamType/subscriptions` | `inventory-os:subscriptions:read` |
+| Delete a subscription | `DELETE /v1/api/inventory-os/streams/:streamType/subscriptions/:id` | `inventory-os:subscriptions:write` |
+| Discovery manifest | `GET /v1/api/inventory-os/manifest` | none (public) |
+
+`:streamType` is one of: `catalog`, `inventory-level`, `sell-through`, `return-rate`, `pricing`,
+`attribution`, `settlement`, `provenance`. An unknown stream type returns a 404-class error.
 
 ## Webhook subscriptions
 
-Most integrators don't poll — they subscribe. Register a callback URL and a stream filter; we
-deliver signed JSON envelopes with HMAC-SHA256 verification, exponential backoff retry, and a
-dead-letter queue you can replay.
+Most integrators subscribe rather than poll. Register a callback URL on a specific stream; we
+deliver HMAC-SHA256-signed JSON POSTs when the stream's rows change for your merchant.
 
-See [Webhook subscriptions](/developers/inventory-os-api/subscriptions) for the verification
-recipe (Node.js sample included) and event payload shape.
+See [Webhook subscriptions](/developers/inventory-os-api/subscriptions) for the create flow,
+event vocabulary, and the one-time HMAC signing secret.
 
-## Versioning
+<a id="discovery-manifest" />
+## Discovery manifest
 
-Versioning is per-stream and date-tagged. Pass `X-InventoryOS-Version: 2026-06-01` on every
-request. We support N-2 prior versions (so this version is supported through `2026-08-01`).
-Breaking changes ship behind a new version date; non-breaking additions ship inline.
+`GET /v1/api/inventory-os/manifest` is intentionally **unauthenticated** so SDK generators,
+agent crawlers, and vector indexers can read the API shape at build time. It returns the stream
+vocabulary, per-stream rate limits, the scope vocabulary, the auth header names, and a pointer
+to the OpenAPI spec (`/api-doc-json`). No merchant data ever surfaces there.
+
+```bash
+curl https://apiv3.droplinked.com/v1/api/inventory-os/manifest
+```
 
 <Card title="Next: catalog stream" icon="box" href="/developers/inventory-os-api/streams/catalog">
-The canonical product record — variants, attributes, media.
+The product record — titles, slugs, status.
 </Card>

@@ -1,111 +1,83 @@
 ---
 title: "Stream 2 — Inventory level"
-description: "Real-time stock per SKU and location — webhook on every observation, daily reconciliation snapshot."
+description: "Stock per SKU — quantity + available — projected from ProductSkuV2."
 ---
 
-<Note>**BETA.** Inventory-level events emit on every observation (merchant write, 3PL webhook, cycle count). Treat events as observations, not commands.</Note>
+<Note>**BETA.** The inventory-level stream projects current stock per SKU from `ProductSkuV2` (joined to the merchant's products).</Note>
 
-The **inventory-level stream** is the real-time stock record: per-SKU, per-location, with the
-distinction between available, on-hold (cart-reserved), and total. Producers include the
-merchant inventory ledger (`inventory/`) and 3PL webhooks (Stord `inventory.received` /
-`shipped` / `returned` / `adjusted` per the Stord pilot pattern).
-
-## Shape
-
-```json
-{
-  "sku": "shop-handle__product-handle__variant-1",
-  "shop_id": "65df8abc123…",
-  "location_id": "stord-warehouse-atl-1",
-  "available": 142,
-  "on_hold": 8,
-  "total": 150,
-  "source": "stord",
-  "observed_at": "2026-06-01T12:00:00.000Z",
-  "delta": { "available": -2, "reason": "shipped" }
-}
-```
-
-| Field | Meaning |
-|---|---|
-| `location_id` | Logical location — 3PL warehouse, merchant-owned location, or virtual |
-| `available` | Sellable stock |
-| `on_hold` | Cart-reserved (decrement before commit) |
-| `total` | `available + on_hold + non_sellable` |
-| `source` | `merchant`, `stord`, `flowspace`, `shiphero`, `cycle_count`, `reconciliation` |
-| `delta` | Optional — present on observations that produced a change |
+The **inventory-level stream** is the per-SKU stock record: quantity and available, plus the
+warehouse external id when the SKU is synced from a 3PL. Rows are scoped to the products owned by
+the API key's merchant.
 
 ## Endpoint
 
 ```
-GET /developers/inventory/v1/streams/inventory-level
+GET /v1/api/inventory-os/streams/inventory-level
 ```
 
 **Query parameters:**
 
 | Param | Type | Notes |
 |---|---|---|
-| `shop_id` | string | Optional |
-| `sku` | string | Optional; scope to a single SKU |
-| `location_id` | string | Optional; scope to a single location |
-| `observed_since` | ISO-8601 | Optional; events after this timestamp |
-| `limit` | int | Max 200, default 50 |
+| `limit` | int | 1–200, default 50 |
 | `cursor` | string | Opaque pagination token |
+| `since` | ISO-8601 | Optional; SKUs updated on or after this timestamp |
+
+## Row shape
+
+```json
+{
+  "skuId": "665fsku123…",
+  "productId": "665f8abc123…",
+  "type": "DIGITAL",
+  "inventoryQuantity": 150,
+  "inventoryAvailable": 142,
+  "warehouseExternalId": "stord-warehouse-atl-1",
+  "updatedAt": "2026-06-01T12:00:00.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `skuId` | `ProductSkuV2` id |
+| `productId` | Parent product (join key to the catalog stream) |
+| `inventoryQuantity` | Total stock (`inventory.quantity`) |
+| `inventoryAvailable` | Sellable stock (`inventory.available`) |
+| `warehouseExternalId` | 3PL/warehouse external id when synced from a fulfillment partner; `null` otherwise |
+
+## Response envelope
+
+```json
+{
+  "streamType": "inventory-level",
+  "merchantId": "65df8abc123…",
+  "data": [ /* rows */ ],
+  "count": 50,
+  "nextCursor": "NjY1ZnNrdTEyMw..."
+}
+```
 
 ## curl
 
 ```bash
-curl "https://apiv3.droplinked.com/developers/inventory/v1/streams/inventory-level?sku=shop-handle__product-handle__variant-1" \
-  -H "Authorization: Bearer ds_test_REPLACE_ME" \
-  -H "X-InventoryOS-Version: 2026-06-01"
-```
-
-## TypeScript SDK
-
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
-
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-});
-
-const page = await droplinked.inventory.inventoryLevel.list({
-  sku: "shop-handle__product-handle__variant-1",
-  observedSince: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  limit: 100,
-});
-
-const currentlyAvailable = page.data
-  .filter((event) => event.source !== "reconciliation")
-  .reduce((acc, event) => Math.max(acc, event.available), 0);
-```
-
-## Cursor pagination
-
-```ts
-let cursor: string | undefined;
-do {
-  const page = await droplinked.inventory.inventoryLevel.list({ cursor, limit: 200 });
-  await indexObservations(page.data);
-  cursor = page.next_cursor ?? undefined;
-} while (cursor);
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/inventory-level?limit=100" \
+  -H "x-droplinked-api-key: REPLACE_ME"
 ```
 
 ## Lender-facing usage
 
 The lending underwriter uses this stream as a collateral-valuation input. Combined with the
 provenance stream (8) and PSP-confirmed settlement stream (7), 3PL-attested custody gets the
-underwriter ~50-100 bps off the lending rate. Subscribing to webhooks (vs polling) is the
-recommended pattern for lender integrations.
+underwriter materially off the lending rate. **Subscribe to webhooks** (vs polling) for active
+lender integrations.
 
 ## Rate limits
 
-Read class — 600 req/min/key. Inventory observations are usually high-volume; **subscribe via
-webhook** instead of polling for active integrations.
+Mid-budget class — **500 reads/min/key**, up to **5 subscriptions/key**.
 
 ## Related
 
-- [Catalog stream](/developers/inventory-os-api/streams/catalog) — SKU definitions referenced here
-- [Sell-through stream](/developers/inventory-os-api/streams/sell-through) — velocity per SKU
-- [Provenance stream](/developers/inventory-os-api/streams/provenance) — EAS attestation on inventory deltas
-- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `inventory.observed` events
+- [Catalog stream](/developers/inventory-os-api/streams/catalog) — product definitions referenced here via `productId`
+- [Sell-through stream](/developers/inventory-os-api/streams/sell-through) — sale events per merchant
+- [Provenance stream](/developers/inventory-os-api/streams/provenance) — onchain recording per product
+- [Webhook subscriptions](/developers/inventory-os-api/subscriptions) — `inventory.changed` events

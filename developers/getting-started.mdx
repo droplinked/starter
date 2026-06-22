@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: "Partner-facing API surfaces — InventoryOS, the Lending Application API, and KYB cohort routing. Auth, scopes, and your first call."
+description: "Partner-facing API surfaces — the InventoryOS Public API, the Lending Application API, and KYB cohort routing. Auth, scopes, and your first call."
 ---
 
 <Note>**BETA — APIs in this section may change.** They power partner integrations (lenders, 3PLs, agentic buyers, KYB providers) and are in active iteration. Pin versions in production code and watch the changelog.</Note>
@@ -19,101 +19,107 @@ The **Developers** section documents the partner-facing surfaces of the Droplink
     checklist + CredibleX referral model.
   </Card>
   <Card title="KYB Cohorts" icon="sitemap" href="/developers/kyb-cohorts">
-    The eleven-cohort taxonomy that routes a merchant's KYB sources, MoR entity, and lending tier.
+    The cohort taxonomy that routes a merchant's KYB sources, MoR entity, and lending tier.
   </Card>
 </CardGroup>
 
 ## Authentication
 
-Partner endpoints use a **partner API key** with explicit scopes — not a merchant JWT. Keys are
-prefixed `ds_test_…` (development sandbox) or `ds_live_…` (production). Send them as a Bearer
-header.
+There are **two distinct auth schemes** in this section — match the scheme to the surface:
+
+| Surface | Auth scheme | How it's sent |
+|---|---|---|
+| **InventoryOS Public API** (`/v1/api/inventory-os/*`) | Merchant-scoped **API key** | `x-droplinked-api-key: <key>` header |
+| **Lending Application API** (`/lending-application/*`) | Merchant **JWT** (the standard Droplinked auth token) | `Authorization: Bearer <jwt>` header |
+| **KYB status** (`/kyb/merchant/:merchantId/status`) | Merchant **JWT** | `Authorization: Bearer <jwt>` header |
+
+### InventoryOS API keys
+
+InventoryOS keys are bound to a single merchant's shop. Send the key in the
+`x-droplinked-api-key` header. (`x-gravitee-api-key` and the `?api_key=` query parameter are
+also accepted for gateway compatibility.)
 
 ```bash
-curl https://apiv3.droplinked.com/developers/inventory/v1/streams/catalog \
-  -H "Authorization: Bearer ds_test_REPLACE_ME"
+curl https://apiv3.droplinked.com/v1/api/inventory-os/streams/catalog \
+  -H "x-droplinked-api-key: REPLACE_ME"
 ```
 
-```ts
-import { DroplinkedClient } from "@droplinked/sdk";
+Every row returned is filtered server-side to the merchant the key is bound to — a key
+physically cannot read another merchant's data, regardless of the scope grant.
 
-const droplinked = new DroplinkedClient({
-  apiKey: process.env.DROPLINKED_API_KEY ?? "ds_test_REPLACE_ME",
-  baseUrl: "https://apiv3.droplinked.com",
-});
-
-const page = await droplinked.inventory.catalog.list({ limit: 50 });
-```
-
-### Scopes
+### Scopes (InventoryOS API)
 
 | Scope | Grants |
 |---|---|
-| `inventory:read` | Read any InventoryOS stream (catalog, inventory level, sell-through, return rate, pricing, attribution, settlement, provenance) |
-| `inventory:webhooks` | Register and consume webhook subscriptions for inventory streams |
-| `lending:submit` | Submit and update a lending application as a referrer/partner |
-| `lending:read` | Read a lending application's status, doc checklist, and decisions |
-| `lending:decide` | Post an underwriter decision (CredibleX-tier or Tier-3 vault partners only) |
-| `kyb:read` | Read a merchant's KYB cohort, MoR entity, and inheritance chain |
+| `inventory-os:streams:read` | Read any InventoryOS stream (paginated reads + snapshots) |
+| `inventory-os:subscriptions:read` | List existing webhook subscriptions |
+| `inventory-os:subscriptions:write` | Create and delete webhook subscriptions |
 
-Scopes are additive. Issue separate keys for separate integration responsibilities — don't mint
-one omni-scope key.
+Scopes are additive and bound to the key at creation time. A key with `*` is granted all
+scopes. Issue separate keys for separate integration responsibilities — don't mint one
+omni-scope key.
 
 ## Rate limits
 
-| Endpoint class | Default | Burst |
+InventoryOS rate limits are **per-stream**, applied at the handler level plus an in-process
+per-(key, stream) counter so one integration polling `catalog` can't starve another hitting
+`settlement` on the same key.
+
+| Stream class | Reads/min/key | Max subscriptions/key |
 |---|---|---|
-| Read (any `GET /developers/*`) | 600 req/min/key | 1200 req over 5s |
-| Write (`POST` / `PATCH` lending) | 60 req/min/key | 120 req over 5s |
-| Webhook subscription management | 30 req/min/key | 60 req over 5s |
+| `catalog`, `pricing` | 1000 | 10 |
+| `inventory-level`, `sell-through`, `return-rate` | 500 | 5 |
+| `attribution`, `settlement`, `provenance` | 250 | 3 |
 
-Limits are returned per response:
-
-```
-X-RateLimit-Limit: 600
-X-RateLimit-Remaining: 587
-X-RateLimit-Reset: 1717200000
-```
-
-A `429 Too Many Requests` returns `Retry-After` in seconds. Back off and resume.
+Exact per-stream limits are published live on the unauthenticated
+[manifest endpoint](/developers/inventory-os-api/overview#discovery-manifest).
 
 ## Pagination
 
-All list endpoints use **opaque cursor pagination**. Pass `?limit=` (max 200) and follow
-`next_cursor` until it's absent.
+InventoryOS list endpoints use **opaque forward-only cursor pagination**. Pass `?limit=` (1–200,
+default 50) and follow `nextCursor` until it's `null`.
 
 ```bash
-curl "https://apiv3.droplinked.com/developers/inventory/v1/streams/catalog?limit=50&cursor=eyJpZCI6IjY1ZGY4LiJ9" \
-  -H "Authorization: Bearer ds_test_REPLACE_ME"
+curl "https://apiv3.droplinked.com/v1/api/inventory-os/streams/catalog?limit=50&cursor=NjY3ZWUyMzJhYjY..." \
+  -H "x-droplinked-api-key: REPLACE_ME"
 ```
 
 Response envelope:
 
 ```json
 {
-  "data": [ /* page of items */ ],
-  "next_cursor": "eyJpZCI6IjY1ZGY5LiJ9",
-  "generated_at": "2026-06-01T12:00:00.000Z"
+  "streamType": "catalog",
+  "merchantId": "65df8abc123…",
+  "data": [ /* page of rows */ ],
+  "count": 50,
+  "nextCursor": "NjY3ZWUyMzJhYjY..."
 }
 ```
 
-Cursors are tied to a key and a stream — don't reuse cursors across keys.
+The cursor is the base64url-encoded id of the last row on the page — it's opaque, don't parse
+it, and don't reuse cursors across keys or streams.
 
 ## Environments
 
-| Environment | Base URL | API keys |
-|---|---|---|
-| Production | `https://apiv3.droplinked.com` | `ds_live_…` |
-| Development | `https://apiv3dev.droplinked.com` | `ds_test_…` |
+| Environment | Base URL |
+|---|---|
+| Production | `https://apiv3.droplinked.com` |
+| Development | `https://apiv3dev.droplinked.com` |
 
 Data is isolated per environment. Build and test against development; promote to production with
-new live keys.
+production-environment keys.
 
 ## Issuing keys
 
-API keys are minted from the merchant or partner dashboard at
-`https://droplinked.com/dashboard/developers` (BETA, behind feature flag). For Tier-1
-CredibleX referral keys and Tier-3 vault decisioning keys, contact
+InventoryOS API keys are minted through the API-key management surface:
+
+```
+POST /shops/v2/api-key
+```
+
+This is the same ApiKeyV2 surface that powers other partner integrations; bind the
+`inventory-os:*` scopes you need at creation time. For Tier-1 CredibleX referral access and
+Tier-3 vault decisioning, contact
 [partners@droplinked.com](mailto:partners@droplinked.com).
 
 <Card title="Next: InventoryOS overview" icon="layer-group" href="/developers/inventory-os-api/overview">

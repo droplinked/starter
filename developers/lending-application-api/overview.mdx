@@ -3,12 +3,18 @@ title: "Lending Application API overview"
 description: "Submit, update, and review merchant lending applications — state machine, per-cohort doc checklist, CredibleX referral model."
 ---
 
-<Note>**BETA.** The Lending Application API powers both the merchant-facing application UX and partner referral flows. CredibleX referrals are live (Tier 1 UAE); Tier 2 US LFI corridor pilots Q3 2026; Tier 3 droplinked-direct FSRA vault Q3-Q4 2026.</Note>
+<Note>**BETA.** The Lending Application API powers the merchant-facing application UX and the operator/lender review surface. The whole surface is gated by the `LENDING_PLATFORM_ENABLED` server flag — every route returns `404` when it is off. CredibleX is the first Tier-1 referral partner (UAE corridor).</Note>
 
-The **Lending Application API** is the partner-facing wrapper around the merchant lending
-application lifecycle. Use it to submit applications on a merchant's behalf (CredibleX
-integration), update them through the state machine, and — for authorized lender partners —
-post underwriting decisions.
+The **Lending Application API** wraps the merchant lending application lifecycle. There are two
+surfaces:
+
+- A **merchant-facing** surface at `/lending-application/*`, authenticated with the merchant's
+  JWT (the standard Droplinked auth token), ownership-checked at the service layer.
+- An **operator/lender review** surface at `/admin/lending-application/*`, authenticated with a
+  JWT carrying the `SUPER_ADMIN` role.
+
+There is no separate partner API key for lending today — partner referral flows (CredibleX)
+operate against these surfaces with the appropriate credential.
 
 ## The state machine
 
@@ -19,87 +25,86 @@ post underwriting decisions.
                                   ▲
                                   │
 DRAFT ──submit──> SUBMITTED ──review──> UNDER_REVIEW ──decide──> APPROVED ──disburse──> DISBURSED
-                                                          │
-                                                          └──decide──> REJECTED
+                       │                                  │
+                       └──withdraw──> WITHDRAWN           └──decide──> REJECTED
 ```
 
-| State | Meaning | Who can transition |
+| State | Meaning | Who transitions |
 |---|---|---|
-| `DRAFT` | Application started; doc checklist incomplete | Merchant (or partner on behalf) |
-| `SUBMITTED` | Doc checklist complete, awaiting first review | Merchant + partner |
-| `UNDER_REVIEW` | Partner lender reviewing | Partner lender |
-| `APPROVED` | Underwriter green-lit; awaiting disbursement | Partner lender |
-| `REJECTED` | Application declined (with reason code) | Partner lender |
-| `DISBURSED` | Funds settled to merchant | System (post-disbursement webhook) |
+| `DRAFT` | Application started; doc checklist incomplete | Merchant |
+| `SUBMITTED` | Submitted, awaiting first review | Merchant (`POST :id/submit`) |
+| `UNDER_REVIEW` | Operator/lender reviewing | Operator (`POST :id/decision` with `UNDER_REVIEW`) |
+| `APPROVED` | Underwriter green-lit | Operator (`POST :id/decision` with `APPROVED`) |
+| `REJECTED` | Application declined | Operator (`POST :id/decision` with `REJECTED`) |
+| `WITHDRAWN` | Merchant withdrew | Merchant (`POST :id/withdraw`) |
+| `DISBURSED` | Funds settled to merchant | System (post-disbursement) |
 
-States are append-only — once disbursed or rejected, the record is locked.
+(Full enum: `DRAFT`, `SUBMITTED`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`, `WITHDRAWN`,
+`DISBURSED`.)
+
+## KYB cohorts (11)
+
+A merchant's application is keyed by their **KYB cohort**, which drives the document checklist and
+lending-tier eligibility. The cohort enum (`KybCohort`) has 11 values:
+
+`A_MOR_SHOPSADIQ_VIA_TELR`, `A_MOR_SHOPSADIQ_VIA_BONUM`, `A_MOR_TELR_DIRECT`,
+`A_MOR_BONUM_DIRECT`, `A_CONNECT_TELR`, `A_CONNECT_BONUM`, `A_CONNECT_STRIPE`,
+`A_CONNECT_PAYPAL`, `A_CONNECT_PAYMOB`, `B_SUMSUB_FALLBACK`, `C_MANUAL_OPERATOR`.
+
+(The taxonomy is described in detail in [KYB cohorts](/developers/kyb-cohorts).)
 
 ## Per-cohort doc checklist
 
-Doc checklist is derived from the merchant's [KYB cohort](/developers/kyb-cohorts). Three of
-the eleven cohorts ship today; the rest follow once the corresponding PSP onboarding cohort is
-live.
+The checklist is derived from the merchant's cohort by `DocumentChecklistService`. It groups
+into three burdens:
 
-| Cohort | Tier | Doc count | Required docs |
-|---|---|---|---|
-| `A_MOR_SHOPSADIQ_VIA_TELR` | Light | 3 | `merchant_identity`, `psp_account_link`, `settlement_history_90d` |
-| `A_MOR_TELR_DIRECT` | Medium | 4 | adds `mor_consent_letter` |
-| `A_CONNECT_STRIPE` | Heavy | 5 | adds `bank_statement_90d`, `tax_return_or_substitute` |
-| `A_CONNECT_PAYPAL` | Heavy | 5 | same as `A_CONNECT_STRIPE` |
-| `A_CONNECT_TELR` | Heavy | 5 | same as `A_CONNECT_STRIPE` |
-| `A_CONNECT_PAYMOB` | Heavy | 5 | same as `A_CONNECT_STRIPE` |
-| `A_CONNECT_BONUM` | Heavy | 5 | same as `A_CONNECT_STRIPE` |
-| `A_MOR_SHOPSADIQ_VIA_BONUM` | Light | 3 | mirror of Telr-via-Shopsadiq |
-| `A_MOR_SHOPSADIQ_VIA_PAYPAL` | Light | 3 | mirror of Telr-via-Shopsadiq |
-| `A_MOR_SHOPSADIQ_VIA_STRIPE` | Light | 3 | mirror of Telr-via-Shopsadiq (Stripe Connect Platform) |
-| `A_MOR_SHOPSADIQ_VIA_PAYMOB` | Light | 3 | mirror of Telr-via-Shopsadiq |
+| Cohort family | Burden | Required documents (keys) |
+|---|---|---|
+| `A_MOR_SHOPSADIQ_VIA_TELR`, `A_MOR_SHOPSADIQ_VIA_BONUM` | Light (3) | `bank_statements_6m`, `tax_return_last`, `adgm_stamped_certificate` |
+| `A_MOR_TELR_DIRECT`, `A_MOR_BONUM_DIRECT` | Medium (4) | `bank_statements_6m`, `tax_return_last`, `trade_certificate`, `psp_settlement_statements_6m` |
+| `A_CONNECT_TELR`, `A_CONNECT_BONUM`, `A_CONNECT_STRIPE`, `A_CONNECT_PAYPAL`, `A_CONNECT_PAYMOB` | Heavy (5) | `bank_statements_12m`, `tax_returns_2y`, `beneficial_ownership`, `trade_certificate`, `proof_of_address` |
+| `B_SUMSUB_FALLBACK` | Fallback (4) | `bank_statements_12m`, `tax_returns_2y`, `trade_certificate`, `proof_of_address` |
+| `C_MANUAL_OPERATOR` | Manual (3) | `bank_statements_6m`, `tax_return_last`, `trade_certificate` |
 
-**Rationale**: MoR-via-Shopsadiq cohorts inherit the master MoR KYB; the sub-merchant just
-needs identity verification + PSP linkage + recent settlement history. MoR-Direct cohorts add a
-consent letter (the MoR is consenting to sub-merchant lending). Connect cohorts require the
-full bank-and-tax pack because the merchant is the regulated entity.
+<Note>When the selected Tier-1 partner is **CredibleX**, an `adgm_stamped_certificate` item is
+appended to the checklist if the base cohort didn't already require it.</Note>
+
+**Rationale**: Shopsadiq-MoR cohorts inherit the Shopsadiq master KYB (light burden);
+PSP-MoR-direct cohorts add PSP settlement statements (medium); Connect cohorts require the full
+bank-and-tax pack because the merchant is the regulated entity (heavy).
+
+## Lending tiers
+
+Application tier (`LendingApplicationTier`): `TIER_1_REFERRAL`, `TIER_2_REFERRAL`,
+`TIER_3_VAULT`. Tier-1 partners (`Tier1Partner` enum): `CredibleX`, `CBI`, `RAKBank`, `Mbank`.
 
 ## CredibleX referral model
 
-CredibleX is the Tier 1 UAE-corridor lender. They consume the partner endpoints to:
+CredibleX is the Tier-1 UAE-corridor lender. The referral flow:
 
-1. **Submit** applications via their merchant-onboarding form (server-to-server, on behalf of the merchant)
-2. **Read** application status + doc checklist + signed S3 URLs for uploaded docs
-3. **Decide** — post `APPROVED` / `REJECTED` with reason code + disbursement terms
-
-The integration is server-to-server only; CredibleX merchants don't hit Droplinked dashboards.
-The model generalizes to Tier 2 US LFI corridor lenders and the Tier 3 vault as those go live.
-
-## Inputs from InventoryOS
-
-The application carries reference fields that the underwriter pulls from the merchant's
-[InventoryOS](/developers/inventory-os-api/overview) data:
-
-- **Stream 2 (inventory level)**: 30-day average on-hand
-- **Stream 3 (sell-through)**: 90-day GMV + velocity score
-- **Stream 4 (return rate)**: rolling 30-day return rate
-- **Stream 7 (settlement)**: 30/60/90-day net revenue per PSP
-- **Stream 8 (provenance)**: count of attested SKUs (signals DPP coverage)
-
-These reference fields are read-only and refreshed on every application read — the partner
-lender always sees current InventoryOS data, even after the application is submitted.
+1. **Submit / update** the application on the merchant's behalf via the merchant-facing surface.
+2. **Read** application status + per-cohort checklist via `GET /lending-application/:id` and
+   `GET /lending-application/:id/checklist`.
+3. **Decide** — an operator with `SUPER_ADMIN` posts `APPROVED` / `REJECTED` / `UNDER_REVIEW`
+   via `POST /admin/lending-application/:id/decision`.
 
 ## Auth
 
-| Scope | Use |
+| Surface | Credential |
 |---|---|
-| `lending:submit` | Partners submitting/updating on merchant behalf (CredibleX, US LFI corridor) |
-| `lending:read` | Partners reading status + doc checklist |
-| `lending:decide` | Authorized lender partners only — post underwriting decisions |
+| `/lending-application/*` | Merchant JWT (`Authorization: Bearer <jwt>`); ownership-checked |
+| `/admin/lending-application/*` | JWT with `SUPER_ADMIN` role |
 
-Each Tier-1 referral partner gets a partner-scoped key; never share keys across partners.
+Several merchant-facing write routes are additionally KYB-gated (`@KybGated()`) — the merchant
+must have an approved KYB record to create/update/submit/withdraw.
 
-## Base path
+## Base paths
 
 ```
-https://apiv3.droplinked.com/developers/lending/v1
+https://apiv3.droplinked.com/lending-application
+https://apiv3.droplinked.com/admin/lending-application
 ```
 
 <Card title="Next: endpoints" icon="list-check" href="/developers/lending-application-api/endpoints">
-Submit, patch, review — request / response shapes.
+Create, patch, submit, decide — request / response shapes.
 </Card>
