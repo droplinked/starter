@@ -133,9 +133,18 @@
               "api-reference/admin/aggregate-provisioner",
               "api-reference/admin/bonum",
               "api-reference/admin/kpi-dashboard",
-              "api-reference/admin/monetization-platform-fees",
               "api-reference/admin/psp-health",
-              "api-reference/admin/telr"
+              "api-reference/admin/telr",
+              {
+                "group": "Monetization",
+                "pages": [
+                  "api-reference/admin/monetization-platform-fees",
+                  "api-reference/admin/monetization/platform-fee-summary",
+                  "api-reference/admin/monetization/x402-earnings",
+                  "api-reference/admin/monetization/capital-markets-fees",
+                  "api-reference/admin/monetization/merchant-acquisition-source"
+                ]
+              }
             ]
           },
           {

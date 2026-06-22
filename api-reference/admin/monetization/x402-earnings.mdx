@@ -1,0 +1,108 @@
+---
+title: "x402 Earnings"
+description: "Per-merchant x402 settlement rollup. Reads X402SettlementLog. Returns empty rows until X402_ENABLED is flipped on the platform."
+---
+
+`GET /admin/monetization/x402-earnings` returns the per-merchant rollup of x402
+settlement events captured by the platform — gross settled amount, settlement count,
+and pagination. The endpoint reads `X402SettlementLog`.
+
+<Note>
+This endpoint requires:
+
+- **JWT** with `role = SUPER_ADMIN`
+- **`IpAllowlistGuard`** — caller IP must be in the operator allowlist
+- **`GeoBlockGuard`** — caller geo must be permitted
+
+Calls that miss any of the three return `403`. Missing or invalid JWT returns `401`.
+</Note>
+
+## GET /admin/monetization/x402-earnings
+
+### Authentication
+
+| Guard | Requirement |
+|-------|-------------|
+| JWT | Required, `role = SUPER_ADMIN` |
+| IP allowlist | Caller IP in `ADMIN_IP_ALLOWLIST` |
+| Geo | Country in `ADMIN_GEO_ALLOWLIST` |
+
+Obtain a SUPER_ADMIN JWT via `POST /merchant/admin/login` — see
+[Authentication](/authentication).
+
+### Query parameters
+
+| Param | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `page` | integer | No | `1` | 1-indexed page number |
+| `limit` | integer | No | `30` | Rows per page |
+
+### Example
+
+```bash
+curl "https://apiv3.droplinked.com/admin/monetization/x402-earnings?page=1&limit=30" \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>"
+```
+
+### Response — 200 OK
+
+```json
+{
+  "rows": [],
+  "totalAmountUsdCents": 0,
+  "totalSettlements": 0,
+  "pagination": {
+    "page": 1,
+    "limit": 30,
+    "total": 0
+  },
+  "asOf": "2026-06-14T22:58:16.027Z"
+}
+```
+
+### Fields
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `rows` | array | No | One entry per merchant with at least one x402 settlement in the window. Empty array until `X402_ENABLED` is flipped on. |
+| `rows[].merchantId` | string (ObjectId) | No | MerchantV2 `_id`. |
+| `rows[].shopName` | string | No | Merchant's primary shop name. |
+| `rows[].settlementCount` | integer | No | Number of `X402SettlementLog` entries for the merchant. |
+| `rows[].grossAmountUsdCents` | integer | No | Sum of settlement amounts for the merchant, USD cents. |
+| `rows[].lastSettledAt` | ISO-8601 string | Yes | Timestamp of the most recent settlement; `null` if the merchant has none. |
+| `totalAmountUsdCents` | integer | No | Network-wide gross settled amount across all rows, USD cents. |
+| `totalSettlements` | integer | No | Network-wide settlement count. |
+| `pagination` | object | No | Pagination envelope. |
+| `pagination.page` | integer | No | Echoed `page` query param (1-indexed). |
+| `pagination.limit` | integer | No | Echoed `limit` query param. |
+| `pagination.total` | integer | No | Total number of merchant rows matching the rollup (across pages). |
+| `asOf` | ISO-8601 string | No | Snapshot timestamp (server clock, UTC). |
+
+### Errors
+
+| Status | Body | When |
+|--------|------|------|
+| `401` | `{ "statusCode": 401, "status": "failed", "data": { "message": "Unauthorized" } }` | Missing or invalid JWT |
+| `403` | `{ "statusCode": 403, "status": "failed", "data": { "message": "Forbidden" } }` | JWT valid but not SUPER_ADMIN, or IP / geo guard failed |
+| `5xx` | `{ "statusCode": 500, "status": "failed", ... }` | Hard backend failure — see Notes below for the fail-open contract |
+
+### Notes
+
+- **`X402_ENABLED` gating.** Until the platform flag `X402_ENABLED` is set to `true`,
+  `X402SettlementLog` accepts no writes and this endpoint always returns
+  `rows: []`, `totalAmountUsdCents: 0`, `totalSettlements: 0`. The endpoint
+  itself is always reachable — the gate is at the write path, not the read path.
+- **Fail-open semantics.** If the underlying `X402SettlementLog` aggregation throws,
+  the endpoint returns the empty-state envelope (`rows: []`, totals `0`) with
+  `200 OK` rather than propagating the error. Inspect server logs / Sentry for the
+  underlying failure.
+- **Currency.** All monetary fields are USD cents, integer. x402 settles natively in
+  USDC on Base; the read path converts at the settlement timestamp's FX snapshot.
+- **Pagination.** `total` is the number of merchant rows, not the number of
+  settlements. A merchant with 50 settlements counts as `1` for pagination.
+
+## Related
+
+- [Platform Fee Summary](/api-reference/admin/monetization/platform-fee-summary) — MRR / ARR / 30d / 365d rollup that includes x402 in `revenue30dUsdCents` / `revenue365dUsdCents`.
+- [Capital Markets Fees](/api-reference/admin/monetization/capital-markets-fees) — companion fee-schedule preview.
+- [Set Merchant Acquisition Source](/api-reference/admin/monetization/merchant-acquisition-source) — set the activation-source enum surfaced in the platform-fee-summary mix.
