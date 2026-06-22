@@ -243,7 +243,11 @@
               "agentic/storefront-mcp-discovery",
               "agentic/cart-composition",
               "agentic/merchant-discovery-rules",
-              "agentic/x402-premium-feed"
+              "agentic/x402-premium-feed",
+              "agentic/get-listed-in-mcp-discovery",
+              "agentic/consume-droplinked-mcp",
+              "agentic/aeo-geo-optimization",
+              "agentic/attribution-and-commission"
             ]
           }
         ]
