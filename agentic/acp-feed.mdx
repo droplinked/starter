@@ -82,8 +82,8 @@ for product in feed['items']:
 
 - **Agents & shopping surfaces** ingest the feed to make Droplinked inventory searchable and
   buyable in-context.
-- The [MCP server](/agentic/mcp-server)'s `get_feed` tool returns this URL so an agent can pull
-  the catalog directly.
+- The [MCP server](/agentic/mcp-server) lets an agent query the same catalog directly via
+  `searchProducts` / `findInventory` rather than ingesting the whole feed.
 - Purchases route through the Stripe ACP / x402 layer with the 70/20/10 revenue split.
 
 ## ACP-compatible surfaces

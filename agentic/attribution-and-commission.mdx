@@ -16,10 +16,62 @@ This page walks through how that attribution actually happens — for merchants,
 agent developers, and anyone integrating against the
 [MCP server](/agentic/mcp-server).
 
-## How attribution works
+## Two attribution paths
 
-Attribution is **tool-call-driven**, not click-driven. There's no cookie, no
-UTM parameter, no redirect chain. The flow:
+Droplinked attributes agentic conversions on two distinct rails, depending on
+whose catalog the agent is shopping:
+
+| Path | Catalog | How intent is captured | How a conversion is recorded |
+|---|---|---|---|
+| **Internal** | A Droplinked merchant's own catalog (native `ProductV2`) | `recordAgenticIntent` writes a row to the agentic intent ledger (or `placeOrderAgentic` orders directly) | On the order-confirmed event, the settlement coordinator marks the intent converted, computes commission, and writes a settlement-ready accrual |
+| **External** | A third-party advertiser in the Flatlay × Impact.com network | The agent follows a Model-A tracked link | The advertiser's network reports the sale through Impact's standard conversion pipeline |
+
+The **internal** path is the one fully wired in the Droplinked backend today
+(behind the `AGENTIC_DISCOVERY_SETTLEMENT_ENABLED` flag) and is detailed below.
+The **external** path rides Impact.com's own tracking-link → conversion
+reporting; Droplinked's connector to that network is read-only (catalog reads),
+so external conversions settle through Impact, not through the Droplinked
+settlement coordinator.
+
+## The internal intent ledger
+
+For Droplinked-merchant catalogs, attribution is **explicit and idempotent**:
+
+<Steps>
+  <Step title="Agent records intent">
+    The agent calls `recordAgenticIntent` with the merchant slug and an intent
+    of `browse` / `buy` / `compare` / `share`. The merchant must have opted
+    into agentic discovery (`agenticDiscoveryEnabled`) — otherwise the call
+    returns `opt_in_required` and no row is written. An optional caller-supplied
+    `intentId` makes retries idempotent, and an optional `referringAffiliateId`
+    (a Mongo ObjectId) tags the affiliate of record.
+  </Step>
+  <Step title="Order is placed">
+    The agent calls `placeOrderAgentic` (or the buyer completes a checkout link
+    that carries the `intentId`). The order is created and follows the normal
+    PSP-resolver lifecycle.
+  </Step>
+  <Step title="Payment captures, then settlement runs">
+    On the order-confirmed event, the settlement coordinator marks the matching
+    intent row converted, computes the commission, and writes a settlement-ready
+    accrual — freezing the affiliate-of-record at that moment. The whole path is
+    idempotent end-to-end (it no-ops cleanly for orders that didn't originate
+    from an MCP intent).
+  </Step>
+</Steps>
+
+<Note>
+  Some MCP clients connect through a hosted gateway that signs every call with
+  an API key and derives attribution from the signed tool chain. The
+  description below covers that gateway model. The backend's own canonical
+  attribution mechanism is the explicit intent ledger described above — when in
+  doubt, call `recordAgenticIntent`.
+</Note>
+
+## How attribution works (gateway model)
+
+Through the hosted gateway, attribution is **tool-call-driven**, not
+click-driven. There's no cookie, no UTM parameter, no redirect chain. The flow:
 
 <Steps>
   <Step title="Agent calls Droplinked tools">

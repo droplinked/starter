@@ -10,6 +10,16 @@ install side (point Claude Desktop / Claude Code at the local server), see
 [MCP Server](/agentic/mcp-server). This page covers the **HTTP transport** at
 `mcp.droplinked.com`.
 
+<Note>
+  The `mcp.droplinked.com` host, `X-MCP-API-Key` auth, and REST-style
+  `/mcp/tools/{name}` routes on this page describe the **hosted gateway**. The
+  Droplinked backend itself serves MCP directly at
+  `apiv3.droplinked.com` over JSON-RPC routes (`/mcp/v1/tools/{list,call}`),
+  unauthenticated in the current phase — see [MCP Server](/agentic/mcp-server)
+  and [Inventory MCP](/agentic/inventory-mcp) for the live, code-grounded
+  surface. If you're integrating against the backend today, use those.
+</Note>
+
 ## Endpoints
 
 | Surface | URL | Auth |
@@ -231,8 +241,11 @@ conversion (`placeOrderAgentic` → payment-captured) is attributed to your
 agent, the **10% affiliate share** in the
 [70/20/10 split](/agentic/attribution-and-commission) routes to you.
 
-You don't need to call a separate "record intent" tool — attribution is
-implicit in the tool-call chain.
+Through the hosted gateway, attribution is implicit in the API-key-signed
+tool-call chain. Against the backend directly (no signing key), call
+`recordAgenticIntent` to register intent against an opted-in merchant — that
+ledger row is what the settlement coordinator attributes the conversion to. See
+[Attribution + Commission](/agentic/attribution-and-commission).
 
 ## Rate limits + observability
 
