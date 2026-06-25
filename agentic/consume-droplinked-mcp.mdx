@@ -68,7 +68,7 @@ The most relevant tools for an agentic shopping flow:
 | Tool | Purpose |
 |---|---|
 | `searchProducts` | Free-text search across the public catalog. Returns up to 25 matches with id, title, lowest SKU price, primary image, and product URL. Optional `shopUrl` filters to a single merchant. |
-| `findInventory` | SKU-availability-aware query. Returns stock state, source, price, attestation status. Designed for cart composition. |
+| `findInventory` | SKU-availability-aware multi-source query (`native` + live `impact_brand` + `any`). Returns stock state, source, price, an optional Model-A `trackedBuyUrl`, and attestation status. Designed for cart composition + multi-brand discovery. |
 | `getProductDetail` | Full product detail — title, description, all images, all SKUs (price + inventory), tags, public URL. |
 | `getShopInfo` | Public shop metadata (name, description, currency, logo, social links). Call before `getProductDetail` so the agent knows the shop's currency. |
 | `listMerchants` | Paginated list of active merchants. Optional ISO-3166 region filter. |

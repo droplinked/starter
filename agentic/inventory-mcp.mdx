@@ -53,7 +53,7 @@ that matches the server's `MCP_ADMIN_SECRET`.
 | Tool | Purpose |
 |---|---|
 | `searchProducts` | Free-text search across the public Droplinked catalog (matches product title). |
-| `findInventory` | SKU-availability-aware catalog query — returns `stock_state`, `source`, `priceCents`, `currency`, `imageUrl`, `productUrl`, and a (policy-redacted) attestation status. Designed for cart composition. See [below](#about-findinventory). |
+| `findInventory` | SKU-availability-aware multi-source query (`native` + live `impact_brand` + `any`) — returns `stock_state`, `source`, `priceCents`, `currency`, `imageUrl`, `productUrl`, an optional Model-A `trackedBuyUrl`, and a (policy-redacted) attestation status. Designed for cart composition + multi-brand discovery. See [below](#about-findinventory). |
 | `getProductDetail` | Full product detail for a `shopUrl` + `productSlug` — images, all SKUs (price + inventory), metadata. |
 | `getShopInfo` | Public shop metadata — name, description, currency, logo, social links. |
 | `listMerchants` | List active merchants (as their public shops), optional ISO-3166 country filter. |
@@ -101,22 +101,58 @@ These tools only surface merchants who have set `agenticDiscoveryEnabled: true`.
 | `queryEventLog` | Query the EventBus event log (merchant / type / time-range, keyset-paginated). Requires `_adminKey`. |
 | `getInventoryDrift` | Compare Droplinked-mirrored inventory against the Shopify Admin API source of truth. Requires `_adminKey`. |
 
+## Tool annotations (preview)
+
+The MCP spec lets a server tag each tool with **behavioural hints** so a client can reason about
+safety before calling — `readOnlyHint` (does not mutate state), `destructiveHint` (may perform
+an irreversible update), and `openWorldHint` (touches an external system). These annotations ship
+alongside the [Streamable HTTP transport](/agentic/mcp-server#planned-streamable-http) (gated
+behind `MCP_STREAMABLE_HTTP_ENABLED`, preview) — the current `/mcp/v1/*` `tools/list` response
+does not yet include them, so treat this table as the planned classification:
+
+| Class | Tools | `readOnlyHint` | `destructiveHint` |
+|---|---|---|---|
+| Read-only discovery / fetch | `findInventory`, `searchProducts`, `searchMerchants`, `getProductDetail`, `getShopInfo`, `getOrderReceipt`, `getOrderStatus`, `getStockoutAlerts`, `getInventoryHealth`, `getInventoryDrift`, `getUnderwritingSignals`, `getMerchantDirectory`, `getMerchantCatalogSummary`, `listMerchants`, `traceAttestationLineage`, `recommendLender`, `estimateIntakeCost`, `queryEventLog` | `true` | — |
+| Recoverable writes | `cartAdd`, `cartUpdateLine`, `cartRemoveLine`, `cartApplyDiscount`, `recordAgenticIntent` | `false` | — |
+| Destructive writes (money moves) | `placeOrderAgentic`, `refundOrder` | `false` | `true` |
+
+`findInventory` and `getInventoryDrift` additionally carry `openWorldHint: true` (they reach
+Impact / the Shopify Admin API).
+
 ## About `findInventory`
 
-`findInventory` is the cart-composition primitive — it queries the catalog and returns each
-match with stock state, price, image, and a buyable product URL, so an agent can build a cart
-across results.
+`findInventory` is the cart-composition + multi-brand discovery primitive — it queries across
+inventory sources and returns each match with stock state, price, image, and a buyable product
+URL, so an agent can build a cart across results.
 
-Today it queries the **native Droplinked catalog** (published, visible, purchasable
-`ProductV2` / `ProductSkuV2`). The `source` argument accepts `native`, `impact_brand`,
-`rakuten`, or `any` for forward compatibility, but the `impact_brand` and `rakuten` branches
-are **stubs** that currently return no rows — the multi-brand affiliate catalogs are reached
-today through the merchant-scoped [Impact connector](#multi-brand-impact-catalog), not through
-`findInventory`. Likewise the per-item `attestation` field is a privacy-redacted **stub**
-(`unattested` by default) until the EAS Schema C inventory reader is wired in; the redaction
-respects each merchant's attestation policy, so it never over-discloses.
+The `source` argument selects the inventory source: `native`, `impact_brand`, `rakuten`, or
+`any` (union, deduplicated by SKU):
 
-When `DISCOVERY_RANKER_ENABLED=true`, native results are re-ordered by their merchant's
+- **`native`** — the Droplinked catalog (published, visible, purchasable `ProductV2` /
+  `ProductSkuV2`). Always live.
+- **`impact_brand`** — the **live multi-brand discovery path**. When
+  `IMPACT_LIVE_SEARCH_ENABLED=true`, `findInventory` proxies Impact's live
+  `Catalogs/ItemSearch` endpoint over the full multi-brand advertiser catalog
+  (keyword-matched as `Name~"<query>"`), with a thin ~6h per-keyword cache and **zero
+  bulk replication**. This is how an agent reaches brands like Walmart or Lids through the
+  same `findInventory` call. The path is **fail-open**: on a rate-limit (Impact's quota is
+  hourly) or any upstream error it serves a stale cache hit if present, otherwise degrades to
+  native results — it never breaks the call. With the flag **off**, `impact_brand` returns no
+  live rows and the call falls back to native results.
+- **`rakuten`** — reserved for the Rakuten feed; returns no rows until that source is wired.
+
+When an `intentId` (from `recordAgenticIntent`) is supplied and `IMPACT_ATTRIBUTION_ENABLED` is
+on, each `impact_brand` result is enriched with a **Model-A `trackedBuyUrl`** — a tracked
+deep-link the agent should drive the buyer to, so the advertiser's pixel credits Droplinked
+(publisher), tagged `subId1=dl-agentic:{intentId}`. Enrichment is per-item fail-open: a
+link-gen failure returns the product *without* a `trackedBuyUrl` rather than dropping it. See
+[Attribution + Commission](/agentic/attribution-and-commission#external-impact-advertiser-path).
+
+The per-item `attestation` field is a privacy-redacted status (`unattested` by default for
+external `impact_brand` items, which carry no native attestation) and respects each merchant's
+attestation policy for native items, so it never over-discloses.
+
+When `DISCOVERY_RANKER_ENABLED=true`, results are re-ordered by their merchant's
 attestation-weighted trust score (and each item carries a `trustScore`). With the flag off,
 results come back in source order.
 
@@ -131,10 +167,16 @@ curl -s -X POST https://apiv3.droplinked.com/mcp/v1/tools/call \
 
 ## Multi-brand Impact catalog
 
-The large multi-brand affiliate catalog (Flatlay × Impact.com Partner REST) is exposed through
-a **separate, merchant-authenticated** connector — not the public MCP tools. It is read-only,
-query-time (never bulk-replicated), cached ~5 min per query, and rate-limited to 1000/hr per
-merchant.
+The large multi-brand affiliate catalog (Flatlay × Impact Partner REST) is reachable two ways:
+
+1. **Through `findInventory`** (`source: impact_brand` / `any`) — the public MCP path. When
+   `IMPACT_LIVE_SEARCH_ENABLED=true` this proxies Impact's live `Catalogs/ItemSearch` over the
+   whole multi-brand advertiser catalog (keyword `Name~"<query>"`), query-time, never
+   bulk-replicated, with a thin ~6h per-keyword cache. This is the primary agent-facing path
+   and is described in [About `findInventory`](#about-findinventory) above.
+2. **Through a merchant-authenticated connector** — a separate, **not** public surface for a
+   merchant to manage their own Impact connection. It is read-only, query-time (never
+   bulk-replicated), and rate-limited per merchant.
 
 | Endpoint | Purpose |
 |---|---|
@@ -143,8 +185,8 @@ merchant.
 | `GET /connectors/impact/brands` | Imported brand metadata for the merchant. |
 | `GET /connectors/impact/items` | Query catalog items in real time (filter by `brandId`, `search`, paginated). |
 
-All four require a merchant JWT (PRODUCER role). The connector **never** exposes write methods,
-even when the token carries RW scope.
+All four connector endpoints require a merchant JWT (PRODUCER role). The connector **never**
+exposes write methods, even when the token carries RW scope.
 
 ## Privacy + cost-efficiency
 

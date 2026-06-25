@@ -24,14 +24,19 @@ whose catalog the agent is shopping:
 | Path | Catalog | How intent is captured | How a conversion is recorded |
 |---|---|---|---|
 | **Internal** | A Droplinked merchant's own catalog (native `ProductV2`) | `recordAgenticIntent` writes a row to the agentic intent ledger (or `placeOrderAgentic` orders directly) | On the order-confirmed event, the settlement coordinator marks the intent converted, computes commission, and writes a settlement-ready accrual |
-| **External** | A third-party advertiser in the Flatlay × Impact.com network | The agent follows a Model-A tracked link | The advertiser's network reports the sale through Impact's standard conversion pipeline |
+| **External** | A third-party advertiser in the Flatlay × Impact network, surfaced by `findInventory` (`source: impact_brand`) | An **external** intent row is written (no Droplinked shop / `merchantId: null`, `external: true`) capturing the advertiser + product + Model-A tracked link; the agent drives the buyer to the `trackedBuyUrl` (`subId1=dl-agentic:{intentId}`) | Droplinked **reconciles** the sale by reading Impact's `/Actions` endpoint and matching `SubId1` back to the intent row — no Droplinked order exists |
 
-The **internal** path is the one fully wired in the Droplinked backend today
-(behind the `AGENTIC_DISCOVERY_SETTLEMENT_ENABLED` flag) and is detailed below.
-The **external** path rides Impact.com's own tracking-link → conversion
-reporting; Droplinked's connector to that network is read-only (catalog reads),
-so external conversions settle through Impact, not through the Droplinked
-settlement coordinator.
+Both paths key the conversion to the same `intentId`. They differ in **where the buyer
+converts** and therefore **how the sale comes back**:
+
+- The **internal** path (behind `AGENTIC_DISCOVERY_SETTLEMENT_ENABLED`) is detailed in
+  [the next section](#the-internal-intent-ledger). The buyer converts on a Droplinked order, so
+  the settlement coordinator owns the whole loop.
+- The **external** path (behind `IMPACT_ATTRIBUTION_ENABLED`) is detailed in
+  [External (Impact advertiser) path](#external-impact-advertiser-path). There is **no
+  Droplinked order** — the buyer converts on the advertiser's own site — so Droplinked records
+  the attribution intent up front and reconciles the real commission by **reading Impact's
+  `/Actions` report**, rather than minting an order.
 
 ## The internal intent ledger
 
@@ -59,6 +64,41 @@ For Droplinked-merchant catalogs, attribution is **explicit and idempotent**:
     from an MCP intent).
   </Step>
 </Steps>
+
+## External (Impact advertiser) path
+
+When the agent shops a third-party advertiser's catalog surfaced by `findInventory`
+(`source: impact_brand`), there is **no Droplinked shop and no Droplinked order**. Attribution
+rides Model A — a tracked deep-link the advertiser's pixel credits — and Droplinked owns the
+attribution record + reconciliation (it does not just hand off to Impact):
+
+<Steps>
+  <Step title="Agent discovers an external product">
+    `findInventory` (with `IMPACT_LIVE_SEARCH_ENABLED` on) returns live `impact_brand` results
+    from Impact's multi-brand catalog. An **external** intent row is written to the ledger with
+    `merchantId: null`, `external: true`, and the advertiser / product / tracked-link capture —
+    so the row is self-describing for reconciliation and audit.
+  </Step>
+  <Step title="Agent surfaces the tracked buy link">
+    When an `intentId` is passed and `IMPACT_ATTRIBUTION_ENABLED` is on, each `impact_brand`
+    item carries a `trackedBuyUrl` tagged `subId1=dl-agentic:{intentId}`. The agent drives the
+    buyer to that deep-link; the buyer checks out **on the advertiser's site**.
+  </Step>
+  <Step title="Droplinked reconciles via Impact /Actions">
+    A daily reconciliation job (and an admin-triggerable endpoint) reads Impact's `/Actions`
+    report over a sliding window, parses `SubId1` back to the `intentId`, and records the real
+    commission (`payoutUsd`), sale amount, and state (`PENDING` / `APPROVED` / `REVERSED`)
+    against the matching intent. Idempotent on Impact's order id (`oid`), so re-running over an
+    overlapping window updates the same record in place.
+  </Step>
+</Steps>
+
+<Note>
+  The external path is **fail-open and gated**: with `IMPACT_ATTRIBUTION_ENABLED` off (or the
+  read-write publisher credentials absent), no tracked link is composed, no `/Actions` read
+  happens, and `findInventory` simply returns products without a `trackedBuyUrl`. It never
+  blocks discovery.
+</Note>
 
 <Note>
   Some MCP clients connect through a hosted gateway that signs every call with

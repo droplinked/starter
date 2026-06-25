@@ -89,14 +89,52 @@ curl -s -X POST https://apiv3.droplinked.com/mcp/v1/tools/call \
 ```
 </CodeGroup>
 
-<Note>
-  **Planned: Streamable HTTP.** A single-endpoint Streamable HTTP transport (`POST /mcp`
-  with the `initialize` handshake, protocol-version negotiation, and `Mcp-Session-Id`
-  sessions, matching the newer MCP spec revisions `2025-06-18` / `2025-03-26`) is on the
-  roadmap and will be feature-flagged behind `MCP_STREAMABLE_HTTP_ENABLED`. It is **not live
-  yet** — until it ships, use the `/mcp/v1/*` JSON-RPC routes above, which every current MCP
-  client already supports. The `/mcp/v1/*` routes will remain when Streamable HTTP lands.
-</Note>
+## Planned: Streamable HTTP
+
+A single-endpoint **Streamable HTTP** transport — the modern MCP transport every current
+official client (including the Claude remote connector) prefers — is implemented and gated
+behind `MCP_STREAMABLE_HTTP_ENABLED`.
+
+<Warning>
+  Streamable HTTP is **preview** — it is feature-flagged **off** until the flag is enabled in
+  production. Until then, use the `/mcp/v1/*` JSON-RPC routes above, which every current MCP
+  client already supports. The legacy `/mcp/v1/*` routes stay in place when Streamable HTTP
+  lands — nothing is removed.
+</Warning>
+
+When enabled, it adds three routes at a single path:
+
+| Method + path | Purpose |
+|---|---|
+| `POST /mcp` | The MCP lifecycle over JSON-RPC 2.0 on one endpoint — `initialize`, `notifications/initialized`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `ping`. |
+| `GET /mcp` | Server→client **SSE** stream (with keep-alive heartbeat) for server-initiated messages. |
+| `OPTIONS /mcp` | CORS preflight. |
+
+- **`initialize` handshake** — the client opens with an `initialize` request; the server replies
+  with its capabilities and mints an `Mcp-Session-Id`. The client echoes that header on every
+  subsequent call, and the server accepts it to bind the session.
+- **Protocol-version negotiation** — the server supports `2025-06-18`, `2025-03-26`, and
+  `2024-11-05`, and negotiates the highest version the client offers.
+- **Tool annotations** — the `tools/list` response over this transport includes the
+  read-only / destructive hints described in
+  [Inventory MCP → Tool annotations](/agentic/inventory-mcp#tool-annotations-preview).
+
+```bash
+# Preview only — works once MCP_STREAMABLE_HTTP_ENABLED is on.
+curl -s -X POST https://apiv3.droplinked.com/mcp \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-06-18",
+      "capabilities": {},
+      "clientInfo": { "name": "my-agent", "version": "0.1.0" }
+    }
+  }' -i | grep -i mcp-session-id
+```
 
 ## Connect from an agent
 
@@ -110,8 +148,9 @@ claude mcp add --transport http droplinked https://apiv3.droplinked.com/mcp/v1/t
 ```
 
 The client lists tools via `tools/list` and dispatches calls via `tools/call`. No API key is
-required in the current phase. (When the Streamable HTTP transport above ships, you'll be able
-to point clients at the single `POST /mcp` endpoint instead.)
+required in the current phase. Once the [Streamable HTTP transport](#planned-streamable-http)
+above is enabled, you point Claude's remote connector at the single `POST /mcp` endpoint
+instead, and the client drives the `initialize` handshake automatically.
 
 ### ChatGPT / OpenAI Agents SDK
 
