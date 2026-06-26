@@ -10,6 +10,16 @@ install side (point Claude Desktop / Claude Code at the local server), see
 [MCP Server](/agentic/mcp-server). This page covers the **HTTP transport** at
 `mcp.droplinked.com`.
 
+<Note>
+  The `mcp.droplinked.com` host, `X-MCP-API-Key` auth, and REST-style
+  `/mcp/tools/{name}` routes on this page describe the **hosted gateway**. The
+  Droplinked backend itself serves MCP directly at
+  `apiv3.droplinked.com` over JSON-RPC routes (`/mcp/v1/tools/{list,call}`),
+  unauthenticated in the current phase — see [MCP Server](/agentic/mcp-server)
+  and [Inventory MCP](/agentic/inventory-mcp) for the live, code-grounded
+  surface. If you're integrating against the backend today, use those.
+</Note>
+
 ## Endpoints
 
 | Surface | URL | Auth |
@@ -58,7 +68,7 @@ The most relevant tools for an agentic shopping flow:
 | Tool | Purpose |
 |---|---|
 | `searchProducts` | Free-text search across the public catalog. Returns up to 25 matches with id, title, lowest SKU price, primary image, and product URL. Optional `shopUrl` filters to a single merchant. |
-| `findInventory` | SKU-availability-aware query. Returns stock state, source, price, attestation status. Designed for cart composition. |
+| `findInventory` | SKU-availability-aware multi-source query (`native` + live `impact_brand` + `any`). Returns stock state, source, price, an optional Model-A `trackedBuyUrl`, and attestation status. Designed for cart composition + multi-brand discovery. |
 | `getProductDetail` | Full product detail — title, description, all images, all SKUs (price + inventory), tags, public URL. |
 | `getShopInfo` | Public shop metadata (name, description, currency, logo, social links). Call before `getProductDetail` so the agent knows the shop's currency. |
 | `listMerchants` | Paginated list of active merchants. Optional ISO-3166 region filter. |
@@ -231,8 +241,11 @@ conversion (`placeOrderAgentic` → payment-captured) is attributed to your
 agent, the **10% affiliate share** in the
 [70/20/10 split](/agentic/attribution-and-commission) routes to you.
 
-You don't need to call a separate "record intent" tool — attribution is
-implicit in the tool-call chain.
+Through the hosted gateway, attribution is implicit in the API-key-signed
+tool-call chain. Against the backend directly (no signing key), call
+`recordAgenticIntent` to register intent against an opted-in merchant — that
+ledger row is what the settlement coordinator attributes the conversion to. See
+[Attribution + Commission](/agentic/attribution-and-commission).
 
 ## Rate limits + observability
 

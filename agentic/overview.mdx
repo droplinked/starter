@@ -11,9 +11,9 @@ start a purchase, and route affiliate revenue, without the merchant rebuilding a
 
 <CardGroup cols={3}>
   <Card title="MCP server" icon="plug">
-    `droplinked-mcp` exposes the public catalog + checkout as Model Context Protocol tools
-    (`search_products`, `get_product`, `list_shop_products`, `start_checkout`, `get_feed`).
-    Install it in any MCP client.
+    The Droplinked backend serves a 25-tool Model Context Protocol surface over HTTP — catalog
+    search, cart composition, order placement, refunds, and trust-fabric reads. Discover it at
+    `/.well-known/mcp.json` and call it from any MCP client.
   </Card>
   <Card title="ACP feed" icon="rss">
     A Stripe **Agentic Commerce Protocol** product feed at
@@ -28,16 +28,21 @@ start a purchase, and route affiliate revenue, without the merchant rebuilding a
 
 ## MCP tools
 
+The MCP server exposes **25 tools** spanning catalog discovery, cart + order, merchant
+discovery, and trust + financing. A few of the most-used:
+
 | Tool | Purpose |
 |---|---|
-| `search_products` | Free-text search across the public Droplinked catalog |
-| `get_product` | Fetch a single product by id |
-| `list_shop_products` | Paginate a shop's catalog by slug |
-| `start_checkout` | Begin a purchase (closing the loop via Stripe ACP) |
-| `get_feed` | Return the Stripe ACP product-feed URL |
+| `searchProducts` | Free-text search across the public Droplinked catalog |
+| `findInventory` | SKU-availability-aware multi-source query (native + live `impact_brand`) for cart composition + multi-brand discovery |
+| `getProductDetail` | Full product detail for a `shopUrl` + `productSlug` |
+| `placeOrderAgentic` | Compose an order and optionally resolve the payment-intent in one call |
+| `recordAgenticIntent` | Log an external agent's intent against an opted-in merchant (feeds attribution) |
 
-All tools call the public API at `DROPLINKED_API_BASE` (defaults to `https://apiv3.droplinked.com`)
-and validate input with `zod`.
+Tools are served over HTTP at `https://apiv3.droplinked.com` (`/mcp/v1/tools/{list,call}`),
+accept both a flat body and a JSON-RPC 2.0 envelope, and are discoverable from
+`/.well-known/mcp.json`. See [Inventory MCP](/agentic/inventory-mcp) for the full roster and
+[MCP Server](/agentic/mcp-server) for the transport.
 
 ## The merchant story
 

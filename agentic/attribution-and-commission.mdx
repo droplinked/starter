@@ -16,10 +16,102 @@ This page walks through how that attribution actually happens — for merchants,
 agent developers, and anyone integrating against the
 [MCP server](/agentic/mcp-server).
 
-## How attribution works
+## Two attribution paths
 
-Attribution is **tool-call-driven**, not click-driven. There's no cookie, no
-UTM parameter, no redirect chain. The flow:
+Droplinked attributes agentic conversions on two distinct rails, depending on
+whose catalog the agent is shopping:
+
+| Path | Catalog | How intent is captured | How a conversion is recorded |
+|---|---|---|---|
+| **Internal** | A Droplinked merchant's own catalog (native `ProductV2`) | `recordAgenticIntent` writes a row to the agentic intent ledger (or `placeOrderAgentic` orders directly) | On the order-confirmed event, the settlement coordinator marks the intent converted, computes commission, and writes a settlement-ready accrual |
+| **External** | A third-party advertiser in the Flatlay × Impact network, surfaced by `findInventory` (`source: impact_brand`) | An **external** intent row is written (no Droplinked shop / `merchantId: null`, `external: true`) capturing the advertiser + product + Model-A tracked link; the agent drives the buyer to the `trackedBuyUrl` (`subId1=dl-agentic:{intentId}`) | Droplinked **reconciles** the sale by reading Impact's `/Actions` endpoint and matching `SubId1` back to the intent row — no Droplinked order exists |
+
+Both paths key the conversion to the same `intentId`. They differ in **where the buyer
+converts** and therefore **how the sale comes back**:
+
+- The **internal** path (behind `AGENTIC_DISCOVERY_SETTLEMENT_ENABLED`) is detailed in
+  [the next section](#the-internal-intent-ledger). The buyer converts on a Droplinked order, so
+  the settlement coordinator owns the whole loop.
+- The **external** path (behind `IMPACT_ATTRIBUTION_ENABLED`) is detailed in
+  [External (Impact advertiser) path](#external-impact-advertiser-path). There is **no
+  Droplinked order** — the buyer converts on the advertiser's own site — so Droplinked records
+  the attribution intent up front and reconciles the real commission by **reading Impact's
+  `/Actions` report**, rather than minting an order.
+
+## The internal intent ledger
+
+For Droplinked-merchant catalogs, attribution is **explicit and idempotent**:
+
+<Steps>
+  <Step title="Agent records intent">
+    The agent calls `recordAgenticIntent` with the merchant slug and an intent
+    of `browse` / `buy` / `compare` / `share`. The merchant must have opted
+    into agentic discovery (`agenticDiscoveryEnabled`) — otherwise the call
+    returns `opt_in_required` and no row is written. An optional caller-supplied
+    `intentId` makes retries idempotent, and an optional `referringAffiliateId`
+    (a Mongo ObjectId) tags the affiliate of record.
+  </Step>
+  <Step title="Order is placed">
+    The agent calls `placeOrderAgentic` (or the buyer completes a checkout link
+    that carries the `intentId`). The order is created and follows the normal
+    PSP-resolver lifecycle.
+  </Step>
+  <Step title="Payment captures, then settlement runs">
+    On the order-confirmed event, the settlement coordinator marks the matching
+    intent row converted, computes the commission, and writes a settlement-ready
+    accrual — freezing the affiliate-of-record at that moment. The whole path is
+    idempotent end-to-end (it no-ops cleanly for orders that didn't originate
+    from an MCP intent).
+  </Step>
+</Steps>
+
+## External (Impact advertiser) path
+
+When the agent shops a third-party advertiser's catalog surfaced by `findInventory`
+(`source: impact_brand`), there is **no Droplinked shop and no Droplinked order**. Attribution
+rides Model A — a tracked deep-link the advertiser's pixel credits — and Droplinked owns the
+attribution record + reconciliation (it does not just hand off to Impact):
+
+<Steps>
+  <Step title="Agent discovers an external product">
+    `findInventory` (with `IMPACT_LIVE_SEARCH_ENABLED` on) returns live `impact_brand` results
+    from Impact's multi-brand catalog. An **external** intent row is written to the ledger with
+    `merchantId: null`, `external: true`, and the advertiser / product / tracked-link capture —
+    so the row is self-describing for reconciliation and audit.
+  </Step>
+  <Step title="Agent surfaces the tracked buy link">
+    When an `intentId` is passed and `IMPACT_ATTRIBUTION_ENABLED` is on, each `impact_brand`
+    item carries a `trackedBuyUrl` tagged `subId1=dl-agentic:{intentId}`. The agent drives the
+    buyer to that deep-link; the buyer checks out **on the advertiser's site**.
+  </Step>
+  <Step title="Droplinked reconciles via Impact /Actions">
+    A daily reconciliation job (and an admin-triggerable endpoint) reads Impact's `/Actions`
+    report over a sliding window, parses `SubId1` back to the `intentId`, and records the real
+    commission (`payoutUsd`), sale amount, and state (`PENDING` / `APPROVED` / `REVERSED`)
+    against the matching intent. Idempotent on Impact's order id (`oid`), so re-running over an
+    overlapping window updates the same record in place.
+  </Step>
+</Steps>
+
+<Note>
+  The external path is **fail-open and gated**: with `IMPACT_ATTRIBUTION_ENABLED` off (or the
+  read-write publisher credentials absent), no tracked link is composed, no `/Actions` read
+  happens, and `findInventory` simply returns products without a `trackedBuyUrl`. It never
+  blocks discovery.
+</Note>
+
+<Note>
+  Some MCP clients connect through a hosted gateway that signs every call with
+  an API key and derives attribution from the signed tool chain. The
+  description below covers that gateway model. The backend's own canonical
+  attribution mechanism is the explicit intent ledger described above — when in
+  doubt, call `recordAgenticIntent`.
+</Note>
+
+## How attribution works (gateway model)
+
+Through the hosted gateway, attribution is **tool-call-driven**, not
+click-driven. There's no cookie, no UTM parameter, no redirect chain. The flow:
 
 <Steps>
   <Step title="Agent calls Droplinked tools">

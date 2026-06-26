@@ -1,87 +1,207 @@
 ---
 title: MCP Server
-description: "Expose the Droplinked catalog to AI agents via the Model Context Protocol — install in Claude, Cursor, and any MCP client."
+description: "Droplinked's Model Context Protocol server — transport, discovery, and how to connect Claude, ChatGPT, Cursor, and any MCP client."
 ---
 
-The **`droplinked-mcp`** server gives any MCP-capable agent (Claude Desktop, Claude Code,
-Cursor, Continue, the Vercel AI SDK, …) first-class tools to discover Droplinked products,
-start a purchase, and earn affiliate commission — all against the public catalog API, no
-merchant credentials required.
+Droplinked exposes its commerce primitives — catalog search, cart composition, order
+placement, refunds, and trust-fabric reads — as **Model Context Protocol** tools, served
+directly by the Droplinked backend at `apiv3.droplinked.com`. Any MCP-capable agent can
+discover the surface from a well-known doc and call it over HTTP.
 
-## Tools
+For the full, code-grounded tool roster see [Inventory MCP](/agentic/inventory-mcp).
 
-| Tool | Purpose |
+## Discovery
+
+Start at the discovery doc. It's public, cacheable, and lists every tool with its
+JSON-schema input shape:
+
+```bash
+curl -s https://apiv3.droplinked.com/.well-known/mcp.json | jq
+```
+
+```json
+{
+  "name": "droplinked-mcp-server",
+  "version": "0.1.0",
+  "protocolVersion": "2024-11-05",
+  "transport": "http",
+  "endpoints": {
+    "toolsList": "/mcp/v1/tools/list",
+    "toolsCall": "/mcp/v1/tools/call",
+    "resourcesList": "/mcp/v1/resources/list",
+    "resourcesRead": "/mcp/v1/resources/read"
+  },
+  "capabilities": {
+    "tools": { "listChanged": false },
+    "resources": { "listChanged": false, "subscribe": false },
+    "prompts": false
+  },
+  "tools": [ { "name": "searchProducts", "description": "…" }, … ]
+}
+```
+
+A **per-shop** variant scopes the surface to one merchant's catalog (it advertises only the
+shop-scoped read tools: `searchProducts`, `getProductDetail`, `getShopInfo`,
+`getStockoutAlerts`):
+
+```bash
+curl -s https://apiv3.droplinked.com/shop/unstoppable/.well-known/mcp.json | jq
+```
+
+## Transport
+
+The server speaks MCP over HTTP on four JSON-RPC routes. Every route is public (the current
+phase is unauthenticated; admin diagnostics are gated by an `_adminKey` argument, not a header).
+
+| Method + path | Purpose |
 |---|---|
-| `search_products` | Free-text search across the public Droplinked catalog |
-| `get_product` | Fetch a single product by id |
-| `list_shop_products` | Paginate a shop's catalog by slug |
-| `start_checkout` | Begin a purchase _(closing the loop via Stripe ACP — see status)_ |
-| `get_feed` | Return the [Stripe ACP product-feed](/agentic/acp-feed) URL |
+| `POST /mcp/v1/tools/list` | List available tools (`{ tools: [...] }`). |
+| `POST /mcp/v1/tools/call` | Invoke a tool by name. |
+| `POST /mcp/v1/resources/list` | List MCP resources. |
+| `POST /mcp/v1/resources/read` | Read a resource by `mcp://droplinked/...` URI. |
 
-All tools validate input with `zod` and call `DROPLINKED_API_BASE` (default
-`https://apiv3.droplinked.com`).
+Each route accepts **both** request shapes:
 
-## Install
+- **Flat body** — `{ "name": "searchProducts", "arguments": { … } }`
+- **JSON-RPC 2.0 envelope** — `{ "jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": { "name": "searchProducts", "arguments": { … } } }`
 
-<Tabs>
-  <Tab title="Claude Code">
-    ```bash
-    claude mcp add droplinked \
-      --command "node" \
-      --args "/absolute/path/to/droplinked-mcp/dist/index.js" \
-      --env DROPLINKED_API_BASE=https://apiv3.droplinked.com
-    ```
-  </Tab>
-  <Tab title="Claude Desktop">
-    Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-    ```json
-    {
-      "mcpServers": {
-        "droplinked": {
-          "command": "node",
-          "args": ["/absolute/path/to/droplinked-mcp/dist/index.js"],
-          "env": { "DROPLINKED_API_BASE": "https://apiv3.droplinked.com" }
-        }
-      }
+The response mirrors the request: a flat body gets a flat result; a JSON-RPC envelope gets
+`{ "jsonrpc": "2.0", "id", "result" }`. Errors use the MCP/JSON-RPC codes (`-32601` unknown
+tool/method, `-32602` invalid arguments). A tool whose *logic* fails (e.g. shop not found)
+still returns `200` with `isError: true` so the agent can recover.
+
+<CodeGroup>
+```bash flat body
+curl -s -X POST https://apiv3.droplinked.com/mcp/v1/tools/call \
+  -H 'content-type: application/json' \
+  -d '{ "name": "searchProducts", "arguments": { "query": "wool beanie" } }'
+```
+
+```bash JSON-RPC
+curl -s -X POST https://apiv3.droplinked.com/mcp/v1/tools/call \
+  -H 'content-type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": { "name": "searchProducts", "arguments": { "query": "wool beanie" } }
+  }'
+```
+</CodeGroup>
+
+## Planned: Streamable HTTP
+
+A single-endpoint **Streamable HTTP** transport — the modern MCP transport every current
+official client (including the Claude remote connector) prefers — is implemented and gated
+behind `MCP_STREAMABLE_HTTP_ENABLED`.
+
+<Warning>
+  Streamable HTTP is **preview** — it is feature-flagged **off** until the flag is enabled in
+  production. Until then, use the `/mcp/v1/*` JSON-RPC routes above, which every current MCP
+  client already supports. The legacy `/mcp/v1/*` routes stay in place when Streamable HTTP
+  lands — nothing is removed.
+</Warning>
+
+When enabled, it adds three routes at a single path:
+
+| Method + path | Purpose |
+|---|---|
+| `POST /mcp` | The MCP lifecycle over JSON-RPC 2.0 on one endpoint — `initialize`, `notifications/initialized`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `ping`. |
+| `GET /mcp` | Server→client **SSE** stream (with keep-alive heartbeat) for server-initiated messages. |
+| `OPTIONS /mcp` | CORS preflight. |
+
+- **`initialize` handshake** — the client opens with an `initialize` request; the server replies
+  with its capabilities and mints an `Mcp-Session-Id`. The client echoes that header on every
+  subsequent call, and the server accepts it to bind the session.
+- **Protocol-version negotiation** — the server supports `2025-06-18`, `2025-03-26`, and
+  `2024-11-05`, and negotiates the highest version the client offers.
+- **Tool annotations** — the `tools/list` response over this transport includes the
+  read-only / destructive hints described in
+  [Inventory MCP → Tool annotations](/agentic/inventory-mcp#tool-annotations-preview).
+
+```bash
+# Preview only — works once MCP_STREAMABLE_HTTP_ENABLED is on.
+curl -s -X POST https://apiv3.droplinked.com/mcp \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-06-18",
+      "capabilities": {},
+      "clientInfo": { "name": "my-agent", "version": "0.1.0" }
     }
-    ```
-  </Tab>
-  <Tab title="Build from source">
-    ```bash
-    git clone https://github.com/droplinked/droplinked-mcp && cd droplinked-mcp
-    npm install && npm run build
-    npm start            # stdio transport
-    npm run start:http   # HTTP transport on :8787 (/mcp)
-    ```
-  </Tab>
-</Tabs>
+  }' -i | grep -i mcp-session-id
+```
 
-## Environment
+## Connect from an agent
 
-| Variable | Default |
-|---|---|
-| `DROPLINKED_API_BASE` | `https://apiv3.droplinked.com` |
-| `DROPLINKED_PUBLIC_BASE` | `https://droplinked.com` |
-| `ACP_FEED_PATH` | `/feed/acp.json` |
-| `MCP_HTTP_PORT` | `8787` |
+### Claude / Claude Code
+
+MCP clients connect to the HTTP transport. Point your client at the discovery doc, or call the
+JSON-RPC routes directly:
+
+```bash
+claude mcp add --transport http droplinked https://apiv3.droplinked.com/mcp/v1/tools/call
+```
+
+The client lists tools via `tools/list` and dispatches calls via `tools/call`. No API key is
+required in the current phase. Once the [Streamable HTTP transport](#planned-streamable-http)
+above is enabled, you point Claude's remote connector at the single `POST /mcp` endpoint
+instead, and the client drives the `initialize` handshake automatically.
+
+### ChatGPT / OpenAI Agents SDK
+
+Add the JSON-RPC `tools/call` endpoint as an HTTP tool source, or ingest the
+[ACP feed](/agentic/acp-feed) for product discovery. Both surfaces are public.
+
+### Any MCP client (manual)
+
+1. `GET /.well-known/mcp.json` to learn the tool surface.
+2. `POST /mcp/v1/tools/list` to enumerate tools + input schemas.
+3. `POST /mcp/v1/tools/call` with `{ name, arguments }` (or the JSON-RPC envelope) to invoke.
 
 ## How it fits together
 
 ```
-   AI agent (Claude / GPT / Cursor)
-              │  MCP tool call (search_products / get_product / start_checkout)
+   AI agent (Claude / ChatGPT / Cursor / Agents SDK)
+              │  GET /.well-known/mcp.json   (discover)
+              │  POST /mcp/v1/tools/call     (invoke, flat or JSON-RPC)
               ▼
-   droplinked-mcp  ◀── stdio or HTTP :8787/mcp
-              │  authenticated catalog query
+   Droplinked backend (apiv3) — McpToolRegistryService
+              │  catalog / cart / order / trust-fabric reads + writes
               ▼
-   Droplinked catalog API (apiv3)
-              │  product results + checkout URLs
+   PSP resolver (Stripe · PayPal · Telr · Bonum · PayMob · x402)  ·  EAS trust fabric
               ▼
-   Stripe ACP / x402 micropayment middleware
-              ▼
-   70% merchant · 20% droplinked · 10% AI-agent affiliate
+   recordAgenticIntent → attribution ledger → 70 / 20 / 10 settlement
 ```
 
-<Note>**Status:** `start_checkout` is currently stubbed; the full purchase loop lands as the
-Stripe ACP enrollment completes. `search_products`, `get_product`, `list_shop_products`, and
-`get_feed` are live against the public catalog today.</Note>
+## Notes on the current phase
+
+- **Public, unauthenticated.** Every tool route is public today. Admin diagnostics
+  (`queryEventLog`, `traceAttestationLineage`, `getInventoryDrift`) require an `_adminKey`
+  argument matching `MCP_ADMIN_SECRET`. Per-merchant API-key auth and write-tool guards are a
+  later phase.
+- **CORS is open** (`*`) on the tool routes — they're read-mostly and carry no cookies — and
+  each route answers a sibling `OPTIONS` preflight.
+- **The discovery doc is the contract.** It's regenerated on deploy when the tool surface
+  changes and cached for one hour.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Inventory MCP" icon="boxes-stacked" href="/agentic/inventory-mcp">
+    The full 25-tool registry, read/write annotations, and `findInventory` details.
+  </Card>
+  <Card title="ACP Feed" icon="rss" href="/agentic/acp-feed">
+    The Stripe Agentic Commerce Protocol product feed for shopping-surface ingestion.
+  </Card>
+  <Card title="Consume the MCP" icon="robot" href="/agentic/consume-droplinked-mcp">
+    Build an agentic shopping loop end-to-end.
+  </Card>
+  <Card title="Attribution + Commission" icon="route" href="/agentic/attribution-and-commission">
+    How agentic conversions settle 70 / 20 / 10.
+  </Card>
+</CardGroup>
