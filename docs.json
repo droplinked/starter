@@ -26,6 +26,63 @@
       "source": "/platform/tech-framework",
       "destination": "/guides/platform/tech-framework",
       "permanent": true
+    },
+
+    {
+      "source": "/shops/v2/setup",
+      "destination": "/api-reference/shop/setup-shop-jwt-required",
+      "permanent": true
+    },
+    {
+      "source": "/giftcard/create",
+      "destination": "/api-reference/gift-card/create-a-new-gift-card",
+      "permanent": true
+    },
+    {
+      "source": "/v2/attestations/brand",
+      "destination": "/api-reference/public/brand-attestation-request",
+      "permanent": true
+    },
+    {
+      "source": "/collection-v2",
+      "destination": "/api-reference/introduction",
+      "permanent": true
+    },
+    {
+      "source": "/gateway/order.json",
+      "destination": "/api-reference/introduction",
+      "permanent": true
+    },
+    {
+      "source": "/request",
+      "destination": "/introduction",
+      "permanent": true
+    },
+
+    {
+      "source": "/shops/:slug*",
+      "destination": "/api-reference/introduction",
+      "permanent": true
+    },
+    {
+      "source": "/gateway/:slug*",
+      "destination": "/api-reference/introduction",
+      "permanent": true
+    },
+    {
+      "source": "/giftcard/:slug*",
+      "destination": "/api-reference/introduction",
+      "permanent": true
+    },
+    {
+      "source": "/collection/:slug*",
+      "destination": "/api-reference/introduction",
+      "permanent": true
+    },
+    {
+      "source": "/v2/:slug*",
+      "destination": "/api-reference/introduction",
+      "permanent": true
     }
   ],
   "navigation": {
