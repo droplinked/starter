@@ -1,0 +1,81 @@
+# Refresh the droplinked AI-assistant RAG corpus from the Mintlify docs.
+#
+# The in-house merchant assistant (droplinked-backend src/modules/ai) grounds
+# answers in an OpenAI vector store via the Responses API `file_search` tool.
+# This workflow rebuilds that store's content from docs.droplinked.com/llms-full.txt
+# (Mintlify ONLY — the retired GitBook spaces are no longer ingested).
+#
+# SAFETY: pushes to main run PLAN-only (compute + print the diff, never touch
+# OpenAI). A real (re)index only happens on a manual dispatch with apply=true,
+# AND only when the OPENAI_API_KEY secret is present. This keeps re-index cost
+# explicit and operator-gated. See scripts/rag_refresh.py.
+name: rag-refresh
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Actually upload/re-index into the vector store (costs OpenAI embedding tokens). Leave false for a dry-run plan."
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "**/*.mdx"
+      - "docs.json"
+      - "api-reference/openapi.json"
+      - "scripts/rag_refresh.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rag-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Restore the previous manifest (if any) so the run diffs against it and
+      # only re-embeds changed pages. Best-effort — absent on the first run.
+      - name: restore prior manifest
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: rag-corpus-manifest
+          path: scripts/
+
+      - name: refresh corpus
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RAG_VECTOR_STORE_ID: ${{ secrets.RAG_VECTOR_STORE_ID }}
+        run: |
+          # apply only on an explicit manual dispatch with apply=true; every
+          # other trigger (push to main) is a zero-cost plan.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.apply }}" = "true" ]; then
+            if [ -z "$OPENAI_API_KEY" ]; then
+              echo "::error::apply requested but OPENAI_API_KEY secret is not set"
+              exit 1
+            fi
+            echo "::notice::APPLY mode — re-indexing the Mintlify corpus into the vector store"
+            python3 scripts/rag_refresh.py --apply
+          else
+            echo "::notice::PLAN mode — computing the diff only, no OpenAI calls"
+            python3 scripts/rag_refresh.py
+          fi
+
+      - name: persist manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-corpus-manifest
+          path: scripts/rag-corpus-manifest.json
+          if-no-files-found: ignore
+          retention-days: 90
