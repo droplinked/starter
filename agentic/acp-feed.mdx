@@ -1,96 +1,224 @@
 ---
 title: Product Feed (ACP)
-description: "The Stripe Agentic Commerce Protocol feed — how a merchant's published inventory becomes shoppable inside AI surfaces."
+description: "Droplinked's Stripe Agentic Commerce Protocol catalogue — the delimited artifacts an ACP ingester reads, and the JSON API for direct queries."
 ---
 
 <Note>
   Droplinked publishes every merchant's public catalog as a **Stripe Agentic Commerce Protocol
-  (ACP) product feed**. This is the surface that agentic shopping experiences (e.g. ChatGPT)
-  ingest — so a merchant's existing inventory is discoverable and purchasable by agents without
-  the merchant building anything new.
+  (ACP) product feed**. This is the surface that agentic shopping experiences ingest — so a
+  merchant's existing inventory is discoverable and purchasable by agents without the merchant
+  building anything new.
 </Note>
 
-## Live feed
+## Which artifact do I point at?
 
-<Card title="ACP Feed (live)" icon="rss" href="https://apiv3.droplinked.com/feed/acp.json">
-  Always-current public feed at `https://apiv3.droplinked.com/feed/acp.json`. Cursor-paginated;
-  serves the full public catalog (thousands of items). Updated on product changes plus a short
-  refresh cycle for inventory + price.
-</Card>
+<Warning>
+  The ACP file spec accepts **tab- or comma-delimited `.tsv`, `.txt`, or `.csv`**, optionally
+  gzipped. It **rejects JSON, XML, RSS, and Atom**. Submit a delimited artifact to an ACP
+  ingester — a `.json` URL will not parse. Background: [Feed formats](/agentic/overview#feed-formats).
+</Warning>
 
-## Feed shape
+| Purpose | Artifact |
+|---|---|
+| **ACP ingestion — start here** | `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz` |
+| ACP ingestion, uncompressed | `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv` |
+| Line-delimited (NDJSON) consumers | `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.jsonl` |
+| Direct JSON API use — **not** ACP ingestion | `https://apiv3.droplinked.com/feed/acp.json` |
+
+All three delimited artifacts carry the same rows, rebuilt together. As of 2026-09-01 the feed
+holds **35,655 rows**, of which **947** are checkout-eligible.
+
+<Warning>
+  The delimited artifacts and the JSON endpoint are **not** the same catalogue. Measured
+  2026-09-01, the delimited artifact carried 35,655 rows across both supply sources (`native`
+  and `impact_brand`), while walking the JSON endpoint's cursor to exhaustion returned 24,173
+  items, all `native`. If completeness matters — and for ACP ingestion it does — use the
+  delimited artifact.
+</Warning>
+
+## The delimited feed
+
+`latest.tsv.gz` is a gzipped, tab-separated file with a header row and 23 columns. Column
+positions are **1-indexed** — useful when you are slicing it with `awk` or `cut`:
+
+| # | Column | Notes |
+|---|---|---|
+| 1 | `item_id` | Stable per-variant id |
+| 2 | `title` | Display title |
+| 3 | `description` | Long-form copy |
+| 4 | `url` | Storefront product URL |
+| 5 | `image_url` | Primary image |
+| 6 | `price` | `"30.00 USD"` — amount and currency in one field |
+| 7 | `availability` | e.g. `in_stock` |
+| 8 | `seller_name` | Selling merchant |
+| 9 | `seller_url` | Storefront root |
+| 10 | `target_countries` | ISO-3166 codes the item ships to |
+| 11 | `store_country` | Merchant's store country |
+| 12 | `is_eligible_search` | Row may be surfaced in agentic search |
+| 13 | `is_eligible_checkout` | Row may be transacted through agentic checkout |
+| 14 | `seller_privacy_policy` | Required for checkout eligibility |
+| 15 | `seller_tos` | Required for checkout eligibility |
+| 16 | `supply_source` | `native` or `impact_brand` |
+| 17 | `checkout_ineligible_reasons` | Comma-separated reason codes when column 13 is `false` |
+| 18 | `references_url` | Provenance pointer |
+| 19 | `brand` | Brand name |
+| 20 | `gtin` | Global trade item number |
+| 21 | `mpn` | Manufacturer part number |
+| 22 | `condition` | e.g. `new` |
+| 23 | `product_category` | Taxonomy string |
+
+### Coverage, as measured 2026-09-01
+
+Several columns are present in the header but thin or synthetic in the data. Check before you
+rank, join, or dedupe on them:
+
+| Column | Populated | Read this before relying on it |
+|---|---|---|
+| `gtin` | 7,992 / 35,655 | Only on `impact_brand` rows — zero coverage on `native` |
+| `product_category` | 12,630 / 35,655 | Only on `impact_brand` rows |
+| `mpn` | 35,655 / 35,655 | Reads as fully populated, but it mirrors `item_id` on 35,648 rows — treat it as an internal identifier, not a manufacturer-issued part number |
+| `references_url` | 0 / 35,655 | Empty on every row in the current snapshot |
+| `target_countries` | 35,655 / 35,655 | `US` on every row in the current snapshot |
+| `is_eligible_search` | 35,655 / 35,655 | Every row is search-eligible; checkout eligibility is the gate that varies |
+
+`latest.jsonl` carries the same fields as one JSON object per line, omitting keys that are empty
+for that row — convenient for streaming consumers that do not want to hold the file in memory.
+
+### Read it
+
+<Note>
+  `latest.tsv.gz` is served with a `Content-Encoding: gzip` header. `curl` without
+  `--compressed` receives the raw gzip bytes, so piping through `gunzip -c` is correct. HTTP
+  libraries that negotiate encoding by default (Python `requests`, most browsers) have
+  **already** decompressed the body — decompressing again fails. When in doubt, use the
+  uncompressed `latest.tsv`.
+</Note>
+
+```bash
+# Column names, in order
+curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+  | gunzip -c | head -1 | tr '\t' '\n' | cat -n
+
+# How many rows, how many are checkout-eligible
+curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+  | gunzip -c \
+  | awk -F'\t' 'NR>1{n++} NR>1 && $13=="true"{e++} END{print n" rows, "e" checkout-eligible"}'
+```
+
+## Search eligibility vs checkout eligibility
+
+Two separate gates, and they are not the same number. Every row in the feed is search-eligible;
+a row becomes checkout-eligible only once the requirements in columns 14 and 15 are met. When
+column 13 is `false`, column 17 tells you exactly why:
+
+```bash
+curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+  | gunzip -c \
+  | awk -F'\t' 'NR>1 && $13!="true"{c[$17]++} END{for (k in c) print c[k]"\t"k}' \
+  | sort -rn
+```
+
+The dominant blocker is missing seller policy URLs — a merchant-side fix that needs no code.
+See [Get listed in MCP discovery](/agentic/get-listed-in-mcp-discovery#troubleshooting).
+
+## The JSON API
+
+`https://apiv3.droplinked.com/feed/acp.json` serves the catalogue as JSON. It is the right tool
+for a direct query — a `jq` lookup, a fetch inside an agent tool — and the wrong tool to hand an
+ACP ingester.
+
+It is **cursor-paginated**: one request returns one page plus a `next_cursor`, not the whole
+catalogue. Filtering a single response and finding nothing does not mean the item is absent.
+Follow `next_cursor` until it is absent, or use the delimited artifact, which is complete in one
+file and covers supply sources this endpoint does not.
+
+`limit` caps the page size, which is what you want for a quick look — the unbounded response is
+tens of megabytes. Use it for inspection only: with a small `limit` the endpoint can return an
+empty page while still handing back a `next_cursor`, so a cursor walk should stop on an empty
+page as well as on a missing cursor.
 
 ```json
 {
+  "version": 2,
   "items": [
     {
       "id": "…",
       "item_group_id": "…",
+      "shopId": "…",
       "title": "…",
       "description": "…",
       "link": "https://…",
       "image_link": "https://…",
+      "additional_image_links": ["https://…"],
       "availability": "in_stock",
-      "price": "300.00 USD",
+      "price": { "value": 30, "currency": "USD" },
       "condition": "new",
-      "brand": "…"
+      "brand": "…",
+      "verification": {
+        "brand_verified": false,
+        "kyb_tier": null,
+        "attestation_uid": null,
+        "attestation_chain": null
+      },
+      "references": {
+        "supply_source": "native",
+        "shards": [{ "role": "seller", "name": "…", "issuer": "droplinked", "url": "https://…", "ref": "shop:…" }]
+      }
     }
   ],
   "next_cursor": "…",
-  "generated_at": "…"
+  "generated_at": "2026-09-01T23:01:05.683Z"
 }
 ```
 
-| Field | Meaning |
-|---|---|
-| `id` / `item_group_id` | Product (variant) and parent grouping ids |
-| `title` / `description` | Display copy |
-| `link` / `image_link` | Storefront product URL and primary image |
-| `availability` / `condition` | Stock + condition (`in_stock`, `new`, …) |
-| `price` | Amount + currency |
-| `brand` | Merchant/brand |
+<Note>
+  `price` is an object (`{ "value": 30, "currency": "USD" }`) in the JSON API and a single
+  string (`"30.00 USD"`) in the delimited artifacts. Normalise accordingly.
+</Note>
 
-Paginate by following `next_cursor` until it's absent. `generated_at` reflects the snapshot time.
-
-## Quick agent integration
+### Quick agent integration
 
 <CodeGroup>
 ```bash curl
-# Browse the live feed (first 3 items)
-curl -sS https://apiv3.droplinked.com/feed/acp.json | jq '.items[0:3]'
+# Peek at the JSON API without pulling the whole catalogue
+curl -sS 'https://apiv3.droplinked.com/feed/acp.json?limit=5' \
+  | jq '.items[0] | {id, title, price, brand}'
 ```
 
 ```javascript js
-// Use in your agent's product-discovery tool
-const feed = await fetch('https://apiv3.droplinked.com/feed/acp.json').then(r => r.json());
-const matching = feed.items.filter(p => p.title.toLowerCase().includes(userQuery));
-return matching.slice(0, 5).map(p => ({
-  title: p.title, price: p.price, checkout: p.link
-}));
+// Walk the cursor — one request returns one page
+let cursor, out = [];
+while (true) {
+  const url = new URL('https://apiv3.droplinked.com/feed/acp.json');
+  if (cursor) url.searchParams.set('cursor', cursor);
+  const page = await fetch(url).then(r => r.json());
+  out.push(...page.items);
+  // `next_cursor` can outlive the last populated page — stop on either signal
+  if (!page.next_cursor || page.items.length === 0) break;
+  cursor = page.next_cursor;
+}
 ```
 
 ```python python
-import requests
-feed = requests.get('https://apiv3.droplinked.com/feed/acp.json').json()
-# pipe into your agent's tool definitions
-for product in feed['items']:
-    yield {'id': product['id'], 'title': product['title'], 'url': product['link']}
+import csv, io, requests
+
+resp = requests.get('https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz')
+# S3 serves this object with `Content-Encoding: gzip`, so requests has already
+# decompressed it by the time you read `.text` — do not gunzip it a second time.
+rows = list(csv.DictReader(io.StringIO(resp.text), delimiter='\t'))
+buyable = [r for r in rows if r['is_eligible_checkout'] == 'true']
+print(len(rows), 'rows,', len(buyable), 'checkout-eligible')
 ```
 </CodeGroup>
 
 ## How it's used
 
-- **Agents & shopping surfaces** ingest the feed to make Droplinked inventory searchable and
-  buyable in-context.
-- The [MCP server](/agentic/mcp-server) lets an agent query the same catalog directly via
-  `searchProducts` / `findInventory` rather than ingesting the whole feed.
+- **Agents & shopping surfaces** ingest the delimited artifact to make Droplinked inventory
+  searchable and buyable in-context.
+- The [MCP servers](/agentic/mcp-server) let an agent query the same catalog directly —
+  `search_products` / `find_inventory` on `mcp.droplinked.com` — rather than ingesting a feed
+  at all.
 - Purchases route through the Stripe ACP / x402 layer with the 70/20/10 revenue split.
-
-## ACP-compatible surfaces
-
-- **Stripe ACP-aware agents** — Droplinked's feed is registered with Stripe's ACP partner catalog
-- **OpenAI / ChatGPT shopping surfaces** — feed URL can be added to agent tool-defs as a discovery source
-- **Visa Intelligent Commerce** (when GA) — same feed format
 
 ## Related
 
@@ -104,9 +232,15 @@ for product in feed['items']:
 <Card title="Connect your store" icon="plug" href="/agentic/connect-your-store">
   Make your existing inventory agent-shoppable.
 </Card>
+<Card title="x402 premium feed" icon="coins" href="/agentic/x402-premium-feed">
+  The paid, ranked slice of the same catalogue.
+</Card>
 </CardGroup>
 
 ## Cache + refresh
 
-- Feed regenerates on product create/edit/delete plus a short refresh cycle for inventory + price
-- For agents requiring up-to-the-second data, hit the cart/checkout endpoints in the [OpenAPI Spec](/api-reference/openapi-spec) directly
+- The feed regenerates on product create/edit/delete plus a short refresh cycle for inventory
+  and price. `generated_at` on the JSON response and the S3 `Last-Modified` header on the
+  delimited artifacts both tell you the snapshot time.
+- For agents requiring up-to-the-second data, hit the cart/checkout endpoints in the
+  [OpenAPI Spec](/api-reference/openapi-spec) directly.

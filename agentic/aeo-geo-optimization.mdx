@@ -183,8 +183,8 @@ high-traffic product pages and mark it up:
 - **Don't break URLs on rename** — if you rename the product, 301-redirect
   the old slug.
 - **Keep stock + price accurate** — engines de-rank stale catalog data. The
-  Droplinked ACP feed refreshes on every product write plus a short
-  background cycle.
+  Droplinked [ACP product feed](/agentic/acp-feed) refreshes on every product write plus a
+  short background cycle.
 
 ## Storefront-level signals
 
@@ -207,12 +207,21 @@ Validate your structured data:
   validation
 - [OpenGraph.xyz](https://www.opengraph.xyz/) — preview Open Graph cards
 
-Verify your product is in the agentic feed:
+Verify your product is in the agentic feed. Check the delimited artifact — it is the complete
+catalogue in one file and the format an ACP ingester reads (see
+[Feed formats](/agentic/overview#feed-formats)):
 
 ```bash
-curl -s "https://apiv3.droplinked.com/feed/acp.json" \
-  | jq '.items[] | select(.title | contains("Classic Beanie"))'
+curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+  | gunzip -c \
+  | awk -F'\t' 'NR==1 || index($2, "Classic Beanie")' \
+  | cut -f1,2,4,13
 ```
+
+Columns are 1-indexed: `2` is `title`, `4` is `url`, `13` is `is_eligible_checkout`. The JSON
+endpoint at `apiv3.droplinked.com/feed/acp.json` is for direct queries, not ACP ingestion, and
+it is cursor-paginated and narrower than the delimited artifact — so filtering one response can
+report a false negative for a product that is in fact listed.
 
 ## Anti-patterns
 
@@ -230,7 +239,7 @@ curl -s "https://apiv3.droplinked.com/feed/acp.json" \
 
 <CardGroup cols={2}>
   <Card title="Opt in to discovery" icon="plug" href="/agentic/get-listed-in-mcp-discovery">
-    The prerequisite — your shop has to be projecting to the ACP feed and
+    The prerequisite — your shop has to be projecting to the ACP product feed and
     MCP server first.
   </Card>
   <Card title="Attribution + commission" icon="route" href="/agentic/attribution-and-commission">

@@ -3,11 +3,21 @@ title: x402 Premium ACP Feed
 description: "How agents pay for premium Droplinked discovery feeds using the x402 HTTP micropayment protocol on Base mainnet (USDC)."
 ---
 
-The standard ACP feed at `/feed/acp.json` is open and free — every catalog item Droplinked
-exposes to agentic shoppers lives there. The **premium** feed at `/feed/acp.premium.json`
-returns a richer, ranked, agent-tuned slice of the same inventory (higher refresh cadence,
-attribution-weighted ordering, more granular merchant signals) — and it is **gated by the
-x402 HTTP 402 micropayment protocol**.
+The standard [ACP product feed](/agentic/acp-feed) is open and free — every catalog item
+Droplinked exposes to agentic shoppers lives there. The **premium** endpoint at
+`/feed/acp.premium.json` returns a richer, ranked, agent-tuned slice of the same inventory
+(higher refresh cadence, attribution-weighted ordering, more granular merchant signals) — and it
+is **gated by the x402 HTTP 402 micropayment protocol**.
+
+<Warning>
+  Like `/feed/acp.json`, this is a **JSON API, not an ACP-ingestible file**. The ACP file spec
+  accepts tab- or comma-delimited `.tsv`, `.txt`, or `.csv` and rejects JSON — so an ACP
+  ingester cannot read the premium endpoint either. Use it from your own code, and submit the
+  delimited artifact
+  (`https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz`) to ingesters. There is
+  no x402-gated delimited artifact today. Background:
+  [Feed formats](/agentic/overview#feed-formats).
+</Warning>
 
 The price is intentionally **per-call** rather than per-subscription so an autonomous agent
 can pull the feed on demand without operating a Droplinked subscription.
@@ -40,8 +50,10 @@ can pull the feed on demand without operating a Droplinked subscription.
      "asset":    "0x833589f…",
      "payTo":    "0xB2721aD7…",
      "resource": "https://apiv3.droplinked.com/feed/acp.premium.json",
-     "extra":    { "currency": "USDC" }
+     "mimeType": "application/json",
+     "extra":    { "name": "USD Coin", "version": "2", "currency": "USDC" }
    }
+   (the same challenge is mirrored base64-encoded in the `X-Payment-Required` header)
 
 2. Agent (off-protocol): signs a USDC transfer for 1,000 atomic units to `payTo`
                           on Base mainnet, gets back a payment proof.
@@ -53,6 +65,17 @@ can pull the feed on demand without operating a Droplinked subscription.
 
 The first call always returns `402` — there is no API key authentication. Every authorised
 caller is identified by a signed payment proof.
+
+`extra.name` and `extra.version` are the **EIP-712 domain** the transfer authorisation must be
+signed over. Sign against the domain the challenge gives you (`name: "USD Coin"`,
+`version: "2"`) — a signature produced over any other domain will not verify, and a plain USDC
+transfer that skips the authorisation entirely is not a payment proof.
+
+Fetch the live challenge:
+
+```bash
+curl -sS https://apiv3.droplinked.com/feed/acp.premium.json | jq .
+```
 
 ---
 
@@ -77,7 +100,7 @@ reading the [x402 protocol spec](https://x402.org).
 ## What's in the premium feed
 
 The premium feed body is shape-compatible with `/feed/acp.json` so agents that already
-consume the open feed can swap endpoints. The differences:
+consume the open JSON endpoint can swap endpoints. The differences:
 
 - **Refresh cadence**: ~5 minutes (open feed is hourly)
 - **Ranking**: attribution-weighted — merchants with verified KYB (`verifiedTier: "full"`),
@@ -127,14 +150,15 @@ no recurring bill.
 
 The trade-off is that agent wallets need USDC on Base ($0.001 per call is trivial but
 non-zero), and the protocol is younger than HTTP Basic. Both gaps are being closed by the
-broader x402 ecosystem — Storyflo's `get_premium_briefing` MCP tool uses the exact same
-facilitator and settlement pattern as a reference integration.
+broader x402 ecosystem — Storyflo's premium-briefing MCP tool uses the same facilitator and
+settlement pattern as a reference integration.
 
 ---
 
 ## Related
 
-- [ACP feed](/agentic/acp-feed) — the open, unauthenticated version
+- [ACP product feed](/agentic/acp-feed) — the open, unauthenticated version, including the
+  delimited artifacts an ACP ingester can actually read
 - [Storefront MCP discovery](/agentic/storefront-mcp-discovery) — tool-level discovery for
   agents that don't want to ingest a bulk feed
 - [Merchant Discovery Rules](/agentic/merchant-discovery-rules) — how KYB verification

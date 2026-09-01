@@ -130,17 +130,22 @@ your per-merchant MCP surface on the next page load.
     ```bash
     curl https://mcp.droplinked.com/your-shop-slug/mcp/tools
     ```
-    Returns the same tool inventory as the platform-wide [MCP server](/agentic/mcp-server),
-    pre-bound to your shop — no shop-slug argument required on every call.
+    Returns a shop-bound subset of the platform roster — `list_products`, `search_products`,
+    `get_product_attestation`, `get_merchant_info` — with no shop-slug argument required on
+    every call. The full roster lives on the platform-wide
+    [MCP server](/agentic/mcp-server); read it from `tools/list` rather than assuming the two
+    surfaces match.
   </Step>
   <Step title="Agent invokes tools">
     ```bash
-    curl -X POST https://mcp.droplinked.com/your-shop-slug/mcp/tools/search_products \
+    curl -X POST https://mcp.droplinked.com/your-shop-slug/mcp/tools/get_merchant_info \
       -H 'content-type: application/json' \
-      -d '{"query": "t-shirt"}'
+      -d '{}'
     ```
-    From here the agent runs the usual MCP loop — `search_products`, `get_product`,
-    `start_checkout` — scoped to your catalog.
+    The scoped surface is a REST shim: a plain `POST` with the tool arguments as the body — no
+    JSON-RPC envelope. From here the agent runs the usual MCP loop; for catalogue search across
+    every shop, call `search_products` on the platform-wide
+    [MCP server](/agentic/mcp-server).
   </Step>
 </Steps>
 
@@ -171,8 +176,11 @@ agents can still find your shop via:
   `merchantDiscovery.pathTemplate` an agent can substitute any shop slug into.
 - **The `find_merchant` tool** — exposed on the platform-wide [MCP server](/agentic/mcp-server),
   searchable by slug, name, or category.
-- **The ACP feed** — `https://apiv3.droplinked.com/feed/acp.json` lists every Droplinked
-  shop's catalog and is ingested by Stripe ACP and other agentic shopping surfaces.
+- **The [ACP product feed](/agentic/acp-feed)** — every Droplinked shop's catalog. Agentic
+  shopping surfaces ingest the delimited artifact at
+  `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz`; the JSON endpoint at
+  `https://apiv3.droplinked.com/feed/acp.json` is for direct queries, not ACP ingestion (see
+  [Feed formats](/agentic/overview#feed-formats)).
 
 Storefront-advertised discovery is the lowest-friction path for an agent that lands on a
 single shop; the fallbacks cover everything else.

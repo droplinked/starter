@@ -62,7 +62,8 @@ After you connect, droplinked maintains:
 
 - A read-only mirror of your catalog inside droplinked InventoryOS
 - A per-merchant MCP surface at `mcp.droplinked.com/{shop-slug}/...` (live today)
-- Inclusion in the ACP feed at `apiv3.droplinked.com/feed/acp.json`
+- Inclusion in the [ACP product feed](/agentic/acp-feed) — published both as the delimited
+  artifact an ACP ingester reads and as a JSON catalogue API
 - A Schema A brand attestation (operator-gated — see below)
 - Lender-routing recommendations via `GET /v2/lender-routing/recommend`
 - Optional affiliate-network participation with x402 settlement
@@ -155,11 +156,19 @@ After you connect, droplinked maintains:
     curl https://mcp.droplinked.com/your-shop-slug/mcp/tools
     ```
 
-    Your products in the ACP feed:
+    Your products in the ACP feed. Check the delimited artifact — it is the complete
+    catalogue in one file, and it is the format an ACP ingester reads (see
+    [Feed formats](/agentic/overview#feed-formats)):
     ```bash
-    curl -s https://apiv3.droplinked.com/feed/acp.json \
-      | jq '.items[] | select(.brand == "Your Brand Name")'
+    curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+      | gunzip -c \
+      | awk -F'\t' 'NR==1 || $8=="Your Brand Name"' \
+      | cut -f1,2,6,13
     ```
+    Columns are 1-indexed: `8` is `seller_name`, `13` is `is_eligible_checkout`. The JSON
+    endpoint at `apiv3.droplinked.com/feed/acp.json` is for direct queries, not ACP ingestion,
+    and it is both cursor-paginated and narrower than the delimited artifact — filtering a
+    single response can report a false negative.
 
     See [Storefront MCP Discovery](/agentic/storefront-mcp-discovery) for the one-line
     Shopify Liquid snippet that advertises this MCP URL from your storefront's `<head>` so

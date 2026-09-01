@@ -15,8 +15,8 @@ distribution on top of the commerce you already run.
 **MCP** is the Model Context Protocol — the open standard agents like Claude,
 ChatGPT, Cursor, and Continue use to call tools at runtime. Droplinked runs an
 MCP server that exposes your catalog as a tool surface
-(`searchProducts`, `findInventory`, `getProductDetail`, `placeOrderAgentic`,
-`getOrderReceipt`). When an AI agent answers "find me a black wool beanie under
+(`search_products`, `find_inventory`, `get_product`, `list_shop_products`,
+`start_checkout`). When an AI agent answers "find me a black wool beanie under
 $40," the agent calls those tools, your inventory appears in the results, and a
 purchase routes through the existing storefront chokepoint.
 
@@ -49,13 +49,26 @@ purchase routes through the existing storefront chokepoint.
     [Connect Shopify](/agentic/connect-shopify) walkthrough.
   </Step>
   <Step title="Verify your shop appears in the ACP feed">
+    Check the delimited artifact — it is the complete catalogue in one file, and it
+    is the format an ACP ingester actually reads (see
+    [Feed formats](/agentic/overview#feed-formats)):
+
     ```bash
-    curl -s "https://apiv3.droplinked.com/feed/acp.json" \
-      | jq '.items[] | select(.brand == "Your Brand Name") | {id, title, link, price}' \
-      | head -20
+    curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+      | gunzip -c \
+      | awk -F'\t' 'NR==1 || $8=="Your Brand Name"' \
+      | cut -f1,2,6,13
     ```
-    If items return, you are live in agentic discovery. If not, see the
-    pre-flight checklist below.
+    Columns are 1-indexed: `8` is `seller_name`, `13` is `is_eligible_checkout`.
+    If rows return, you are live in agentic discovery. If only the header comes
+    back, see the pre-flight checklist below.
+
+    <Note>
+      Do not run this check against `https://apiv3.droplinked.com/feed/acp.json`.
+      That endpoint is live and useful, but it is cursor-paginated — a single
+      request returns one page, so filtering it can report "not listed" for a shop
+      that is in fact listed.
+    </Note>
   </Step>
   <Step title="Verify the per-merchant MCP surface">
     ```bash
@@ -142,10 +155,31 @@ You can opt out at any time by un-publishing the shop or contacting support.
   Most common causes, in order:
   1. No published products — drafts don't appear
   2. All SKUs marked out of stock
-  3. The shop slug isn't matching the `brand` field — try filtering by `.link`
-     containing your storefront URL instead
+  3. The shop slug isn't matching `seller_name` — try filtering on column `9`
+     (`seller_url`) containing your storefront URL instead
   4. The feed regenerates on product write plus a short refresh cycle — wait
      5 minutes after publishing
+  5. You checked the JSON endpoint rather than the delimited artifact and only
+     saw the first page — re-run the check against `latest.tsv.gz`
+</Accordion>
+
+<Accordion title="My products are in the feed but not checkout-eligible">
+  Search eligibility and checkout eligibility are separate gates. Every row in
+  the feed is search-eligible; a row only becomes checkout-eligible once the
+  seller has published the policy URLs the ACP checkout profile requires
+  (`seller_privacy_policy`, column 14, and `seller_tos`, column 15). Column 17,
+  `checkout_ineligible_reasons`, names the exact blocker per row:
+
+  ```bash
+  curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+    | gunzip -c \
+    | awk -F'\t' 'NR>1 && $13!="true"{c[$17]++} END{for (k in c) print c[k]"\t"k}' \
+    | sort -rn
+  ```
+
+  As of 2026-09-01 the feed holds 35,655 rows and 947 are checkout-eligible; the
+  overwhelmingly dominant blocker is missing seller policy URLs, which is a
+  dashboard fix requiring no code.
 </Accordion>
 
 <Accordion title="The per-merchant MCP manifest returns 404">
