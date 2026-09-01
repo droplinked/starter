@@ -1,12 +1,13 @@
 ---
 title: 'API Status'
-description: 'Real-time droplinked API health + incident history.'
+description: 'Verified service health, agentic surfaces, and incident history.'
 ---
 
 <Note>
-  Live status badges below link directly to each service's `/health` endpoint.
-  For programmatic monitoring, hit those endpoints — they return JSON with
-  `status`, `timestamp`, and (for `apiv3`) `dbHost`.
+  Every claim on this page is reproducible with the command printed beside it.
+  Endpoint responses were verified on **2026-09-01**. This page is
+  hand-maintained — if a check below disagrees with the text, trust the check
+  and [open an issue](https://github.com/droplinked/starter/issues).
 </Note>
 
 ## Current status
@@ -14,57 +15,131 @@ description: 'Real-time droplinked API health + incident history.'
 <Card title="apiv3.droplinked.com" icon="signal" href="https://apiv3.droplinked.com/health">
   ### Operational
 
-  Public API serving `200 OK`. Mongo cluster: `droplinked-prod`. The
-  `/health` endpoint returns `{ status, timestamp, dbHost, dbName, dbMode }`.
+  Public API serving `200 OK`. `/health` returns `{ status, timestamp }`.
+
+  Earlier revisions of this page documented `dbHost`, `dbName` and `dbMode` in
+  that payload. They are **not** returned — do not code against them.
 </Card>
 
 <Card title="service.droplinked.com" icon="server" href="https://service.droplinked.com/health">
   ### Operational
 
-  3rdp integration services serving `200 OK`. PayPal partner-OAuth +
-  Stripe webhook signing both healthy. Returns the standard
+  Integration services serving `200 OK`, in the standard
   `{ statusCode, status, data: { status, timestamp } }` envelope.
 </Card>
 
 <Card title="droplinked.io storefronts" icon="store" href="https://droplinked.io">
-  ### Operational
+  ### Operational for browsers · not for crawlers
 
-  Customer-facing shops + checkout flow live. 4-PSP aggregation:
-  Stripe / PayPal / Bonum / Crypto.
+  Shops and checkout are live in a browser. The storefront is **client-rendered**:
+  a request without a JavaScript runtime receives an empty shell of roughly
+  2&nbsp;KB with no product markup.
+
+  If you are an agent, a crawler, or any non-browser client, **do not scrape the
+  storefront HTML** — use the feed artifacts or the MCP server below. Server-side
+  rendering is in progress.
 </Card>
 
-## Programmatic checks
-
-<CodeGroup>
-```bash curl
+```bash Verify all three
 curl -s https://apiv3.droplinked.com/health | jq
+curl -s https://service.droplinked.com/health | jq
+curl -s https://droplinked.io | wc -c        # ~1958 — the shell, not a product page
 ```
 
-```bash agent
-# For LLM agents — add docs.droplinked.com as an MCP server in your IDE
-# (Cursor, VS Code, Claude Desktop, Windsurf). The contextual toolbar on
-# any page in this site exposes one-click integration.
-```
-</CodeGroup>
+## Agentic surfaces
 
-The full machine-readable OpenAPI spec is published at
-`https://apiv3.droplinked.com/swagger/json`, and the Agentic Commerce
-Protocol feed at `https://apiv3.droplinked.com/feed/acp.json`.
+<Warning>
+  **`/feed/acp.json` is not an ACP-ingestible artifact.** The Agentic Commerce
+  Protocol file spec accepts tab- or comma-delimited `.tsv`, `.txt` and `.csv`,
+  optionally gzipped. It **rejects JSON, XML, RSS and Atom**.
+
+  `/feed/acp.json` is a real endpoint and a perfectly good JSON catalogue for
+  direct API consumers — it is simply not the thing an ACP ingester can read.
+  Point ingesters at the delimited artifacts below.
+</Warning>
+
+| Surface | URL | Use it for |
+| --- | --- | --- |
+| ACP feed (gzipped) | `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz` | **ACP ingestion** — start here |
+| ACP feed | `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv` | ACP ingestion, uncompressed |
+| ACP feed (JSONL) | `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.jsonl` | Line-delimited consumers |
+| JSON catalogue | `https://apiv3.droplinked.com/feed/acp.json` | Direct API use — **not** ACP ingestion |
+| Google Merchant XML | `https://apiv3.droplinked.com/feed/gmc.xml` | Shopping feeds |
+| MCP server | `https://mcp.droplinked.com/mcp` | Tool invocation |
+| Agent card | `https://droplinked.com/.well-known/agents.json` | Capability discovery |
+| Discovery document | `https://apiv3.droplinked.com/llms.txt` | Everything above, machine-readable |
+| OpenAPI | `https://apiv3.droplinked.com/swagger/json` | Client generation |
+
+```bash Confirm the feed is fresh and ingestible
+curl -sI https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+  | grep -i 'last-modified\|content-length'
+
+# Rows an agent can actually buy today
+curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz | gzip -dc \
+  | awk -F'\t' 'NR>1 && $13=="true"' | wc -l
+```
+
+<Note>
+  **Checkout eligibility is per row.** A product appearing in the feed is
+  discoverable; it is purchasable only when `is_eligible_checkout` is `true`.
+  Rows carry a `checkout_ineligible_reasons` column stating exactly what is
+  missing — most commonly a seller privacy-policy or terms-of-service URL.
+  Read that column rather than inferring.
+</Note>
+
+### Tool discovery over MCP
+
+```bash
+curl -s -X POST https://mcp.droplinked.com/mcp \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+The read tier — catalogue search, product detail, shop and merchant lookup — is
+callable **anonymously**. Cart, order and settlement tools require credentials.
+Tool names are `snake_case`; a camelCase name returns `401 -32001` because no
+such tool is advertised, not because you are unauthorised.
+
+## Payments
+
+Checkout aggregates multiple providers behind one flow. Integrators choose a
+payment **method category** — card, wallet, bank transfer, regional
+mobile-money, or stablecoin — and droplinked routes to an available provider for
+the shop's region and product type. Provider availability varies by market and
+changes without notice, so resolve it at request time through the checkout
+intent endpoint rather than hard-coding a provider.
+
+droplinked forwards captured order information; the provider collects card data
+and authorises on their own hosted page.
 
 ## Incident history
 
 <Note>
-  No active incidents. Subscribe to the status feed (coming soon) for
-  email notifications.
+  No active incidents.
 </Note>
 
-| Date       | Service       | Impact                                                          | Resolution                                                                |
-| ---------- | ------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| 2026-05-29 | apiv3 prod    | KMS payout settlement degraded (≈12 errors/h on startup)        | Resolved — env-shadow + DER decode fixes (droplinked-backend #1403 / #1417 / #1421) |
-| 2026-05-28 | apiv3 prod    | Stripe checkout 401 on canonical Stripe account                 | Resolved — wired `STRIPE_RECONCILE_KEY` through (droplinked-backend #1369) |
+| Date       | Service    | Impact                                                   | Resolution                                                                          |
+| ---------- | ---------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 2026-05-29 | apiv3 prod | KMS payout settlement degraded (≈12 errors/h on startup) | Resolved — env-shadow + DER decode fixes (droplinked-backend #1403 / #1417 / #1421) |
+| 2026-05-28 | apiv3 prod | Stripe checkout 401 on canonical Stripe account          | Resolved — wired `STRIPE_RECONCILE_KEY` through (droplinked-backend #1369)           |
+
+## Known limitations
+
+Stated here because you will hit them, and because finding them yourself is
+worse than reading them:
+
+- **Storefront HTML is client-rendered.** Non-browser clients get an empty
+  shell. Use the feed or MCP.
+- **`gtin` is sparse.** It is absent on first-party inventory and present on
+  roughly two thirds of syndicated rows. Do not treat it as a join key.
+- **`mpn` is not currently a reliable manufacturer part number** on first-party
+  rows. Do not match on it.
+- **Most feed rows are not checkout-eligible yet.** Read
+  `checkout_ineligible_reasons` rather than assuming a discoverable product is
+  purchasable.
 
 ## SLA
 
-This is a beta API. No formal SLA — best-effort `99%` uptime is targeted.
-For production-critical integrations, embed health checks in your client
-and alert when `/health` returns 5xx for 3+ consecutive checks.
+This is a beta API. No formal SLA — best-effort `99%` uptime is targeted. For
+production-critical integrations, embed health checks in your client and alert
+when `/health` returns 5xx for 3+ consecutive checks.
