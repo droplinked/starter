@@ -32,8 +32,9 @@ description: 'Verified service health, agentic surfaces, and incident history.'
   ### Operational for browsers · not for crawlers
 
   Shops and checkout are live in a browser. The storefront is **client-rendered**:
-  a request without a JavaScript runtime receives an empty shell of roughly
-  2&nbsp;KB with no product markup.
+  a request without a JavaScript runtime receives a shell of roughly 1–2&nbsp;KB
+  (the exact size varies with user-agent and redirects) containing **no product
+  markup at all** — zero `<h1>` and zero `<title>` elements.
 
   If you are an agent, a crawler, or any non-browser client, **do not scrape the
   storefront HTML** — use the feed artifacts or the MCP server below. Server-side
@@ -43,7 +44,8 @@ description: 'Verified service health, agentic surfaces, and incident history.'
 ```bash Verify all three
 curl -s https://apiv3.droplinked.com/health | jq
 curl -s https://service.droplinked.com/health | jq
-curl -s https://droplinked.io | wc -c        # ~1958 — the shell, not a product page
+curl -s https://droplinked.io | wc -c            # ~920 bare, ~1959 with a browser UA
+curl -s https://droplinked.io | grep -c '<h1'    # 0 — no product markup either way
 ```
 
 ## Agentic surfaces
@@ -92,8 +94,16 @@ curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz | gzi
 ```bash
 curl -s -X POST https://mcp.droplinked.com/mcp \
   -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
+
+<Warning>
+  The `accept` header is required and both media types must be present.
+  Omitting it returns `-32000 Not Acceptable: Client must accept both
+  application/json and text/event-stream`, which is easy to misread as an
+  auth or availability problem. It is neither.
+</Warning>
 
 The read tier — catalogue search, product detail, shop and merchant lookup — is
 callable **anonymously**. Cart, order and settlement tools require credentials.
