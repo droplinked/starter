@@ -28,24 +28,38 @@ description: 'Verified service health, agentic surfaces, and incident history.'
   `{ statusCode, status, data: { status, timestamp } }` envelope.
 </Card>
 
-<Card title="droplinked.io storefronts" icon="store" href="https://droplinked.io">
-  ### Operational for browsers · not for crawlers
+<Card title="shop.droplinked.com storefronts" icon="store" href="https://shop.droplinked.com">
+  ### Operational — and server-rendered
 
-  Shops and checkout are live in a browser. The storefront is **client-rendered**:
-  a request without a JavaScript runtime receives a shell of roughly 1–2&nbsp;KB
-  (the exact size varies with user-agent and redirects) containing **no product
-  markup at all** — zero `<h1>` and zero `<title>` elements.
+  Merchant storefronts are **server-rendered**. A request with no JavaScript
+  runtime receives complete product markup: `<title>`, `<h1>`, price,
+  availability, and `Product` JSON-LD.
 
-  If you are an agent, a crawler, or any non-browser client, **do not scrape the
-  storefront HTML** — use the feed artifacts or the MCP server below. Server-side
-  rendering is in progress.
+  **Every product URL in the feed points here.** Of 35,655 feed rows, 23,025
+  resolve to `shop.droplinked.com` and 12,630 to `apiv3.droplinked.com`
+  affiliate redirects. Scraping these pages works.
+</Card>
+
+<Card title="droplinked.io" icon="browser" href="https://droplinked.io">
+  ### Browser-only — do not scrape
+
+  A separate client-rendered app. It carries **no feed product URLs**, and a
+  non-browser client receives an app shell with no product markup.
+
+  If you are an agent or crawler, use `shop.droplinked.com`, the feed
+  artifacts, or the MCP server. Note that a default `curl` user-agent receives
+  an HTTP&nbsp;403 from the WAF here — a 403 body is not the storefront, and
+  measuring one is an easy way to reach a wrong conclusion about rendering.
 </Card>
 
 ```bash Verify all three
 curl -s https://apiv3.droplinked.com/health | jq
 curl -s https://service.droplinked.com/health | jq
-curl -s https://droplinked.io | wc -c            # ~920 bare, ~1959 with a browser UA
-curl -s https://droplinked.io | grep -c '<h1'    # 0 — no product markup either way
+# a real feed product URL, no JavaScript runtime
+curl -s "$(curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+  | gzip -dc | awk -F'\t' 'NR==2{print $4}')" | grep -c '<h1'          # 1
+# ...and structured data an agent can parse
+curl -s "<that same URL>" | grep -c 'application/ld+json'               # >= 1
 ```
 
 ## Agentic surfaces
@@ -138,8 +152,10 @@ and authorises on their own hosted page.
 Stated here because you will hit them, and because finding them yourself is
 worse than reading them:
 
-- **Storefront HTML is client-rendered.** Non-browser clients get an empty
-  shell. Use the feed or MCP.
+- **Use `shop.droplinked.com`, not `droplinked.io`.** Feed product URLs point
+  at the former, which is server-rendered. The latter is a separate
+  browser-only app carrying no feed URLs, and it returns HTTP 403 to a default
+  `curl` user-agent.
 - **`gtin` is sparse.** It is absent on first-party inventory and present on
   roughly two thirds of syndicated rows. Do not treat it as a join key.
 - **`mpn` is not currently a reliable manufacturer part number** on first-party
