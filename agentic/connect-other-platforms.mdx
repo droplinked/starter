@@ -5,7 +5,7 @@ description: "Plug WooCommerce, BigCommerce, Magento 2.x, or a custom storefront
 
 The [Shopify connector pattern](/agentic/connect-shopify) generalizes. Any platform that can emit webhooks on catalog + order events — WooCommerce, BigCommerce, Magento, or a custom Next.js / React / Express / Rails / Django storefront — can plug into [InventoryOS](/concepts/inventory-os) using the same webhook-receiver + signing-validation shape.
 
-This page walks through the per-platform webhook setup for the four most-requested origin platforms beyond Shopify. The droplinked side is identical in each case: one normalized catalog mirror, one per-merchant MCP surface, one ACP feed entry, one lender-routing eligibility.
+This page walks through the per-platform webhook setup for the four most-requested origin platforms beyond Shopify. The droplinked side is identical in each case: one normalized catalog mirror, one per-merchant MCP surface, one [ACP product feed](/agentic/acp-feed) entry, one lender-routing eligibility.
 
 ## Platform-specific integration
 
@@ -130,7 +130,10 @@ A failed signature check rejects the webhook with `401 Unauthorized` — no part
 The droplinked-side surfaces every connector unlocks are identical to what [Shopify merchants](/agentic/connect-shopify) get:
 
 - **Agent-shoppable distribution** via your per-merchant MCP at `mcp.droplinked.com/{shop-slug}/...`
-- **ACP feed inclusion** at `apiv3.droplinked.com/feed/acp.json`
+- **ACP feed inclusion** — your catalog lands in the delimited artifact an ACP ingester reads,
+  `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz`, and in the JSON
+  catalogue API at `apiv3.droplinked.com/feed/acp.json` for direct queries. The two are not
+  interchangeable — see [Feed formats](/agentic/overview#feed-formats)
 - **Lender-routing eligibility** via the [LenderRegistry](/api-reference/public/lender-registry) + [recommendation endpoint](/api-reference/public/lender-routing)
 - **Brand attestation** (Schema A) — operator-gated, makes your brand cryptographically verifiable to agents and verifiers
 - **Built-in affiliate network** with x402 settlement on the 70/20/10 split

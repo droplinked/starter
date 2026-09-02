@@ -1,6 +1,6 @@
 ---
 title: Agentic Commerce
-description: "Make a merchant's existing inventory shoppable by AI agents — MCP, the Stripe ACP feed, and x402 micropayments."
+description: "Make a merchant's existing inventory shoppable by AI agents — MCP, the Stripe ACP product feed, and x402 micropayments."
 ---
 
 Droplinked meets merchants **where they already publish their inventory** and projects it into
@@ -10,15 +10,15 @@ start a purchase, and route affiliate revenue, without the merchant rebuilding a
 ## Building blocks
 
 <CardGroup cols={3}>
-  <Card title="MCP server" icon="plug">
-    The Droplinked backend serves a 25-tool Model Context Protocol surface over HTTP — catalog
-    search, cart composition, order placement, refunds, and trust-fabric reads. Discover it at
+  <Card title="MCP servers" icon="plug">
+    Droplinked serves a Model Context Protocol surface over HTTP — catalog search, cart
+    composition, order placement, refunds, and trust-fabric reads. Discover it at
     `/.well-known/mcp.json` and call it from any MCP client.
   </Card>
-  <Card title="ACP feed" icon="rss">
-    A Stripe **Agentic Commerce Protocol** product feed at
-    `https://apiv3.droplinked.com/feed/acp.json` — the inventory surface agentic shopping
-    consumes.
+  <Card title="ACP product feed" icon="rss">
+    A **Stripe Agentic Commerce Protocol** catalogue, published as ACP-ingestible delimited
+    files *and* as a JSON API. Pick the right one — see
+    [Feed formats](#feed-formats).
   </Card>
   <Card title="x402 micropayments" icon="coins">
     Pay-per-call settlement + the 70/20/10 affiliate revenue split, so agents (and the
@@ -26,33 +26,111 @@ start a purchase, and route affiliate revenue, without the merchant rebuilding a
   </Card>
 </CardGroup>
 
+## Feed formats
+
+<Warning>
+  The ACP file spec accepts **tab- or comma-delimited `.tsv`, `.txt`, or `.csv`**, optionally
+  gzipped. It **rejects JSON, XML, RSS, and Atom**. An ACP ingester pointed at a `.json` URL
+  cannot read it — so the artifact you submit to an ACP ingester is always a delimited file.
+</Warning>
+
+| Purpose | Artifact |
+|---|---|
+| **ACP ingestion — start here** | `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz` |
+| ACP ingestion, uncompressed | `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv` |
+| Line-delimited (NDJSON) consumers | `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.jsonl` |
+| Direct JSON API use — **not** ACP ingestion | `https://apiv3.droplinked.com/feed/acp.json` |
+
+`https://apiv3.droplinked.com/feed/acp.json` is a live, supported endpoint and the right tool
+when *you* are querying the catalogue — a `jq` lookup, a fetch inside an agent tool, a one-off
+check. Two things it is not: a file an ACP ingester can parse, and a complete mirror of the
+delimited artifact. It is cursor-paginated (one request returns one page) and, measured
+2026-09-01, it serves only the `native` supply source — the delimited artifact additionally
+carries the `impact_brand` supply source. Point ingesters at the delimited artifact.
+
+The three delimited artifacts are built by the same pipeline from the same rows:
+
+```bash
+curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+  | gunzip -c \
+  | awk -F'\t' 'NR>1{n++} NR>1 && $13=="true"{e++} END{print n" rows, "e" checkout-eligible"}'
+# 35655 rows, 947 checkout-eligible   (measured 2026-09-01)
+```
+
+Full column reference and the JSON response shape: [Product Feed (ACP)](/agentic/acp-feed).
+
 ## MCP tools
 
-The MCP server exposes **25 tools** spanning catalog discovery, cart + order, merchant
-discovery, and trust + financing. A few of the most-used:
+There are two discoverable MCP surfaces with **different tool vocabularies**. Read the
+discovery doc rather than hard-coding names — it is the source of truth.
+
+| Surface | Discovery doc | Tools advertised | Naming |
+|---|---|---|---|
+| Platform MCP — `mcp.droplinked.com` | `GET /.well-known/mcp.json` | **38** | `snake_case`, plus a dotted `cart.*` namespace |
+| Backend MCP — `apiv3.droplinked.com` | `GET /.well-known/mcp.json` | **11** | `camelCase` |
+
+Counts measured 2026-09-01. A few of the platform-MCP tools:
 
 | Tool | Purpose |
 |---|---|
-| `searchProducts` | Free-text search across the public Droplinked catalog |
-| `findInventory` | SKU-availability-aware multi-source query (native + live `impact_brand`) for cart composition + multi-brand discovery |
-| `getProductDetail` | Full product detail for a `shopUrl` + `productSlug` |
-| `placeOrderAgentic` | Compose an order and optionally resolve the payment-intent in one call |
-| `recordAgenticIntent` | Log an external agent's intent against an opted-in merchant (feeds attribution) |
+| `search_products` | Free-text search across the public Droplinked catalog |
+| `find_inventory` | SKU-level discovery across every connected catalog source, for cart composition |
+| `get_product` | Full public detail for a single product — variants, SKUs, media, shop info |
+| `start_checkout` | Begin an agent-initiated checkout for a SKU (write tier — needs a key) |
+| `get_feed` | Returns a pointer to the ACP product feed plus its version metadata |
 
-Tools are served over HTTP at `https://apiv3.droplinked.com` (`/mcp/v1/tools/{list,call}`),
-accept both a flat body and a JSON-RPC 2.0 envelope, and are discoverable from
-`/.well-known/mcp.json`. See [Inventory MCP](/agentic/inventory-mcp) for the full roster and
-[MCP Server](/agentic/mcp-server) for the transport.
+<Warning>
+  Every JSON-RPC request to `https://mcp.droplinked.com/mcp` must accept **both** media types:
+  `accept: application/json, text/event-stream`. Send only one and the server replies `406`
+  with JSON-RPC error `-32000 Not Acceptable`.
+</Warning>
+
+```bash
+curl -sS -X POST https://mcp.droplinked.com/mcp \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+  | jq '.result.tools | length'
+# 38
+```
+
+The read tier is callable anonymously — no key, no account:
+
+```bash
+curl -sS -X POST https://mcp.droplinked.com/mcp \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_products","arguments":{"query":"hoodie","limit":3}}}'
+```
+
+<Note>
+  Treat the URLs in [Feed formats](#feed-formats) as canonical for the feed. The pointer
+  returned by the `get_feed` tool is not a substitute for them — resolve feed URLs from this
+  page.
+</Note>
+
+Getting the case wrong looks like an auth failure, not a typo: calling `searchProducts` on the
+platform MCP returns `401` with `-32001 unauthorized — missing or invalid X-MCP-API-Key`,
+because no tool by that name is advertised and the request falls through to the write-tier
+check. Use the exact names from `tools/list`.
+
+The backend MCP is reachable over its own REST shim at
+`https://apiv3.droplinked.com/mcp/v1/tools/{list,call}` (public), accepts both a flat body and a
+JSON-RPC 2.0 envelope, and is discoverable from `/.well-known/mcp.json`. See
+[Inventory MCP](/agentic/inventory-mcp) for the full roster and [MCP Server](/agentic/mcp-server)
+for the transport.
 
 ## The merchant story
 
 A merchant who already sells on Droplinked (or connects an existing store) gets agentic
-distribution for free: their catalog is published to the ACP feed and the MCP server, agents
+distribution for free: their catalog is published to the ACP feed and the MCP servers, agents
 surface it to buyers, and the affiliate engine attributes and splits the revenue. This is the
 on-chain, agent-native distribution layer on top of the standard [commerce APIs](/api-reference/introduction).
 
-<Note>This section is being expanded with end-to-end integration guides (install the MCP server,
-register your inventory to the ACP feed, and close the agent purchase loop).</Note>
+<Note>Search eligibility and checkout eligibility are separate gates. Every row is
+search-eligible; a row only becomes checkout-eligible once its seller has published the
+policy URLs the ACP checkout profile requires. See
+[Get listed in MCP discovery](/agentic/get-listed-in-mcp-discovery#troubleshooting).</Note>
 
 ## Integration shortcuts
 
@@ -63,7 +141,8 @@ This docs site exposes several agent-friendly entry points out of the box:
 | `llms.txt` | `https://docs.droplinked.com/llms.txt` | Compact index of every page in this site, for LLM context loading |
 | `llms-full.txt` | `https://docs.droplinked.com/llms-full.txt` | Full Markdown corpus for retrieval/embedding |
 | OpenAPI spec | `https://apiv3.droplinked.com/swagger/json` | Machine-readable spec backing the API Reference tab |
-| ACP feed | `https://apiv3.droplinked.com/feed/acp.json` | Stripe Agentic Commerce Protocol product feed |
+| ACP feed (ingestible) | `https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz` | The delimited artifact to hand an ACP ingester |
+| ACP catalogue (JSON API) | `https://apiv3.droplinked.com/feed/acp.json` | Cursor-paginated JSON for direct queries — not ACP ingestion |
 | `/health` | `https://apiv3.droplinked.com/health` | JSON health for the public API (see the [API Status page](/api-reference/status)) |
 
 Every page in this site also surfaces a **contextual toolbar** with one-click

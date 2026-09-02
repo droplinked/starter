@@ -130,7 +130,7 @@ The same order event also feeds the **Schema C repayment-history attestation** w
 Downstream droplinked-side surfaces never query the origin platform directly — they read from the InventoryOS mirror. This keeps the read path uniform regardless of origin and shields the origin's rate budget from agent traffic.
 
 - **Per-merchant MCP tools** — `search_products`, `get_product`, `list_shop_products`, `start_checkout` all read from the merchant's InventoryOS slice scoped to their `shopSlug`
-- **ACP feed builder** — the nightly + on-update build of `apiv3.droplinked.com/feed/acp.json` pages through every connected merchant's InventoryOS catalog and emits a normalized ACP item per variant
+- **[ACP product feed](/agentic/acp-feed) builder** — the nightly + on-update build pages through every connected merchant's InventoryOS catalog and emits a normalized ACP item per variant, published as the delimited artifacts an ACP ingester reads (`acp/latest.tsv.gz`, `.tsv`, `.jsonl`) and as the JSON catalogue API at `apiv3.droplinked.com/feed/acp.json`
 - **Lender-routing recommendation** — `GET /v2/lender-routing/recommend` reads the merchant's InventoryOS activity (revenue volume, channel mix, repayment streak) to weight lender ordering
 - **Underwriting signals** — `GET /v2/underwriting-signals/:merchantId` composes Schema B + Schema C reads from the trust-fabric pointers stored on the InventoryOS record
 - **Affiliate attribution** — order events carry the `buyer-source` tag forward, and the affiliate-network worker reads order events from InventoryOS to settle x402 payouts

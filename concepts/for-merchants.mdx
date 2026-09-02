@@ -57,7 +57,7 @@ what stays private, and what you explicitly **don't** have to build yourself.
 ```mermaid
 flowchart TD
     A["Your catalog<br/>(physical / digital / POD / in-store)"] --> B["droplinked"]
-    B --> C["ACP feed<br/>(apiv3.droplinked.com/feed/acp.json)"]
+    B --> C["ACP product feed<br/>(delimited artifact for ingesters<br/>+ JSON API for direct queries)"]
     B --> D["Per-merchant MCP<br/>(mcp.droplinked.com/{slug}/...)"]
     C --> E["Agent shopping surfaces<br/>(ChatGPT / Claude / Cursor)"]
     D --> E
@@ -87,13 +87,21 @@ or new partner — can reconstruct the full trajectory without trusting droplink
     Confirm your catalog is flowing into the agent-discoverable surfaces.
 
     ```bash
-    # ACP feed entry for your shop
-    curl -s "https://apiv3.droplinked.com/feed/acp.json" \
-      | jq '.[] | select(.shop_slug == "your-shop-slug")'
+    # ACP feed rows for your shop — the delimited artifact is the complete
+    # catalogue in one file, and the format an ACP ingester reads
+    curl -s https://droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz \
+      | gunzip -c \
+      | awk -F'\t' 'NR==1 || $9 ~ /your-shop-slug/' \
+      | cut -f1,2,6,13
 
     # Per-merchant MCP manifest
-    curl -s "https://mcp.droplinked.com/your-shop-slug/manifest.json"
+    curl -s "https://mcp.droplinked.com/your-shop-slug/manifest"
     ```
+
+    Feed columns are 1-indexed: `9` is `seller_url`, `13` is `is_eligible_checkout`. The JSON
+    endpoint at `apiv3.droplinked.com/feed/acp.json` is for direct queries only — it is
+    cursor-paginated, narrower than the delimited artifact, and not ACP-ingestible. See
+    [Feed formats](/agentic/overview#feed-formats).
 
     If you run a custom storefront, add the
     [`<meta name="mcp-url">` advertisement tag](/agentic/storefront-mcp-discovery)
@@ -182,7 +190,7 @@ Agent shopping isn't a future surface. It's already live:
 | Surface | Endpoint | What agents do here |
 |---|---|---|
 | Per-merchant MCP | `mcp.droplinked.com/{your-shop-slug}/...` | Inventory queries, cart construction, checkout intent creation |
-| ACP feed | `apiv3.droplinked.com/feed/acp.json` | Catalog-wide discovery for shopping agents |
+| ACP product feed | `droplinked-public-feeds.s3.amazonaws.com/acp/latest.tsv.gz` (ingestible) · `apiv3.droplinked.com/feed/acp.json` (JSON API) | Catalog-wide discovery for shopping agents |
 | Storefront advertisement | `<meta name="mcp-url">` in your custom storefront `<head>` | Auto-discovery for agents browsing your domain |
 
 See [Storefront MCP Discovery](/agentic/storefront-mcp-discovery) for the
